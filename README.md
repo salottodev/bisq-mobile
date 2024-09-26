@@ -1,4 +1,32 @@
-# Kotlin Multiplatform app template
+# Bisq Mobile
+
+This private project is (hopefully) the kick start project for the new comprehensive Bisq Mobile App.
+
+The selected technology to build it from is Kotlin MultiPlatform
+
+This project is a playground to start a POC with the following goals
+
+- Focus on Android first
+- Have a general look and feel native to Android and respectful of Bisq2
+- Able to connect to Bisq Network using clearnet and/or Tor
+
+For more info please refer to [Bisq Mobile Discussions](https://github.com/bisq-network/bisq2/discussions/2665)
+
+## Why KMP
+
+- Native Performance
+- Allows us to focus on the "easiest" platform first (Because of Apple restrictions on Tor and networking in general),
+  being able to reusing much of the effort when we turn into iOS
+- Flexibility without the security/privacy concerns of its competitors
+- JVM language allows us to port much of the optimised Bisq code already existing in the Desktop apps
+
+For a reference to the sample code used to kickstart this POC, see below
+
+## App Designs
+
+// TODO
+
+## Kotlin Multiplatform app template
 
 [![official project](http://jb.gg/badges/official.svg)](https://confluence.jetbrains.com/display/ALL/JetBrains+on+GitHub)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -28,7 +56,8 @@ The app uses the following multiplatform dependencies in its implementation:
 - [KMP-NativeCoroutines](https://github.com/rickclephas/KMP-NativeCoroutines)
 
 > These are just some of the possible libraries to use for these tasks with Kotlin Multiplatform, and their usage here
-> isn't a strong recommendation for these specific libraries over the available alternatives. You can find a wide variety
+> isn't a strong recommendation for these specific libraries over the available alternatives. You can find a wide
+> variety
 > of curated multiplatform libraries in the [kmp-awesome](https://github.com/terrakok/kmp-awesome) repository.
 
 And the following Android-specific dependencies:
