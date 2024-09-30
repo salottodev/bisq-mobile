@@ -26,6 +26,7 @@ replay_pid*
 .kotlin
 .gradle
 **/build/
+**/target/
 xcuserdata
 !src/**/build/
 local.properties
