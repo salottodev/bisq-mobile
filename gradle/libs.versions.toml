@@ -1,5 +1,6 @@
 [versions]
-agp = "8.6.0"
+# max tested agp at the time - iOS won't build on higher versions
+agp = "8.5.0"
 androidx-activityCompose = "1.9.2"
 androidx-navigationCompose = "2.7.7"
 androidx-ui-tooling = "1.7.0"
