@@ -29,7 +29,7 @@ For more info please refer to [Bisq Mobile Discussions](https://github.com/bisq-
 
 ## Contribute
 
- - Java 22.0.2.fx-zulu
+ - Java 11.0.24.fx-zulu
  - IntelliJ Idea (you can use other IDEs according to docs, but found that it only works with Intellij)
  - You can code and test in CodenameOne Java emulator (see Intellij run config "Run in Simulator")
  - Once you are happy and want to test in the actual platforms, use the run config 
