@@ -21,7 +21,7 @@ For more info please refer to [Bisq Mobile Discussions](https://github.com/bisq-
 
  - [ Y ] Validate CodenameOne to create Android builds from the same Java sourcecode.
  - ~~[ - ] Validate CodenameOne framework to create iOS builds from the same Java sourcecode.~~
- - [ - ] Validate LOCAL Android Builds
+ - [ Y ] Validate LOCAL Android Builds
  - [ Y ] Validate LOCAL iOS builds
  - [ - ] Test including one of Bisq2 modules into an app
 
@@ -36,13 +36,21 @@ For more info please refer to [Bisq Mobile Discussions](https://github.com/bisq-
    - **Android**: Local Builds -> Gradle Android Project
    - **iOS**: Local Builds -> XCode iOS Project
  - This will generate the corresponding updated project in the platform /target dir. If you have the IDE installed and ready it will also launch it.
- - Then build freom the IDE as you normally would.
+ - Then build from the IDE as you normally would.
 
 ### Android Build
 
  - Java 17.0.12.fx-zulu
  - Android Studio or Intellij with Android plugin
  - Android SDK and virtual or real device
+ - The generated Android Gradle project users gradle 8.11 which is not supported on modern Android Studio. You will need to
+manually change
+   - gradle wrapper version to 8.5 (Android studio can do this automatically by clicking a link hint)
+   - Android build.gradle classpath 'com.android.tools.build:gradle:8.1.4'
+   - remove the duplicated classpath on app/build.gradle
+   - add `namespace "network.bisq.mobile"` to android {} config in root build.gradle
+   - move the generated app/build.gradle into the root /build.gradle file
+   - rebuild and  you should be able to run the project :) 
 
 **Note**: we have found that build would hang on Apple CPUs Macbook's. Linux System is recommended to build Android.
 
