@@ -43,14 +43,14 @@ For more info please refer to [Bisq Mobile Discussions](https://github.com/bisq-
  - Java 17.0.12.fx-zulu
  - Android Studio or Intellij with Android plugin
  - Android SDK and virtual or real device
- - The generated Android Gradle project users gradle 8.11 which is not supported on modern Android Studio. You will need to
-manually change
+ - The generated Android Gradle project users gradle 8.11, depending on your Android studio setup you might
+need to adapt your project as follows:
    - gradle wrapper version to 8.5 (Android studio can do this automatically by clicking a link hint)
    - Android build.gradle classpath 'com.android.tools.build:gradle:8.1.4'
    - remove the duplicated classpath on app/build.gradle
    - add `namespace "network.bisq.mobile"` to android {} config in root build.gradle
    - move the generated app/build.gradle into the root /build.gradle file
-   - rebuild and  you should be able to run the project :) 
+ - rebuild and  you should be able to run the project :) 
 
 **Note**: we have found that build would hang on Apple CPUs Macbook's. Linux System is recommended to build Android.
 

@@ -19,7 +19,12 @@
 <module>common</module>
 </modules>
   <properties>
-    <cn1.plugin.version>7.0.86</cn1.plugin.version>
+<!--  Keeping version that always works for Android project generation  -->
+<!--    <cn1.plugin.version>7.0.86</cn1.plugin.version>-->
+    <!--  Keeping version that always works for iOS project generation  -->
+    <!--    <cn1.plugin.version>7.0.162</cn1.plugin.version>-->
+<!--  Using Android SDK 34 seems to work with this version, it does work straight with  -->
+    <cn1.plugin.version>7.0.162</cn1.plugin.version>
     <cn1.version>LATEST</cn1.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <java.version>1.8</java.version>
