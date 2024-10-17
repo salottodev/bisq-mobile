@@ -22,14 +22,14 @@ kotlin {
     iosSimulatorArm64()
 
     cocoapods {
-        summary = "Some description for the Shared Module"
+        summary = "Some description for the Shared Module "
         homepage = "Link to the Shared Module homepage"
         version = "0.0.1"
         ios.deploymentTarget = "16.0"
         podfile = project.file("../iosClient/Podfile")
         framework {
             baseName = "sharedUI"
-            isStatic = true
+            isStatic = false
         }
     }
 

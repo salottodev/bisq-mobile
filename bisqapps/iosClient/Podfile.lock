@@ -1,16 +1,21 @@
 PODS:
   - shared (1.0)
+  - sharedUI (0.0.1)
 
 DEPENDENCIES:
   - shared (from `../shared`)
+  - sharedUI (from `../sharedUI`)
 
 EXTERNAL SOURCES:
   shared:
     :path: "../shared"
+  sharedUI:
+    :path: "../sharedUI"
 
 SPEC CHECKSUMS:
   shared: 96c066cfd2b0eab0963c51fee6cb6673e8cbba1a
+  sharedUI: 058c74e74a83fd99e654e45b4aba9ea4bb88b4cd
 
-PODFILE CHECKSUM: 74565f7c228dcc0b9b8d9f031fca7e18d385c32e
+PODFILE CHECKSUM: e3bdebfb76fb81106192a1785aba6ceaf1b6dc1f
 
 COCOAPODS: 1.15.2

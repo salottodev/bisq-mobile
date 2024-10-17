@@ -22,8 +22,8 @@ kotlin {
         iosSimulatorArm64()
     ).forEach { iosTarget ->
         iosTarget.binaries.framework {
-            baseName = "ComposeApp"
-            isStatic = true
+            baseName = "AndroidClient"
+            isStatic = false
         }
     }
     
@@ -67,7 +67,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":shared"))
+//    implementation(project(":shared"))
     implementation(project(":sharedUI"))
     debugImplementation(compose.uiTooling)
 }

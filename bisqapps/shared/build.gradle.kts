@@ -24,10 +24,10 @@ kotlin {
         podfile = project.file("../iosClient/Podfile")
         framework {
             baseName = "shared"
-            isStatic = true
+            isStatic = false
         }
     }
-    
+
     sourceSets {
         commonMain.dependencies {
             //put your multiplatform dependencies here
