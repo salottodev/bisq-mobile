@@ -15,7 +15,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "BisqApps"
-include(":androidClient")
-// TODO WIP
-//include(":androidNode")
 include(":shared")
+include(":sharedUI")
+include(":androidClient")
+include(":androidNode")

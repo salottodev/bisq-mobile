@@ -1,4 +1,3 @@
-import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -14,17 +13,6 @@ kotlin {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
-        }
-    }
-
-    listOf(
-        iosX64(),
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
-            baseName = "ComposeApp"
-            isStatic = true
         }
     }
 
@@ -64,8 +52,7 @@ android {
 }
 
 dependencies {
-    // TODO will need a sharedUI module instead of imeplementing the existing androidClient
-    implementation(project(":androidClient"))
+    implementation(project(":sharedUI"))
     implementation(project(":shared"))
     debugImplementation(compose.uiTooling)
 }

@@ -13,8 +13,8 @@ import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-import bisqapps.androidclient.generated.resources.Res
-import bisqapps.androidclient.generated.resources.compose_multiplatform
+import bisqapps.sharedui.generated.resources.Res
+import bisqapps.sharedui.generated.resources.compose_multiplatform
 
 @Composable
 @Preview
