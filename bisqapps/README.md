@@ -11,6 +11,17 @@ easier for both, experienced and newcomers, to trade Bitcoin in a decentralized 
 
 ## How to contribute
 
+### Project dev requirements
+
+ - Java: 17.0.12.fx-zulu JDK (sdkman env file is avail in project root)
+ - Ruby: v3+ (for iOS Cocoapods 1.15+)
+ - IDE: We use and recommend Fleet, but you may as well use the IDE of your preference. For iOS testing you will need XCode.
+
+### Set Env known issues
+
+ - Some Apple M chips have trouble with cocoapods, follow [this guide](https://stackoverflow.com/questions/64901180/how-to-run-cocoapods-on-apple-silicon-m1/66556339#66556339) to fix it
+ -
+
 # TODO
 
 ## Why KMP
