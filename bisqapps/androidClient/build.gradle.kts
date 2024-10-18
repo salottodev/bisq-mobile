@@ -36,6 +36,9 @@ kotlin {
         androidUnitTest.dependencies {
             implementation(libs.kotlin.test)
         }
+        iosMain.dependencies {
+            implementation(compose.runtime)
+        }
     }
 }
 
