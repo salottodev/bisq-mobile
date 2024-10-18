@@ -1,3 +1,4 @@
 {
-    "xcodebuild.credentials.provider": "Xcode"
+    "xcodebuild.credentials.provider": "Xcode",
+    "run.destination.stop.already.running": "Always"
 }

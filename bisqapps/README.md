@@ -4,12 +4,17 @@
 
 # Bisq Mobile
 
-This project aims to make Bisq Network accesible in Mobile Platforms following the philosofy of Bisq2 - to make it
-easier for both, experienced and newcomers, to trade Bitcoin in a decentralized way.
+## Goal
 
-# TODO
+This project aims to make Bisq Network accesible in Mobile Platforms following the philosofy of [Bisq2](https://github.com/bisq-network/bisq2/contribute) - to make it
+easier for both, experienced and newcomers, to trade Bitcoin in a decentralized way as well as defending Bisq motto: exchange, decentralized, private & secure.
 
 ## How to contribute
+
+We follow Bisq standard guidelines for contributions, fork + PR, etc. Please refer to [Contributor Checklist](https://bisq.wiki/Contributor_checklist)
+
+Follow along to learn how to run this project.
+If you are a mobile enthusiast and feel driven by Bisq goals, please reach out!
 
 ### Project dev requirements
 
@@ -17,18 +22,39 @@ easier for both, experienced and newcomers, to trade Bitcoin in a decentralized 
  - Ruby: v3+ (for iOS Cocoapods 1.15+)
  - IDE: We use and recommend Fleet, but you may as well use the IDE of your preference. For iOS testing you will need XCode.
 
-### Set Env known issues
+**note**: at the time of writing Fleet is in preview, it can get unstable so it's recommended to switch to Android Studio / Xcode as needed. For example, the first time you try to run the iosClient most probably you will need to do it from Xcode.
+
+### Getting started
+
+ 1. Download this repo code
+ 2. Open [Fleet IDE](https://www.jetbrains.com/help/fleet/getting-started.html) and open the `bisqapps` directory you've just downloaded.
+ 3. Wait for the smart mode to run the `Pre-flight`. This will let you know what's missing in your machine to run the project. Follow its instructions to install everything. The project has an [sdkman](https://sdkman.io/) file, if you have sdkman installed the right java version will be picked up for you.
+ 4. Once the preflight is successful, you should see all the items checked
+    1. If you are on a MacOS computer building the iOS app you can go ahead and open the subfolder [iosClient](./iosClient) with your Xcode, build the project and run it in your device or emulator. After that you can just do it from Fleet
+    2. For Android it can run on any machine, just run the preconfigured configurations `androidClient` and/or `androidNode`
+
+Alternatively, you could run `./gradlew clean build` first from terminal and then open with your IDE of preference.
+
+### Configuring dev env: known issues
 
  - Some Apple M chips have trouble with cocoapods, follow [this guide](https://stackoverflow.com/questions/64901180/how-to-run-cocoapods-on-apple-silicon-m1/66556339#66556339) to fix it
- -
+ - In MacOS non-homebrew versions of Ruby will cause problems
 
-# TODO
+### Initial Project Structure
+
+![Project Structure](docs/project_structure.png)
+
+Though this can evolve, this is the initial structure of this KMP project:
+ - **shared**: General shared code for different modules
+ - **sharedUI**: Kotlin MultiPlatform Compose Implementation of all the apps UI, and most of this project UI in general.
+ - **iosClient**: Xcode project that generates the thin iOS client from sharedUI
+ - **androidClient**: Kotlin Compose Android thin app. This app as well should have most if not all of the code shared with the iosClient.
+ - **androidNode**: Bisq2 Implementation in Android, will contain the dependencies to Java 17 Bisq2 core jars.
 
 ## Why KMP
 
 - Native Performance
-- Allows us to focus on the "easiest" platform first (Because of Apple restrictions on Tor and networking in general)
+- Allows us to focus on the "easiest" platform first for the Node (Because of Apple restrictions on Tor and networking in general). Althought unexpected, if situation changes in the future we could cater for an iOS Node.
 - Flexibility without the security/privacy concerns of its competitors
-- JVM language allows us to port much of the optimised Bisq code already existing in the Desktop apps
-
-For a reference to the sample code used to kickstart this POC, see below
+- (Node)JVM language allows us to port much of the optimised Bisq code already existing in the Desktop apps
+- Kotlin Compose UI allows us to share UI code easily across the 3 apps.

@@ -52,8 +52,8 @@ android {
 }
 
 dependencies {
+    //    implementation(project(":shared"))
     implementation(project(":sharedUI"))
-    implementation(project(":shared"))
     debugImplementation(compose.uiTooling)
 }
 

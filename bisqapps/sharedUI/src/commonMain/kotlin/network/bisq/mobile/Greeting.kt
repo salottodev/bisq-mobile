@@ -1,9 +1,21 @@
 package network.bisq.mobile
 
-class Greeting {
-    private val platform = getPlatform()
+open class Greeting {
+    protected val platform = getPlatform()
 
-    fun greet(): String {
+    open fun greet(): String {
         return "Hello, ${platform.name}!"
     }
+}
+
+interface GreetingFactory {
+    fun createGreeting(): Greeting
+}
+
+class DefaultGreetingFactory : GreetingFactory {
+    override fun createGreeting() = Greeting()
+}
+
+object GreetingProvider {
+    var factory: GreetingFactory = DefaultGreetingFactory()
 }
