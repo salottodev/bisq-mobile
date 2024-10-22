@@ -13,7 +13,9 @@ easier for both, experienced and newcomers, to trade Bitcoin in a decentralized 
 
 We follow Bisq standard guidelines for contributions, fork + PR, etc. Please refer to [Contributor Checklist](https://bisq.wiki/Contributor_checklist)
 
-Follow along to learn how to run this project.
+We are currently working in the project definition and Github issues will soon be available for contributors to pick what would they like to help with. Stay tuned for updates.
+
+For now follow along to learn how to run this project.
 If you are a mobile enthusiast and feel driven by Bisq goals, please reach out!
 
 ### Project dev requirements
