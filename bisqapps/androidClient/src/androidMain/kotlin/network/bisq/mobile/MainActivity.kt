@@ -7,17 +7,45 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 
 class MainActivity : ComponentActivity() {
+    private val presenter = MainPresenter(GreetingRepository())
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        presenter.attachView(this)
 
         setContent {
-            App()
+            App(presenter)
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        presenter.onStart()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        presenter.onResume()
+    }
+
+    override fun onPause() {
+        presenter.onPause()
+        super.onPause()
+    }
+
+    override fun onStop() {
+        presenter.onStop()
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        presenter.detachView()
+        presenter.onDestroy()
+        super.onDestroy()
     }
 }
 
 @Preview
 @Composable
 fun AppAndroidPreview() {
-    App()
+    App(MainPresenter(GreetingRepository()))
 }

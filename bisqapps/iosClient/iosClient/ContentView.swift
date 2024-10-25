@@ -3,8 +3,10 @@ import SwiftUI
 import sharedUI
 
 struct ComposeView: UIViewControllerRepresentable {
+    private let presenter = MainPresenter(greetingRepository: GreetingRepository()) // Initialize the presenter for iOS
+
     func makeUIViewController(context: Context) -> UIViewController {
-        MainViewControllerKt.MainViewController()
+        return LifecycleAwareComposeViewController(presenter: presenter)
     }
 
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
@@ -16,6 +18,3 @@ struct ContentView: View {
                 .ignoresSafeArea(.keyboard) // Compose has own keyboard handler
     }
 }
-
-
-

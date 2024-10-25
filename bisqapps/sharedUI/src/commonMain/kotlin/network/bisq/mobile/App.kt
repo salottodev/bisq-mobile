@@ -15,18 +15,32 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 
 import bisqapps.sharedui.generated.resources.Res
 import bisqapps.sharedui.generated.resources.compose_multiplatform
+import kotlinx.coroutines.flow.StateFlow
 
+interface AppPresenter {
+    // Observables for state
+    val isContentVisible: StateFlow<Boolean>
+    val greetingText: StateFlow<String>
+
+    // Actions
+    fun toggleContentVisibility()
+}
+
+/**
+ * Main composable view of the application that platforms use to draw.
+ */
 @Composable
 @Preview
-fun App() {
+fun App(presenter: AppPresenter) {
     MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
+        // Collecting state from presenter
+        val showContent by presenter.isContentVisible.collectAsState()
+        val greeting by presenter.greetingText.collectAsState()
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Button(onClick = { showContent = !showContent }) {
+            Button(onClick = { presenter.toggleContentVisibility() }) {
                 Text("Click me!")
             }
             AnimatedVisibility(showContent) {
-                val greeting = remember { GreetingProvider.factory.createGreeting().greet() }
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     Image(painterResource(Res.drawable.compose_multiplatform), null)
                     Text("Compose: $greeting")

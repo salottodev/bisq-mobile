@@ -15,7 +15,3 @@ interface GreetingFactory {
 class DefaultGreetingFactory : GreetingFactory {
     override fun createGreeting() = Greeting()
 }
-
-object GreetingProvider {
-    var factory: GreetingFactory = DefaultGreetingFactory()
-}
