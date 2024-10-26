@@ -17,13 +17,13 @@ kotlin {
     iosSimulatorArm64()
 
     cocoapods {
-        summary = "Some description for the Shared Module"
-        homepage = "Link to the Shared Module homepage"
+        summary = "Shared Domain business logic and KOJOs"
+        homepage = "X"
         version = "1.0"
         ios.deploymentTarget = "16.0"
-        podfile = project.file("../iosClient/Podfile")
+        podfile = project.file("../../iosClient/Podfile")
         framework {
-            baseName = "shared"
+            baseName = "domain"
             isStatic = false
         }
     }
