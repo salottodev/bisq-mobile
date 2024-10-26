@@ -8,7 +8,7 @@ pod install
 echo "Building Kotlin/Native frameworks..."
 cd .. || exit
 ./gradlew :shared:domain:assembleXCFramework
-./gradlew :sharedUI:assembleXCFramework
+./gradlew :shared:ui:assembleXCFramework
 # ./gradlew :shared:presenter:assembleXCFramework
 # ./gradlew :shared:utilities:assembleXCFramework
 

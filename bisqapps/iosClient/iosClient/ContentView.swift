@@ -1,6 +1,6 @@
 import UIKit
 import SwiftUI
-import sharedUI
+import ui
 
 struct ComposeView: UIViewControllerRepresentable {
     private let presenter = MainPresenter(greetingRepository: GreetingRepository()) // Initialize the presenter for iOS

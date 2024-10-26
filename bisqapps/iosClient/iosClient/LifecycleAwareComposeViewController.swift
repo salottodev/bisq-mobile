@@ -1,6 +1,6 @@
 import UIKit
 import SwiftUI
-import sharedUI
+import ui
 
 class LifecycleAwareComposeViewController: UIViewController {
     private let presenter: MainPresenter

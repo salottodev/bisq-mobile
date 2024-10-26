@@ -53,7 +53,7 @@ android {
 
 dependencies {
     //    implementation(project(":shared:domain"))
-    implementation(project(":sharedUI"))
+    implementation(project(":shared:ui"))
     debugImplementation(compose.uiTooling)
 }
 

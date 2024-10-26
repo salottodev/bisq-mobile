@@ -13,8 +13,8 @@ import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-import bisqapps.sharedui.generated.resources.Res
-import bisqapps.sharedui.generated.resources.compose_multiplatform
+import bisqapps.shared.ui.generated.resources.Res
+import bisqapps.shared.ui.generated.resources.compose_multiplatform
 import kotlinx.coroutines.flow.StateFlow
 
 interface AppPresenter {

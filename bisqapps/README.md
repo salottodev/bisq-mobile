@@ -49,7 +49,7 @@ Alternatively, you could run `./gradlew clean build` (1) first from terminal and
 
 Though this can evolve, this is the initial structure of this KMP project:
  - **shared**: General shared code for different modules
- - **sharedUI**: Kotlin MultiPlatform Compose Implementation of all the apps UI, and most of this project UI in general.
+ - **shared:ui**: Kotlin MultiPlatform Compose Implementation of all the apps UI, and most of this project UI in general.
  - **iosClient**: Xcode project that generates the thin iOS client from sharedUI
  - **androidClient**: Kotlin Compose Android thin app. This app as well should have most if not all of the code shared with the iosClient.
  - **androidNode**: Bisq2 Implementation in Android, will contain the dependencies to Java 17 Bisq2 core jars.

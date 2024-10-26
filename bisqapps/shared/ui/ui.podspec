@@ -1,23 +1,23 @@
 Pod::Spec.new do |spec|
-    spec.name                     = 'domain'
-    spec.version                  = '1.0'
-    spec.homepage                 = 'X'
+    spec.name                     = 'ui'
+    spec.version                  = '0.0.1'
+    spec.homepage                 = 'Link to the Shared Module homepage'
     spec.source                   = { :http=> ''}
     spec.authors                  = ''
     spec.license                  = ''
-    spec.summary                  = 'Shared Domain business logic and KOJOs'
-    spec.vendored_frameworks      = 'build/cocoapods/framework/domain.framework'
+    spec.summary                  = 'Shared UI for all bisqapps'
+    spec.vendored_frameworks      = 'build/cocoapods/framework/ui.framework'
     spec.libraries                = 'c++'
     spec.ios.deployment_target    = '16.0'
                 
                 
-    if !Dir.exist?('build/cocoapods/framework/domain.framework') || Dir.empty?('build/cocoapods/framework/domain.framework')
+    if !Dir.exist?('build/cocoapods/framework/ui.framework') || Dir.empty?('build/cocoapods/framework/ui.framework')
         raise "
 
-        Kotlin framework 'domain' doesn't exist yet, so a proper Xcode project can't be generated.
+        Kotlin framework 'ui' doesn't exist yet, so a proper Xcode project can't be generated.
         'pod install' should be executed after running ':generateDummyFramework' Gradle task:
 
-            ./gradlew :shared:domain:generateDummyFramework
+            ./gradlew :shared:ui:generateDummyFramework
 
         Alternatively, proper pod installation is performed during Gradle sync in the IDE (if Podfile location is set)"
     end
@@ -27,13 +27,13 @@ Pod::Spec.new do |spec|
     }
                 
     spec.pod_target_xcconfig = {
-        'KOTLIN_PROJECT_PATH' => ':shared:domain',
-        'PRODUCT_MODULE_NAME' => 'domain',
+        'KOTLIN_PROJECT_PATH' => ':shared:ui',
+        'PRODUCT_MODULE_NAME' => 'ui',
     }
                 
     spec.script_phases = [
         {
-            :name => 'Build domain',
+            :name => 'Build ui',
             :execution_position => :before_compile,
             :shell_path => '/bin/sh',
             :script => <<-SCRIPT
@@ -50,5 +50,5 @@ Pod::Spec.new do |spec|
             SCRIPT
         }
     ]
-                
+    spec.resources = ['build/compose/cocoapods/compose-resources']
 end
