@@ -1,7 +1,7 @@
 package network.bisq.mobile.android.node
 
-import network.bisq.mobile.Greeting
-import network.bisq.mobile.GreetingFactory
+import network.bisq.mobile.domain.Greeting
+import network.bisq.mobile.domain.GreetingFactory
 
 class AndroidNodeGreeting : Greeting() {
     override fun greet(): String {

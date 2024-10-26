@@ -1,6 +1,7 @@
 target 'iosClient' do
   use_frameworks!
   platform :ios, '16.0'
+  pod 'presentation', :path => '../shared/presentation'
   pod 'domain', :path => '../shared/domain'
   pod 'ui', :path => '../shared/ui'
 end

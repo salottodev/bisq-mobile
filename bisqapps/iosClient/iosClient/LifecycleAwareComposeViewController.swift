@@ -1,5 +1,7 @@
 import UIKit
 import SwiftUI
+import presentation
+import domain
 import ui
 
 class LifecycleAwareComposeViewController: UIViewController {

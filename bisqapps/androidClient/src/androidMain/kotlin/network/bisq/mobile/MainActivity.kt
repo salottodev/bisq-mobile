@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import network.bisq.mobile.domain.data.repository.GreetingRepository
+import network.bisq.mobile.presentation.MainPresenter
 
 class MainActivity : ComponentActivity() {
     private val presenter = MainPresenter(GreetingRepository())
