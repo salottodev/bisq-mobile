@@ -83,4 +83,4 @@ install_bcsymbolmap() {
     rsync --delete -av "${RSYNC_PROTECT_TMP_FILES[@]}" --filter "- CVS/" --filter "- .svn/" --filter "- .git/" --filter "- .hg/" --filter "- Headers" --filter "- PrivateHeaders" --filter "- Modules" "${bcsymbolmap_path}" "${destination}"
 }
 
-install_dsym "${PODS_ROOT}/../../shared/ui/build/cocoapods/framework/ui.framework.dSYM"
+install_dsym "${PODS_ROOT}/../../shared/presentation/build/cocoapods/framework/presentation.framework.dSYM"

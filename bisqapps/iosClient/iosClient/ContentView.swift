@@ -1,11 +1,11 @@
 import UIKit
 import SwiftUI
+
 import presentation
 import domain
-import ui
 
 struct ComposeView: UIViewControllerRepresentable {
-    private let presenter = MainPresenter(greetingRepository: GreetingRepository()) // Initialize the presenter for iOS
+    private let presenter = MainPresenter(greetingRepository: DomainGreetingRepository()) // Initialize the presenter for iOS
 
     func makeUIViewController(context: Context) -> UIViewController {
         return LifecycleAwareComposeViewController(presenter: presenter)

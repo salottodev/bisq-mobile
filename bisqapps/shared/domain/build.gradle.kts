@@ -19,7 +19,7 @@ kotlin {
     cocoapods {
         summary = "Shared Domain business logic and KOJOs"
         homepage = "X"
-        version = "1.0"
+        version = "0.0.1"
         ios.deploymentTarget = "16.0"
         podfile = project.file("../../iosClient/Podfile")
         framework {

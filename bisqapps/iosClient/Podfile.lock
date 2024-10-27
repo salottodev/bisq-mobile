@@ -1,21 +1,21 @@
 PODS:
-  - domain (1.0)
-  - ui (0.0.1)
+  - domain (0.0.1)
+  - presentation (0.0.1)
 
 DEPENDENCIES:
   - domain (from `../shared/domain`)
-  - ui (from `../shared/ui`)
+  - presentation (from `../shared/presentation`)
 
 EXTERNAL SOURCES:
   domain:
     :path: "../shared/domain"
-  ui:
-    :path: "../shared/ui"
+  presentation:
+    :path: "../shared/presentation"
 
 SPEC CHECKSUMS:
-  domain: 82904b6ceac0dbc0706dd52dbfdf60dae3db01cd
-  ui: c8e75126f21e22774bb9dbfac1b1004f9b2c9f70
+  domain: 398a8494649d845aa57f022a9ffb8be987298e80
+  presentation: afb0cb7a678bc1771eb3882a43a82f0acdff0258
 
-PODFILE CHECKSUM: 57df2c76baa6eac1adb5f391a4142157c934927b
+PODFILE CHECKSUM: e4e5bb187d8247572973af90a35b57b84c96b4c6
 
 COCOAPODS: 1.15.2

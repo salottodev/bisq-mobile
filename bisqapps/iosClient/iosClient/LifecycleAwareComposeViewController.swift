@@ -1,8 +1,8 @@
 import UIKit
 import SwiftUI
+
 import presentation
 import domain
-import ui
 
 class LifecycleAwareComposeViewController: UIViewController {
     private let presenter: MainPresenter
@@ -41,7 +41,6 @@ class LifecycleAwareComposeViewController: UIViewController {
 
         // Instantiate the Kotlin-based MainViewController
         let mainViewController = MainViewControllerKt.MainViewController(presenter: presenter)
-
         // Add MainViewController as a child
         addChild(mainViewController)
 

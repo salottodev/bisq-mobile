@@ -72,7 +72,6 @@ android {
 dependencies {
     implementation(project(":shared:presentation"))
     implementation(project(":shared:domain"))
-    implementation(project(":shared:ui"))
     debugImplementation(compose.uiTooling)
 }
 

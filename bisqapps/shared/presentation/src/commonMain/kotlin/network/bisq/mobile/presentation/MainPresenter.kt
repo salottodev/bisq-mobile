@@ -2,8 +2,8 @@ package network.bisq.mobile.presentation
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import network.bisq.mobile.AppPresenter
 import network.bisq.mobile.domain.data.repository.GreetingRepository
+import network.bisq.mobile.presentation.ui.AppPresenter
 
 /**
  * Main Presenter as an example of implementation for now.

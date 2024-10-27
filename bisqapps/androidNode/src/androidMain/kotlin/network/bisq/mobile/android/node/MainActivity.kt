@@ -5,9 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
-import network.bisq.mobile.*
 import network.bisq.mobile.domain.data.repository.GreetingRepository
 import network.bisq.mobile.presentation.MainPresenter
+import network.bisq.mobile.presentation.ui.App
 
 class MainActivity : ComponentActivity() {
     // TODO use a DI framework to provide implementations
