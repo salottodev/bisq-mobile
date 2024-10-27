@@ -176,12 +176,12 @@ code_sign_if_enabled() {
 }
 
 if [[ "$CONFIGURATION" == "Debug" ]]; then
-  install_framework "${PODS_ROOT}/../../shared/build/cocoapods/framework/shared.framework"
-  install_framework "${PODS_ROOT}/../../sharedUI/build/cocoapods/framework/sharedUI.framework"
+  install_framework "${PODS_ROOT}/../../shared/domain/build/cocoapods/framework/domain.framework"
+  install_framework "${PODS_ROOT}/../../shared/presentation/build/cocoapods/framework/presentation.framework"
 fi
 if [[ "$CONFIGURATION" == "Release" ]]; then
-  install_framework "${PODS_ROOT}/../../shared/build/cocoapods/framework/shared.framework"
-  install_framework "${PODS_ROOT}/../../sharedUI/build/cocoapods/framework/sharedUI.framework"
+  install_framework "${PODS_ROOT}/../../shared/domain/build/cocoapods/framework/domain.framework"
+  install_framework "${PODS_ROOT}/../../shared/presentation/build/cocoapods/framework/presentation.framework"
 fi
 if [ "${COCOAPODS_PARALLEL_CODE_SIGN}" == "true" ]; then
   wait

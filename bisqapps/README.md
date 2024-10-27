@@ -48,11 +48,25 @@ Alternatively, you could run `./gradlew clean build` (1) first from terminal and
 ![Project Structure](docs/project_structure.png)
 
 Though this can evolve, this is the initial structure of this KMP project:
- - **shared**: General shared code for different modules
- - **sharedUI**: Kotlin MultiPlatform Compose Implementation of all the apps UI, and most of this project UI in general.
+ - **shared:domain**: Domain module has models (KOJOs) and components that provide them.
+ - **shared:presentation**: Contains UI shared code using Kotlin MultiPlatform Compose Implementation forr all the apps, its Presenter's behaviour contracts (interfaces) and default presenter implementations that connects UI with domain.
  - **iosClient**: Xcode project that generates the thin iOS client from sharedUI
  - **androidClient**: Kotlin Compose Android thin app. This app as well should have most if not all of the code shared with the iosClient.
  - **androidNode**: Bisq2 Implementation in Android, will contain the dependencies to Java 17 Bisq2 core jars.
+
+## App Architecture Design Choice
+
+**note** this is being Worked out at the moment
+
+![Apps Design Architecture](docs/bisqapps_design_arch.png)
+
+This project uses the [MVP](https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93presenter) (Model-View-Presenter) Design Pattern with small variations (introducing Repositories) in the following way:
+
+ - Each View will define (or reuse) what's the presenter logic it is looking for, including which data its interested in observing in an interface. The view will react to changes in the presenter observed data, and call the methods it needs to inform the presenter about user actions. In this way **each view can be created idependently without strictly needing anything else**
+ - Same goes for the Models, they can be built (and unit tested) without needing anything else, simple KOJOs.
+ - When you want to bring interaction to life, create a presenter (or reuse one) and implement the interface you defined when doing the view. That presenter will generally modify/fetch the models through a repository.
+ - Networking is a crucial part of this project and the networking used and shared by the `xClients` are not the ones used by the `androidNode` but the idea is to have a comprehensive **facade** so that from the point of view of repository/service it just works regardless on how and what objs are being used under the hood to fetch/save data. More on this soon...
+
 
 ## Why KMP
 
