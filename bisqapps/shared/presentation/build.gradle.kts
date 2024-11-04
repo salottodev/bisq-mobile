@@ -1,3 +1,7 @@
+import org.jetbrains.compose.compose
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSetTree
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.kotlinCocoapods)
@@ -7,12 +11,17 @@ plugins {
     alias(libs.plugins.buildconfig)
 }
 
+dependencies {
+    androidTestImplementation(libs.androidx.test.compose)
+    androidTestImplementation(libs.androidx.test.manifest)
+}
+
 version = project.findProperty("shared.version") as String
 
 // The following allow us to configure each app type independently and link for example with gradle.properties
 // TODO potentially to be refactored into a shared/common module
 buildConfig {
-    forClass("network.bisq.mobile.client", className = "BuildConfig") {
+    forClass("network.bisq.mobile.client.shared", className = "BuildConfig") {
         buildConfigField("APP_NAME", project.findProperty("client.name").toString())
         buildConfigField("ANDROID_APP_VERSION", project.findProperty("client.android.version").toString())
         buildConfigField("IOS_APP_VERSION", project.findProperty("client.ios.version").toString())
@@ -44,6 +53,8 @@ kotlin {
                 jvmTarget = "1.8"
             }
         }
+        @OptIn(ExperimentalKotlinGradlePluginApi::class)
+        instrumentedTestVariant.sourceSetTree.set(KotlinSourceSetTree.test)
     }
     iosX64()
     iosArm64()
@@ -77,17 +88,23 @@ kotlin {
             implementation(libs.logging.kermit)
             implementation(libs.kotlinx.coroutines)
         }
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
-        }
+        val commonTest by getting {
+            dependencies {
+                implementation(libs.kotlin.test)
+//                implementation(kotlin("test"))
+                @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+                implementation(compose.uiTest)
+            }
+      }
     }
 }
 
 android {
-    namespace = "network.bisq.mobile"
+    namespace = "network.bisq.mobile.shared.presentation"
     compileSdk = 34
     defaultConfig {
         minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
