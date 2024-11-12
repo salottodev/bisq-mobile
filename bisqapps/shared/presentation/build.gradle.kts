@@ -87,6 +87,9 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtime.compose)
             implementation(libs.logging.kermit)
             implementation(libs.kotlinx.coroutines)
+
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose)
         }
         val commonTest by getting {
             dependencies {
@@ -95,7 +98,7 @@ kotlin {
                 @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
                 implementation(compose.uiTest)
             }
-      }
+        }
     }
 }
 
