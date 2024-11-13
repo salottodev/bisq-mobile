@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import com.google.protobuf.gradle.*
 import org.apache.tools.ant.taskdefs.condition.Os
+import com.google.protobuf.gradle.proto
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -32,6 +32,11 @@ kotlin {
                 implementation(compose.preview)
                 implementation(libs.androidx.activity.compose)
             }
+            androidUnitTest.dependencies {
+                implementation(libs.mock.io)
+                implementation(libs.kotlin.test.junit.v180)
+                implementation(libs.junit)
+            }
             kotlin.srcDirs(
                 "src/androidMain/kotlin",
                 "${layout.buildDirectory}/generated/source/proto/debug/java",
@@ -47,14 +52,14 @@ android {
 
     sourceSets {
         getByName("main") {
-            proto {
-                srcDir("src/androidMain/proto")
+            java {
+                srcDir("src/main/resources")
+                srcDir("${layout.buildDirectory}/generated/source/proto/debug/java")
+                srcDir("${layout.buildDirectory}/generated/source/proto/release/java")
+                proto {
+                    srcDir("${layout.buildDirectory}/extracted-include-protos/debug")
+                }
             }
-            java.srcDirs(
-                "src/layout.buildDirectory/kotlin",
-                "${layout.buildDirectory}/generated/source/proto/debug/java",
-                "${layout.buildDirectory}/generated/source/proto/release/java"
-            )
         }
     }
 
@@ -62,15 +67,11 @@ android {
         applicationId = "network.bisq.mobile.node"
         minSdk = libs.versions.android.node.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
+        multiDexEnabled = true
         versionCode = 1
         versionName = project.version.toString()
         buildConfigField("String", "APP_VERSION", "\"${version}\"")
         buildConfigField("String", "SHARED_VERSION", "\"${sharedVersion}\"")
-    }
-
-    // We don't want to use the protobuf coming in bisq2 core dependencies as we use protobuf-lite for mobile
-    configurations.all {
-        exclude(group = "com.google.protobuf", module = "protobuf-java")
     }
 
     packaging {
@@ -104,17 +105,11 @@ protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:4.28.2$archSuffix"
     }
-    plugins {
-        create("javalite") {
-            artifact = "com.google.protobuf:protoc-gen-javalite:3.0.0$archSuffix"
-        }
-    }
     generateProtoTasks {
         all().forEach { task ->
+            task.inputs.dir("${layout.buildDirectory.get()}/extracted-include-protos/debug")
             task.builtins {
-                create("java") {
-                    option("lite")
-                }
+                create("java")
             }
         }
     }
@@ -125,9 +120,16 @@ dependencies {
     debugImplementation(compose.uiTooling)
 
     // bisq2 core dependencies
-    implementation(libs.bisq.core.common) {
-        exclude(group = "com.google.protobuf", module = "protobuf-java")
-    }
+    implementation(libs.androidx.multidex)
+    implementation(libs.google.guava)
+    compileOnly(libs.lombok)
+    annotationProcessor(libs.lombok)
+    implementation(libs.typesafe.config)
+
+    implementation(libs.bouncycastle)
+    implementation(libs.bouncycastle.pg)
+
+    implementation(libs.bisq.core.common)
     implementation(libs.bisq.core.i18n)
     implementation(libs.bisq.core.persistence)
     implementation(libs.bisq.core.security)
@@ -154,10 +156,18 @@ dependencies {
     implementation(libs.bisq.core.presentation)
 
     // protobuf
-    implementation(libs.protobuf.lite)
     implementation(libs.protobuf.gradle.plugin)
     implementation(libs.protoc)
 
     implementation(libs.koin.core)
     implementation(libs.koin.android)
+}
+
+// ensure tests run on J17
+tasks.withType<Test> {
+    javaLauncher.set(
+        javaToolchains.launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(17))
+        }
+    )
 }

@@ -7,14 +7,14 @@ import network.bisq.mobile.presentation.di.presentationModule
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 
-
 class MainApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
         startKoin {
             androidContext(this@MainApplication)
-            modules(listOf(androidNodeModule, domainModule, presentationModule)) 
+            // order is important, last one is picked for each interface/class key
+            modules(listOf(domainModule, presentationModule, androidNodeModule))
         }
     }
 }
