@@ -2,7 +2,6 @@ package network.bisq.mobile.android.node.presentation
 
 import android.app.Activity
 import android.os.Build
-import network.bisq.mobile.domain.data.repository.GreetingRepository
 import network.bisq.mobile.presentation.MainPresenter
 import bisq.common.facades.FacadeProvider
 import bisq.common.facades.android.AndroidGuavaFacade
@@ -37,8 +36,13 @@ import bisq.user.identity.NymIdGenerator
 import bisq.user.identity.UserIdentity
 import bisq.user.profile.UserProfile
 import kotlinx.coroutines.*
+import network.bisq.mobile.android.node.AndroidNodeGreeting
+import network.bisq.mobile.android.node.domain.data.repository.NodeGreetingRepository
 import network.bisq.mobile.android.node.service.AndroidApplicationService
 import network.bisq.mobile.android.node.service.AndroidMemoryReportService
+import network.bisq.mobile.domain.data.model.Greeting
+import network.bisq.mobile.domain.data.repository.GreetingRepository
+import network.bisq.mobile.domain.data.repository.SingleObjectRepository
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -47,7 +51,8 @@ import kotlin.jvm.optionals.getOrElse
 import kotlin.math.max
 import kotlin.random.Random
 
-class MainNodePresenter(greetingRepository: GreetingRepository): MainPresenter(greetingRepository) {
+@Suppress("UNCHECKED_CAST")
+class MainNodePresenter(greetingRepository: NodeGreetingRepository): MainPresenter(greetingRepository as GreetingRepository<Greeting>) {
     companion object {
         private const val AVATAR_VERSION = 0
     }
@@ -77,6 +82,10 @@ class MainNodePresenter(greetingRepository: GreetingRepository): MainPresenter(g
         Security.removeProvider("BC")
         Security.addProvider(BouncyCastleProvider())
         log("Static Bisq core setup ready")
+
+        CoroutineScope(Dispatchers.IO).launch {
+            greetingRepository.create(AndroidNodeGreeting())
+        }
     }
     override fun onViewAttached() {
         super.onViewAttached()
