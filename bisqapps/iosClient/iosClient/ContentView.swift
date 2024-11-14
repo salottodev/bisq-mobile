@@ -10,12 +10,7 @@ struct ComposeView: UIViewControllerRepresentable {
     // view for the presenter its using
     // it can also work because this is just the main presenter that binds to lifecycle, that we allow
     // this hardcoded dependnecy here.
-    private let presenter: MainPresenter
-
-    init() {
-        let repository = DomainGreetingRepository<DomainGreeting>()
-        self.presenter = MainPresenter(greetingRepository: repository)
-    }
+    private let presenter: MainPresenter = get()
 
     func makeUIViewController(context: Context) -> UIViewController {
         return LifecycleAwareComposeViewController(presenter: presenter)
