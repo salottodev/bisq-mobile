@@ -35,6 +35,7 @@ kotlin {
             //put your multiplatform dependencies here
             implementation(libs.koin.core)
             implementation(libs.kotlinx.coroutines)
+
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

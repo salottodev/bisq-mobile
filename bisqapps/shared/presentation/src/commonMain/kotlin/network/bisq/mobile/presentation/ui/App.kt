@@ -1,22 +1,21 @@
 package network.bisq.mobile.presentation.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material.Button
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.painterResource
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
+import cafe.adriel.lyricist.ProvideStrings
+import cafe.adriel.lyricist.rememberStrings
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-import bisqapps.shared.presentation.generated.resources.Res
-import bisqapps.shared.presentation.generated.resources.compose_multiplatform
 import kotlinx.coroutines.flow.StateFlow
+import network.bisq.mobile.i18n.Locales
 import org.koin.compose.koinInject
+import network.bisq.mobile.presentation.ui.navigation.Routes
+
+import network.bisq.mobile.presentation.ui.navigation.graph.RootNavGraph
+import network.bisq.mobile.presentation.ui.theme.BisqTheme
+import org.koin.mp.KoinPlatform.getKoin
 
 interface AppPresenter {
     // Observables for state
@@ -33,21 +32,31 @@ interface AppPresenter {
 @Composable
 @Preview
 fun App() {
+
+    val rootNavController = rememberNavController()
+    val tabNavController = rememberNavController()
+
+    var isNavControllerSet by remember { mutableStateOf(false) }
+
+    LaunchedEffect(rootNavController) {
+        getKoin().setProperty("RootNavController", rootNavController)
+        getKoin().setProperty("TabNavController", tabNavController)
+        isNavControllerSet = true
+    }
+
     val presenter: AppPresenter = koinInject()
-    MaterialTheme {
-        // Collecting state from presenter
-        val showContent by presenter.isContentVisible.collectAsState()
-        val greeting by presenter.greetingText.collectAsState()
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Button(onClick = { presenter.toggleContentVisibility() }) {
-                Text("Click me!")
-            }
-            AnimatedVisibility(showContent) {
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
-                }
+
+    val lyricist = rememberStrings()
+    // lyricist.languageTag = Locales.FR
+
+    BisqTheme(darkTheme = true) {
+        ProvideStrings(lyricist) {
+            if (isNavControllerSet) {
+                RootNavGraph(
+                    startDestination = Routes.Splash.name
+                )
             }
         }
     }
+
 }
