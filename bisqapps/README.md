@@ -4,6 +4,35 @@
 
 # Bisq Mobile
 
+## Index
+
+1. [Bisq Mobile](#bisq-mobile)
+   - [Goal](#goal)
+   - [How to contribute](#how-to-contribute)
+     - [Project dev requirements](#project-dev-requirements)
+   - [Getting started](#getting-started)
+     - [Getting started for Android Node](#getting-started-for-android-node)
+   - [UI](#ui)
+     - [Designs](#designs)
+     - [Navigation Implementation](#navigation-implementation)
+   - [Configuring dev env: known issues](#configuring-dev-env-known-issues)
+
+2. [Initial Project Structure](#initial-project-structure)
+
+3. [App Architecture Design Choice](#app-architecture-design-choice)
+   - [Dumb Views](#dumb-views)
+   - [UI independently built](#ui-independently-built)
+   - [Encourage Rich Domain well-test models](#encourage-rich-domain-well-test-models)
+   - [Presenters guide the orchestra](#presenters-guide-the-orchestra)
+   - [Repositories key for reactive UI](#repositories-key-for-reactive-ui)
+   - [Services allow us to have different networking sources](#services-allow-us-to-have-different-networking-sources)
+
+4. [What about Lifecycle and main view components](#what-about-lifecycle-and-main-view-components)
+
+5. [When it’s acceptable to reuse a presenter for my view](#when-its-acceptable-to-reuse-a-presenter-for-my-view)
+
+6. [Why KMP](#why-kmp)
+
 ## Goal
 
 This project aims to make Bisq Network accesible in Mobile Platforms following the philosofy of [Bisq2](https://github.com/bisq-network/bisq2/contribute) - to make it
@@ -81,17 +110,40 @@ Though this can evolve, this is the initial structure of this KMP project:
 
 ## App Architecture Design Choice
 
-**note** this is being Worked out at the moment
-
 ![Apps Design Architecture](docs/bisqapps_design_arch.png)
 
-This project uses the [MVP](https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93presenter) (Model-View-Presenter) Design Pattern with small variations (introducing Repositories) in the following way:
+This project uses the [MVP](https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93presenter) (Model-View-Presenter) Design Pattern with small variations (__introducing Repositories & we allow reusal of presenters under specific conditions__) in the following way:
 
- - Each View will define (or reuse) what's the presenter logic it is looking for, including which data its interested in observing in an interface. The view will react to changes in the presenter observed data, and call the methods it needs to inform the presenter about user actions. In this way **each view can be created idependently without strictly needing anything else**
- - Same goes for the Models, they can be built (and unit tested) without needing anything else, simple KOJOs.
- - When you want to bring interaction to life, create a presenter (or reuse one) and implement the interface you defined when doing the view. That presenter will generally modify/fetch the models through a repository.
- - Networking is a crucial part of this project and the networking used and shared by the `xClients` are not the ones used by the `androidNode` but the idea is to have a comprehensive **facade** so that from the point of view of repository/service it just works regardless on how and what objs are being used under the hood to fetch/save data. More on this soon...
+ - **Dumb Views**: Each View will define it's desired presenter behaviour. For example, for the `AppView` it would define the `AppPresenter` interface. This includes which data its interested in observing and the commands it needs to trigger from user interactions.
+ - **UI indepdently built**The view will react to changes in the presenter observed data, and call the methods it needs to inform the presenter about user actions. In this way __each view can be created idependently without strictly needing anything else__
+ - **Encourage Rich Domain well-test models** Same goes for the Models, they can be built (and unit tested) without needing anything else, simple POKOs (Plain Old Kotlin Objects - meaning no external deps). Ideally business logic should go here and the result of executing a business model logic should be put back into the repository for all observers to know.
+ - **Presenters guide the orchestra** When you want to bring interaction to life, create a presenter (or reuse one if the view is small enough) and implement the interface you defined when doing the view (`AppPresenter` interface). That presenter will generally modify/observe the models through a repository.
+ - **Repositories key for reactive UI** Now for the presenter to connect to the domain models we use repositories which is basically a storage of data (that abstracts where that data is stored in). The repositories also expose the data in an observable way, so the presenter can satisfy the requested data from the view from the data of the domain model in the ways it see fit. Sometimes it would just be a pathrough. The resposities could also have caching strategy, and persistance. For most of the use cases so far we don't see a strong need for persistance in most of them (with the exception of settings-related repositories) - more on this soon
+ - **Services allow us to have different networking sources** we are developing 3 apps divided in 2 groups: `node` and `client`. Each group has a very distinct networking setup. We need each type of app build to have only the networking it needs. The proposed separation of concerns not only allows a clean architecture but also allows faster development focus on each complexity separately.
 
+
+### What about Lifecycle and main view components
+
+As per original specs `single-activity` pattern (or `single-viewcontroller` in iOS) is sufficient for this project. Which means, unless we find a specific use case for it, we'll stick to a single Activity/ViewController for the whole lifecycle of the app.
+
+The app's architecture `BasePresenter` allows a tree like behaviour where a presenter can be a root with dependent child presenters.
+
+We leverage this by having:
+
+ - A `MainPresenter` that acts as root in each and all of the apps
+ - The rest of the presenters require the main presenter as construction parameter to be notified about lifecycle events.
+
+
+### When its acceptable to reuse a presenter for my view?
+
+It's ok to reuse an existing presenter for your view if:
+
+ - Your view is a very small part of a bigger view that renders together (commonly called `Screen`) and you can't foresee reusal for it
+ - Your view is a very small part of a bigger view and even if its reused the presenter required implementation is minimal
+
+To reuse an existing presenter you would have to make it extend your view defined presenter interface and do the right `Koin bind` on its Koin repository definition.
+
+Then you can inject it in the `@Composable` function using `koinInject()`.
 
 ## Why KMP
 
