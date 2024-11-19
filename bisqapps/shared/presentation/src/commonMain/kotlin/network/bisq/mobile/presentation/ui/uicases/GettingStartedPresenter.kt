@@ -6,10 +6,12 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import network.bisq.mobile.domain.data.BackgroundDispatcher
 import network.bisq.mobile.domain.data.repository.BisqStatsRepository
 import network.bisq.mobile.domain.data.repository.BtcPriceRepository
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
+import network.bisq.mobile.presentation.ui.uicases.startup.SplashScreen
 
 class GettingStartedPresenter(
     mainPresenter: MainPresenter,
@@ -26,7 +28,7 @@ class GettingStartedPresenter(
     override val publishedProfiles: StateFlow<Int> = _publishedProfiles
 
     private fun refresh() {
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(BackgroundDispatcher).launch {
             try {
                 val bisqStats = bisqStatsRepository.fetch()
                 _offersOnline.value = bisqStats?.offersOnline ?: 0

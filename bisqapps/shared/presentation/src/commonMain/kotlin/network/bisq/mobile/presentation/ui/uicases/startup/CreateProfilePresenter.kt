@@ -8,11 +8,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
+import network.bisq.mobile.domain.data.BackgroundDispatcher
 import network.bisq.mobile.domain.data.repository.UserProfileRepository
 import network.bisq.mobile.domain.data.model.UserProfile
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.ui.navigation.Routes
-import kotlinx.coroutines.delay
 import network.bisq.mobile.presentation.MainPresenter
 
 open class CreateProfilePresenter(
@@ -23,10 +23,12 @@ open class CreateProfilePresenter(
 
     private val _profileName = MutableStateFlow("")
     override val profileName: StateFlow<String> = _profileName
+    override val nym: StateFlow<String> = MutableStateFlow("")
+    override val id: StateFlow<String> = MutableStateFlow("")
 
     // TODO: Not working
     init {
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(BackgroundDispatcher).launch {
             userProfileRepository.data.collectLatest { userProfile ->
                 userProfile?.let {
                     _profileName.value = it.name
@@ -48,8 +50,16 @@ open class CreateProfilePresenter(
         }
     }
 
+    override fun onGenerateKeyPair() {
+
+    }
+
+    override fun onCreateAndPublishNewUserProfile() {
+        this.navigateToNextScreen()
+    }
+
     fun saveUserProfile() {
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(BackgroundDispatcher).launch {
             val updatedProfile = UserProfile().apply {
                 name = _profileName.value
             }
