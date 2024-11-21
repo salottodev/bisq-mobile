@@ -2,8 +2,6 @@ package network.bisq.mobile.presentation
 
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import network.bisq.mobile.android.node.BuildNodeConfig
@@ -17,7 +15,7 @@ import network.bisq.mobile.presentation.ui.AppPresenter
  * Main Presenter as an example of implementation for now.
  */
 open class MainPresenter(private val greetingRepository: GreetingRepository<Greeting>) : BasePresenter(null), AppPresenter {
-    private val log = Logger.withTag("MainPresenter")
+    private val log = Logger.withTag(this::class.simpleName ?: "MainPresenter")
     // Observable state
     private val _isContentVisible = MutableStateFlow(false)
     override val isContentVisible: StateFlow<Boolean> = _isContentVisible

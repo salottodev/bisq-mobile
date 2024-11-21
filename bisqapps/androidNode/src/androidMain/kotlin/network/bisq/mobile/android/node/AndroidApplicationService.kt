@@ -14,8 +14,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
-package network.bisq.mobile.android.node.service
+package network.bisq.mobile.android.node
 
+import androidx.core.util.Supplier
 import bisq.account.AccountService
 import bisq.application.ApplicationService
 import bisq.application.State
@@ -39,7 +40,9 @@ import bisq.trade.TradeService
 import bisq.user.UserService
 import com.google.common.base.Preconditions
 import lombok.Getter
+import lombok.Setter
 import lombok.extern.slf4j.Slf4j
+import network.bisq.mobile.android.node.service.AndroidMemoryReportService
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
@@ -55,12 +58,52 @@ import java.util.concurrent.TimeUnit
  */
 @Slf4j
 @Getter
-class AndroidApplicationService(androidMemoryService: AndroidMemoryReportService, userDataDir: Path?) :
+class AndroidApplicationService(androidMemoryReportService: AndroidMemoryReportService, userDataDir: Path?) :
     ApplicationService("android", arrayOf<String>(), userDataDir) {
+
+    @Getter
+    class Supplier {
+        @Setter
+        lateinit var applicationService: AndroidApplicationService
+        var stateSupplier: androidx.core.util.Supplier<Observable<State>> =
+            Supplier { applicationService.state }
+        var securityServiceSupplier: androidx.core.util.Supplier<SecurityService> =
+            Supplier { applicationService.securityService }
+        var networkServiceSupplier: androidx.core.util.Supplier<NetworkService> =
+            Supplier { applicationService.networkService }
+        var identityServiceSupplier: androidx.core.util.Supplier<IdentityService> =
+            Supplier { applicationService.identityService }
+        var bondedRolesServiceSupplier: androidx.core.util.Supplier<BondedRolesService> =
+            Supplier { applicationService.bondedRolesService }
+        var accountServiceSupplier: androidx.core.util.Supplier<AccountService> =
+            Supplier { applicationService.accountService }
+        var offerServiceSupplier: androidx.core.util.Supplier<OfferService> =
+            Supplier { applicationService.offerService }
+        var contractServiceSupplier: androidx.core.util.Supplier<ContractService> =
+            Supplier { applicationService.contractService }
+        var userServiceSupplier: androidx.core.util.Supplier<UserService> =
+            Supplier { applicationService.userService }
+        var chatServiceSupplier: androidx.core.util.Supplier<ChatService> =
+            Supplier { applicationService.chatService }
+        var settingsServiceSupplier: androidx.core.util.Supplier<SettingsService> =
+            Supplier { applicationService.settingsService }
+        var supportServiceSupplier: androidx.core.util.Supplier<SupportService> =
+            Supplier { applicationService.supportService }
+        var systemNotificationServiceSupplier: androidx.core.util.Supplier<SystemNotificationService> =
+            Supplier { applicationService.systemNotificationService }
+        var tradeServiceSupplier: androidx.core.util.Supplier<TradeService> =
+            Supplier { applicationService.tradeService }
+        var alertNotificationsServiceSupplier: androidx.core.util.Supplier<AlertNotificationsService> =
+            Supplier { applicationService.alertNotificationsService }
+        var favouriteMarketsServiceSupplier: androidx.core.util.Supplier<FavouriteMarketsService> =
+            Supplier { applicationService.favouriteMarketsService }
+        var dontShowAgainServiceSupplier: androidx.core.util.Supplier<DontShowAgainService> =
+            Supplier { applicationService.dontShowAgainService }
+    }
+
     companion object {
         const val STARTUP_TIMEOUT_SEC: Long = 300
         const val SHUTDOWN_TIMEOUT_SEC: Long = 10
-        private val INSTANCE: AndroidApplicationService? = null
         val log: Logger = LoggerFactory.getLogger(ApplicationService::class.java)
     }
 
@@ -70,6 +113,7 @@ class AndroidApplicationService(androidMemoryService: AndroidMemoryReportService
 
     val securityService =
         SecurityService(persistenceService, SecurityService.Config.from(getConfig("security")))
+
     val networkService = NetworkService(
         NetworkServiceConfig.from(
             config.baseDir,
@@ -79,9 +123,9 @@ class AndroidApplicationService(androidMemoryService: AndroidMemoryReportService
         securityService.keyBundleService,
         securityService.hashCashProofOfWorkService,
         securityService.equihashProofOfWorkService,
-        androidMemoryService
+        androidMemoryReportService
     )
-    private val identityService = IdentityService(
+    val identityService = IdentityService(
         persistenceService,
         securityService.keyBundleService,
         networkService
@@ -91,9 +135,9 @@ class AndroidApplicationService(androidMemoryService: AndroidMemoryReportService
         getPersistenceService(),
         networkService
     )
-    private val accountService = AccountService(persistenceService)
-    private val offerService = OfferService(networkService, identityService, persistenceService)
-    private val contractService = ContractService(securityService)
+    val accountService = AccountService(persistenceService)
+    val offerService = OfferService(networkService, identityService, persistenceService)
+    val contractService = ContractService(securityService)
     val userService = UserService(
         persistenceService,
         securityService,
@@ -103,12 +147,12 @@ class AndroidApplicationService(androidMemoryService: AndroidMemoryReportService
     )
     val chatService: ChatService
     val settingsService = SettingsService(persistenceService)
-    private val supportService: SupportService
-    private val systemNotificationService = SystemNotificationService(Optional.empty())
-    private val tradeService: TradeService
-    private val alertNotificationsService: AlertNotificationsService
-    private val favouriteMarketsService: FavouriteMarketsService
-    private val dontShowAgainService: DontShowAgainService
+    val supportService: SupportService
+    val systemNotificationService = SystemNotificationService(Optional.empty())
+    val tradeService: TradeService
+    val alertNotificationsService: AlertNotificationsService
+    val favouriteMarketsService: FavouriteMarketsService
+    val dontShowAgainService: DontShowAgainService
 
 
     init {
@@ -152,8 +196,16 @@ class AndroidApplicationService(androidMemoryService: AndroidMemoryReportService
     }
 
     override fun initialize(): CompletableFuture<Boolean> {
+        var ts = System.currentTimeMillis()
+        pruneAllBackups().join()
+        log.info("pruneAllBackups took {} ms", System.currentTimeMillis() - ts)
+
+        ts = System.currentTimeMillis()
+        readAllPersisted().join()
+        log.info("readAllPersisted took {} ms", System.currentTimeMillis() - ts)
+
         return securityService.initialize()
-            .thenCompose<Boolean> { result: Boolean? ->
+            .thenCompose { result: Boolean? ->
                 setState(State.INITIALIZE_NETWORK)
                 networkService.initialize()
             }

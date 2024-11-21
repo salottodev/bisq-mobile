@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.kotlinCocoapods)
     alias(libs.plugins.androidLibrary)
+    kotlin("plugin.serialization") version "2.0.21"
 }
 
 version = project.findProperty("shared.version") as String
@@ -36,6 +37,21 @@ kotlin {
             implementation(libs.koin.core)
             implementation(libs.kotlinx.coroutines)
             implementation(libs.logging.kermit)
+            implementation(libs.okio)
+            implementation(libs.kotlinx.datetime)
+
+            implementation(libs.ktor.client.core)
+            implementation(libs.kotlinx.serialization.core)
+            implementation(libs.ktor.client.serialization)
+            implementation(libs.ktor.client.json)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.ktor.client.cio)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.jetbrains.serialization.gradle.plugin)
+
+            configurations.all {
+                exclude(group = "org.slf4j", module = "slf4j-api")
+            }
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

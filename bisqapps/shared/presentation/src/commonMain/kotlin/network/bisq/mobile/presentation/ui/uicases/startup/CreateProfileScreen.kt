@@ -1,9 +1,11 @@
 package network.bisq.mobile.presentation.ui.uicases.startup
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.*
-import network.bisq.mobile.presentation.ui.components.atoms.BisqText
-import network.bisq.mobile.presentation.ui.components.layout.BisqScrollLayout
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -14,28 +16,16 @@ import androidx.navigation.NavHostController
 import bisqapps.shared.presentation.generated.resources.Res
 import bisqapps.shared.presentation.generated.resources.img_bot_image
 import cafe.adriel.lyricist.LocalStrings
-import kotlinx.coroutines.flow.StateFlow
 import network.bisq.mobile.components.MaterialTextField
-import network.bisq.mobile.presentation.ViewPresenter
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
+import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.icons.BisqLogo
+import network.bisq.mobile.presentation.ui.components.layout.BisqScrollLayout
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
-import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
-
-interface ICreateProfilePresenter: ViewPresenter {
-    val profileName: StateFlow<String>
-    val nym: StateFlow<String>
-    val id: StateFlow<String>
-
-    fun onProfileNameChanged(newName: String)
-    fun navigateToNextScreen()
-    fun onGenerateKeyPair()
-    fun onCreateAndPublishNewUserProfile()
-}
 
 
 @Composable
@@ -43,9 +33,8 @@ fun CreateProfileScreen(
 ) {
     val strings = LocalStrings.current
     val navController: NavHostController = koinInject(named("RootNavController"))
-    val presenter: ICreateProfilePresenter = koinInject { parametersOf(navController) }
+    val presenter: CreateProfilePresenter = koinInject { parametersOf(navController) }
 
-    val profileName = presenter.profileName.collectAsState().value
 
     LaunchedEffect(Unit) {
         presenter.onViewAttached()
@@ -73,12 +62,12 @@ fun CreateProfileScreen(
                 color = BisqTheme.colors.light2,
             )
             MaterialTextField(
-                text = presenter.profileName.collectAsState().value,
+                text = presenter.nickName.collectAsState().value,
                 placeholder = strings.onboarding_createProfile_nickName_prompt,
-                onValueChanged = { presenter.onProfileNameChanged(it) })
+                onValueChanged = { presenter.setNickname(it) })
         }
         Spacer(modifier = Modifier.height(36.dp))
-        Image(painterResource(Res.drawable.img_bot_image), "Crypto geHostnerated image (PoW)") // TODO: Translation
+        Image(painterResource(Res.drawable.img_bot_image), "User profile icon generated from the hash of the public key") // TODO: Translation
         Spacer(modifier = Modifier.height(32.dp))
         BisqText.baseRegular(
             text = presenter.nym.collectAsState().value,
@@ -100,7 +89,7 @@ fun CreateProfileScreen(
         BisqButton(
             strings.buttons_next,
             onClick = { presenter.onCreateAndPublishNewUserProfile() },
-            backgroundColor = if (profileName.isEmpty()) BisqTheme.colors.primaryDisabled else BisqTheme.colors.primary
+            backgroundColor = if (presenter.nickName.value.isEmpty()) BisqTheme.colors.primaryDisabled else BisqTheme.colors.primary
         )
-   }
+    }
 }

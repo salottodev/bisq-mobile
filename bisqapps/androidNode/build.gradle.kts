@@ -1,7 +1,8 @@
+
+import com.google.protobuf.gradle.proto
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.apache.tools.ant.taskdefs.condition.Os
-import com.google.protobuf.gradle.proto
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -81,6 +82,10 @@ android {
             // Exclude the conflicting META-INF files
             excludes.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
             excludes.add("META-INF/DEPENDENCIES")
+            excludes.add("META-INF/LICENSE.md")
+            excludes.add("META-INF/NOTICE.md")
+            excludes.add("META-INF/INDEX.LIST")
+            excludes.add("META-INF/NOTICE.markdown")
             pickFirsts.add("**/protobuf/**/*.class")
         }
     }
@@ -161,6 +166,7 @@ dependencies {
 
     implementation(libs.koin.core)
     implementation(libs.koin.android)
+    implementation(libs.logging.kermit)
 }
 
 // ensure tests run on J17
