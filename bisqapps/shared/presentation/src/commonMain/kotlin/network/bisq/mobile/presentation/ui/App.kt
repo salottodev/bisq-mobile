@@ -47,14 +47,11 @@ fun App() {
     }
 
     val lyricist = rememberStrings()
-    // lyricist.languageTag = Locales.FR
 
     BisqTheme(darkTheme = true) {
         ProvideStrings(lyricist) {
             if (isNavControllerSet) {
-                RootNavGraph(
-                    startDestination = Routes.Splash.name
-                )
+                RootNavGraph()
             }
         }
     }

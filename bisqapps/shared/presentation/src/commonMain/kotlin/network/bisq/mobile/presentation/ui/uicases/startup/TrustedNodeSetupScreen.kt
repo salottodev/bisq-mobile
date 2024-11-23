@@ -14,13 +14,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import bisqapps.shared.presentation.generated.resources.Res
-import bisqapps.shared.presentation.generated.resources.icon_question_mark
 import network.bisq.mobile.components.MaterialTextField
 import network.bisq.mobile.presentation.ui.components.atoms.icons.BisqLogo
+import network.bisq.mobile.presentation.ui.components.atoms.icons.QuestionIcon
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
-import network.bisq.mobile.presentation.ui.components.layout.BisqScrollLayout
+import network.bisq.mobile.presentation.ui.components.layout.BisqScrollScaffold
 import network.bisq.mobile.presentation.ui.theme.*
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
@@ -31,6 +30,9 @@ import cafe.adriel.lyricist.LocalStrings
 
 import kotlinx.coroutines.flow.StateFlow
 import network.bisq.mobile.presentation.ViewPresenter
+import network.bisq.mobile.presentation.ui.components.atoms.BisqTextField
+import network.bisq.mobile.presentation.ui.components.atoms.icons.CopyIcon
+import network.bisq.mobile.presentation.ui.components.atoms.icons.ScanIcon
 
 interface ITrustedNodeSetupPresenter: ViewPresenter {
     val bisqUrl: StateFlow<String>
@@ -58,26 +60,26 @@ fun TrustedNodeSetupScreen(
         presenter.onViewAttached()
     }
 
-    BisqScrollLayout {
+    BisqScrollScaffold {
         BisqLogo()
         Spacer(modifier = Modifier.height(24.dp))
         Column(
             verticalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxSize().padding(horizontal = 0.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                BisqText.baseRegular(
-                    text = "Bisq URL",
-                    color = BisqTheme.colors.light1,
-                )
-                Image(painterResource(Res.drawable.icon_question_mark), "Question mark")
-            }
-
-            MaterialTextField(bisqUrl, onValueChanged = { presenter.updateBisqUrl(it) })
+            BisqTextField(
+                label = "Bisq URL",
+                onValueChanged = { presenter.updateBisqUrl(it) },
+                value = bisqUrl,
+                placeholder = "",
+                labelRightSuffix = {
+                    BisqButton(
+                        iconOnly = { QuestionIcon() },
+                        backgroundColor = BisqTheme.colors.backgroundColor,
+                        onClick = { presenter.navigateToNextScreen() }
+                    )
+                }
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -88,13 +90,13 @@ fun TrustedNodeSetupScreen(
                     onClick = {},
                     backgroundColor = BisqTheme.colors.dark5,
                     color = BisqTheme.colors.light1,
-                    //leftIcon=Image(painterResource(Res.drawable.icon_copy), "Copy button")
+                    leftIcon= { CopyIcon() }
                 )
 
                 BisqButton(
                     text = "Scan",
                     onClick = {},
-                    //leftIcon=Image(painterResource(Res.drawable.icon_qr), "Scan button")
+                    leftIcon= { ScanIcon() }
                 )
             }
             Spacer(modifier = Modifier.height(36.dp))
