@@ -2,7 +2,6 @@ package network.bisq.mobile.presentation
 
 import androidx.annotation.CallSuper
 import androidx.navigation.NavHostController
-import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -12,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import network.bisq.mobile.domain.data.model.BaseModel
+import network.bisq.mobile.utils.Logging
+
 
 /**
  * Presenter methods accesible by all views. Views should extend this interface when defining the behaviour expected for their presenter.
@@ -42,9 +43,8 @@ interface ViewPresenter {
  * Base class allows to have a tree hierarchy of presenters. If the rootPresenter is null, this presenter acts as root
  * if root present is passed, this present attach itself to the root to get updates (consequently its dependants will be always empty
  */
-abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPresenter {
+abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPresenter, Logging {
     protected var view: Any? = null
-    protected val log = Logger.withTag(this::class.simpleName ?: "BasePresenter")
     // Coroutine scope for the presenter
     protected val presenterScope = CoroutineScope(Dispatchers.Main + Job())
 
@@ -169,7 +169,7 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
     private fun cleanup() {
         try {
             presenterScope.cancel()
-            // copy to avoid concurrency exception - no problem with multiple on detroy calls
+            // copy to avoid concurrency exception - no problem with multiple on destroy calls
             dependants?.toList()?.forEach { it.onDestroy() }
         } catch (e: Exception) {
             log.e("Failed cleanup", e)
