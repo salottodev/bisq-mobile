@@ -16,7 +16,7 @@ import network.bisq.mobile.presentation.ui.components.atoms.icons.BisqLogo
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.layout.BisqScrollScaffold
-import network.bisq.mobile.presentation.ui.components.organisms.startup.BisqPagerView
+import network.bisq.mobile.presentation.ui.components.organisms.BisqPagerView
 import network.bisq.mobile.presentation.ui.composeModels.PagerViewItem
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.theme.*
@@ -37,8 +37,7 @@ interface IOnboardingPresenter: ViewPresenter {
 @Composable
 fun OnBoardingScreen() {
     val strings = LocalStrings.current
-    val navController: NavHostController = koinInject(named("RootNavController"))
-    val presenter: IOnboardingPresenter = koinInject { parametersOf(navController) }
+    val presenter: IOnboardingPresenter = koinInject()
 
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { presenter.indexesToShow.size })
