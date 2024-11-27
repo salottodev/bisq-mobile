@@ -1,22 +1,23 @@
 package network.bisq.mobile.presentation.ui.uicases.startup
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import network.bisq.mobile.domain.data.BackgroundDispatcher
-import network.bisq.mobile.domain.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.navigation.Routes
-
 
 open class CreateProfilePresenter(
     mainPresenter: MainPresenter,
     private val userProfileService: UserProfileServiceFacade
 ) : BasePresenter(mainPresenter) {
 
+    // Properties
     private val _id = MutableStateFlow("")
     val id: StateFlow<String> get() = _id
     private fun setId(value: String) {
@@ -47,26 +48,57 @@ open class CreateProfilePresenter(
         _createAndPublishInProgress.value = value
     }
 
-    override fun onViewAttached() {
-        onGenerateKeyPair()
+    // Misc
+    private val coroutineScope =
+        CoroutineScope(Dispatchers.Main) // rootNavigator.navigate requires Dispatchers.Main
+    private var job: Job? = null
 
-        // Currently we just always show the create profile page.
-        // We need to make the UI behaving to the intended use case.
-        // 1. After loading screen -> check if there is an existing user profile by
-        // calling `userProfileRepository.service.hasUserProfile()`
-        // 1a. If there is an existing user profile, do not show create user profile screen,
-        // but show user profile is some not yet defined way (right top corner in Desktop shows user profile).
-        // `userProfileRepository.service.applySelectedUserProfile()` fills the user profile data to
-        // userProfileRepository.model to be used in the UI.
-        // 1b. If there is no existing user profile, show create profile screen and call
-        // `onGenerateKeyPair()` when view is ready.
+    // Lifecycle
+    override fun onViewAttached() {
+        generateKeyPair()
     }
 
+    override fun onViewUnattaching() {
+        cancelJob()
+    }
+
+    // UI handlers
     fun onGenerateKeyPair() {
-        // takes 200 -1000 ms
-        CoroutineScope(BackgroundDispatcher).launch {
+        generateKeyPair()
+    }
+
+    fun onCreateAndPublishNewUserProfile() {
+        if (nickName.value.isNotEmpty()) {
+            // We would never call generateKeyPair while generateKeyPair is not
+            // completed, thus we can assign to same job reference
+            job = coroutineScope.launch {
+                setCreateAndPublishInProgress(true)
+                log.i { "Show busy animation for createAndPublishInProgress" }
+                userProfileService.createAndPublishNewUserProfile(nickName.value)
+                log.i { "Hide busy animation for createAndPublishInProgress" }
+                setCreateAndPublishInProgress(false)
+
+                // todo stop busy animation in UI
+                // Skip for now the TrustedNodeSetup until its fully implemented with persisting the api URL.
+                /* rootNavigator.navigate(Routes.TrustedNodeSetup.name) {
+                     popUpTo(Routes.CreateProfile.name) { inclusive = true }
+                 }  */
+                rootNavigator.navigate(Routes.TabContainer.name) {
+                    popUpTo(Routes.CreateProfile.name) { inclusive = true }
+                }
+            }
+        }
+    }
+
+    // Private
+    private fun generateKeyPair() {
+        // We would never call onCreateAndPublishNewUserProfile while generateKeyPair is not
+        // completed, thus we can assign to same job reference
+        cancelJob()
+        job = coroutineScope.launch {
             setGenerateKeyPairInProgress(true)
             log.i { "Show busy animation for generateKeyPair" }
+            // takes 200 -1000 ms
             userProfileService.generateKeyPair { id, nym ->
                 setId(id)
                 setNym(nym)
@@ -77,22 +109,12 @@ open class CreateProfilePresenter(
         }
     }
 
-    fun onCreateAndPublishNewUserProfile() {
-        if (nickName.value.isNotEmpty()) {
-            CoroutineScope(BackgroundDispatcher).launch {
-                setCreateAndPublishInProgress(true)
-                log.i { "Show busy animation for createAndPublishInProgress" }
-                userProfileService.createAndPublishNewUserProfile(nickName.value)
-                log.i { "Hide busy animation for createAndPublishInProgress" }
-                setCreateAndPublishInProgress(false)
-
-                CoroutineScope(Dispatchers.Main).launch {
-                    // todo stop busy animation in UI
-                    rootNavigator.navigate(Routes.TrustedNodeSetup.name) {
-                        popUpTo(Routes.CreateProfile.name) { inclusive = true }
-                    }
-                }
-            }
+    private fun cancelJob() {
+        try {
+            job?.cancel()
+            job = null
+        } catch (e: CancellationException) {
+            log.e("Job cancel failed", e)
         }
     }
 }

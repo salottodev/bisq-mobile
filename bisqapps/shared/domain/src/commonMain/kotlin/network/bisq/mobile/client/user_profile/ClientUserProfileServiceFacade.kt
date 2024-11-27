@@ -5,7 +5,7 @@ import kotlinx.datetime.Clock
 import network.bisq.mobile.client.replicated_model.user.identity.PreparedData
 import network.bisq.mobile.client.replicated_model.user.profile.UserProfile
 import network.bisq.mobile.client.user_profile.UserProfileResponse
-import network.bisq.mobile.domain.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.utils.Logging
 import kotlin.math.max
 import kotlin.math.min
@@ -14,8 +14,10 @@ import kotlin.random.Random
 class ClientUserProfileServiceFacade(private val apiGateway: UserProfileApiGateway) :
     UserProfileServiceFacade, Logging {
 
+    // Misc
     private var preparedData: PreparedData? = null
 
+    // API
     override suspend fun hasUserProfile(): Boolean {
         return getUserIdentityIds().isNotEmpty()
     }
@@ -66,6 +68,7 @@ class ClientUserProfileServiceFacade(private val apiGateway: UserProfileApiGatew
         }
     }
 
+    // Private
     private suspend fun getSelectedUserProfile(): UserProfile {
         return apiGateway.getSelectedUserProfile()
     }

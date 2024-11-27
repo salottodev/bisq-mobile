@@ -1,32 +1,43 @@
 package network.bisq.mobile.presentation.ui.components.atoms
 
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import bisqapps.shared.presentation.generated.resources.Res
-import bisqapps.shared.presentation.generated.resources.bisq_logo
-import bisqapps.shared.presentation.generated.resources.currency_aed
 import coil3.compose.AsyncImage
+import network.bisq.mobile.utils.getLogger
 import org.jetbrains.compose.resources.ExperimentalResourceApi
-import org.jetbrains.compose.resources.painterResource
 
-
-// The idea of this Composable is to load images at run time with a string path.
-// TODO: In case the image doesn't exist, it should be handled gracefully
 @OptIn(ExperimentalResourceApi::class)
 @Composable
-fun DynamicImage(path: String, contentDescription: String?, modifier: Modifier? = Modifier) {
+fun DynamicImage(
+    path: String,
+    fallbackPath: String? = null,
+    contentDescription: String = "",
+    modifier: Modifier = Modifier,
+    onImageLoadError: (String) -> Unit = {}
+) {
+    // If image is not found we get an exception. If used inside AsyncImage we cannot use try/catch
+    // and error let app crash
+    var model: String? = null
+    try {
+        model = Res.getUri(path)
+    } catch (e: Exception) {
+        if (fallbackPath != null) {
+            try {
+                model = Res.getUri(fallbackPath)
+            } catch (e: Exception) {
+                getLogger("DynamicImage").i { "Could not find resource $fallbackPath" }
+            }
+        } else {
+            getLogger("DynamicImage").i { "Could not find resource $path" }
+        }
+    }
     AsyncImage(
-        model = Res.getUri(path),
-        //model = Res.getUri("drawable/currency_usd.png"),
-        //fallback = painterResource(Res.drawable.currency_aed),
-        contentDescription = null,
-        modifier = Modifier.size(36.dp),
+        model = model,
+        contentDescription = contentDescription,
+        modifier = modifier,
         onError = {
-            println("Error")
+            onImageLoadError.invoke(path)
         }
     )
 }

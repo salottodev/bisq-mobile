@@ -71,6 +71,7 @@ abstract class BasePresenter(private val rootPresenter: MainPresenter?): ViewPre
     @CallSuper
     override fun onDestroying() {
         // default impl
+        log.i { "onDestroying" }
     }
 
     @CallSuper
