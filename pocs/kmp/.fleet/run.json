@@ -1,9 +1,0 @@
-{
-    "configurations": [
-        {
-            "type": "android-app",
-            "name": "Bisq Android",
-            "module": "KMP-App-Template-Native.composeApp.main",
-        },
-    ]
-}
