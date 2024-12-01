@@ -35,7 +35,7 @@ fun CurrencyProfileCard(
         horizontalArrangement = Arrangement.SpaceBetween,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 4.dp)
+            .padding(vertical = 4.dp)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,

@@ -9,6 +9,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 
 import kotlinx.coroutines.flow.StateFlow
 import network.bisq.mobile.presentation.ViewPresenter
+import network.bisq.mobile.presentation.ui.components.SwipeBackIOSNavigationHandler
 import org.koin.compose.koinInject
 import network.bisq.mobile.presentation.ui.navigation.Routes
 
@@ -16,13 +17,16 @@ import network.bisq.mobile.presentation.ui.navigation.graph.RootNavGraph
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import org.koin.mp.KoinPlatform.getKoin
 
-interface AppPresenter: ViewPresenter {
+interface AppPresenter : ViewPresenter {
     fun setNavController(controller: NavHostController)
-        // Observables for state
+
+    // Observables for state
     val isContentVisible: StateFlow<Boolean>
 
     // Actions
     fun toggleContentVisibility()
+
+    fun isIOS(): Boolean
 }
 
 /**
@@ -57,7 +61,9 @@ fun App() {
     BisqTheme(darkTheme = true) {
         ProvideStrings(lyricist) {
             if (isNavControllerSet) {
-                RootNavGraph()
+                SwipeBackIOSNavigationHandler(rootNavController) {
+                    RootNavGraph()
+                }
             }
         }
     }
