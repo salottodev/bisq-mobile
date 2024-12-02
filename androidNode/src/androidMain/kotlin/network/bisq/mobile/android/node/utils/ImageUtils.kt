@@ -13,19 +13,26 @@ import java.io.FileOutputStream
 import java.io.IOException
 
 /**
- * Android images utilitary functions
+ * Android images utility functions
  */
-object ImageUtil: Logging {
-
-    fun composeImage(context: Context, paths: Array<String>, width: Int, height: Int): Bitmap {
+object ImageUtil : Logging {
+    const val BASE_PATH = "cathash/"
+    fun composeImage(
+        context: Context,
+        basePath: String,
+        paths: Array<String>,
+        width: Int,
+        height: Int
+    ): Bitmap {
         val resultBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(resultBitmap)
         val paint = Paint()
 
         paths.forEach { path ->
-            val bitmap = getImageByPath(context, path)
+            val bitmap = getImageByPath(context, basePath, path)
             if (bitmap != null) {
-                canvas.drawBitmap(bitmap, 0f, 0f, paint)
+                val scaledBitmap = Bitmap.createScaledBitmap(bitmap, width, height, true)
+                canvas.drawBitmap(scaledBitmap, 0f, 0f, paint)
             }
         }
 
@@ -51,10 +58,10 @@ object ImageUtil: Logging {
         }
     }
 
-    internal fun getImageByPath(context: Context, path: String): Bitmap? {
+    internal fun getImageByPath(context: Context, basePath: String, path: String): Bitmap? {
         return try {
-            log.d { "opening file in path $path"}
-            val inputStream = context.assets.open(path)
+            val fullPath = basePath + path
+            val inputStream = context.assets.open(fullPath)
             BitmapFactory.decodeStream(inputStream)
         } catch (e: Exception) {
             e.printStackTrace()
