@@ -1,6 +1,7 @@
 package network.bisq.mobile.client.service.user_profile
 
 import io.ktor.util.decodeBase64Bytes
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,22 +51,34 @@ class ClientUserProfileServiceFacade(
         super<ServiceFacade>.activate()
 
         serviceScope.launch(Dispatchers.Default) {
-            _selectedUserProfile.value = getSelectedUserProfile()
-            // Ensure ignored users cache is initialized before any hot-path calls
-            try {
-                getIgnoredUserProfileIds()
-                initializationMutex.withLock {
-                    isIgnoredUsersCacheInitialized = true
-                }
-                log.d { "Ignored users cache initialized successfully" }
-            } catch (e: Exception) {
-                log.e(e) { "Failed to initialize ignored users cache during activation" }
-                // Set empty cache to prevent repeated network calls
-                ignoredUserIdsMutex.withLock {
-                    ignoredUserIdsCache = emptySet()
-                    isIgnoredUsersCacheInitialized = true
-                }
-            }
+          // Initialize selected user profile with proper error handling
+          runCatching {
+              getSelectedUserProfile()
+          }.onSuccess { profile ->
+              _selectedUserProfile.value = profile
+          }.onFailure { e ->
+              if (e is CancellationException) {
+                  throw e
+              }
+              // Expected at first run
+              log.d("Error getting user profile: ${e.message}")
+          }
+
+          // Ensure ignored users cache is initialized before any hot-path calls
+          try {
+              getIgnoredUserProfileIds()
+              initializationMutex.withLock {
+                  isIgnoredUsersCacheInitialized = true
+              }
+              log.d { "Ignored users cache initialized successfully" }
+          } catch (e: Exception) {
+              log.e(e) { "Failed to initialize ignored users cache during activation" }
+              // Set empty cache to prevent repeated network calls
+              ignoredUserIdsMutex.withLock {
+                  ignoredUserIdsCache = emptySet()
+                  isIgnoredUsersCacheInitialized = true
+              }
+          }
         }
     }
 
