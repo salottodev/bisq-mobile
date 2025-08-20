@@ -60,10 +60,11 @@ fun SplashScreen() {
                     BisqButton(
                         text = "bootstrap.restart".i18n(),
                         onClick = { presenter.onRestart() },
-                        modifier = Modifier.padding(
-                            horizontal = ScreenPadding4X,
-                            vertical = ScreenPaddingHalfQuarter
-                        )
+                        modifier = Modifier
+                            .padding(
+                                horizontal = ScreenPadding4X,
+                                vertical = ScreenPaddingHalfQuarter
+                            )
                     )
                 }
 
