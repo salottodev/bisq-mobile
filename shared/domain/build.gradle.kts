@@ -235,9 +235,8 @@ abstract class GenerateResourceBundlesTask : DefaultTask() {
                         properties.load(reader)
                     }
                 }
-
-                val map = properties.entries.associate { it.key.toString() to it.value.toString() }
-                ResourceBundle(map, bundleName, languageCode)
+                val rawMap = properties.entries.associate { it.key.toString() to it.value.toString() }
+                ResourceBundle(rawMap, bundleName, languageCode)
             }
         }
 

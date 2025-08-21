@@ -3,6 +3,7 @@ package network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -10,10 +11,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import bisqapps.shared.presentation.generated.resources.Res
 import bisqapps.shared.presentation.generated.resources.trade_bitcoin_confirmation
 import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.presentation.ui.components.atoms.AutoResizeText
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
@@ -133,6 +136,14 @@ fun SellerStateMainChain3b(
             BisqButton(
                 text = buttonText,
                 type = if (skip) BisqButtonType.Grey else BisqButtonType.Default,
+                textComponent = {
+                    val contentColor = LocalContentColor.current
+                    AutoResizeText(
+                        text = buttonText,
+                        color = contentColor,
+                        textAlign = TextAlign.Center
+                    )
+                },
                 onClick = { presenter.onCompleteTrade() },
             )
         }
