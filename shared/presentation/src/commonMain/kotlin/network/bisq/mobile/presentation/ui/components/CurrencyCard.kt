@@ -86,15 +86,15 @@ fun CurrencyCard(
             )
             BisqGap.HHalf()
             Column {
-                BisqText.baseRegular(
+                BisqText.baseLight(
                     text = item.localeFiatCurrencyName,
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.height(0.dp))
-                BisqText.baseRegularGrey(item.market.quoteCurrencyCode)
+                BisqText.baseLightGrey(item.market.quoteCurrencyCode)
             }
         }
-        BisqText.baseRegular(
+        BisqText.baseLight(
             text = (if (hasIgnoredUsers && numOffers > 0) "~" else "") +
                     "mobile.components.currencyCard.numberOfOffers".i18n(numOffers),
             color = BisqTheme.colors.primary,

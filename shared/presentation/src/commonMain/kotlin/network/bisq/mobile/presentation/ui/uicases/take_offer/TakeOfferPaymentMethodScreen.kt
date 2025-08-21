@@ -36,7 +36,7 @@ fun TakeOfferPaymentMethodScreen() {
         onConfirmedClose = presenter::onClose,
     ) {
 
-        BisqText.h3Regular("mobile.bisqEasy.takeOffer.paymentMethods.headline.fiat".i18n())
+        BisqText.h3Light("mobile.bisqEasy.takeOffer.paymentMethods.headline.fiat".i18n())
 
         if (presenter.hasMultipleQuoteSidePaymentMethods) {
             BisqGap.V2()

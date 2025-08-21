@@ -51,7 +51,7 @@ fun ConfirmationDialog(
             BisqGap.V2()
         }
         if (message.isNotEmpty()) {
-            BisqText.baseRegular(message)
+            BisqText.baseLight(message)
             BisqGap.V2()
         }
         if (verticalButtonPlacement) {

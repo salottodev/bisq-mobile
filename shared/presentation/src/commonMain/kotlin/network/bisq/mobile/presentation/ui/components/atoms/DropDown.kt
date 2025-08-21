@@ -117,7 +117,7 @@ fun BisqDropDown(
                 val textToShow = if (showKey) item.first else item.second
 
                 DropdownMenuItem(
-                    text = { BisqText.baseRegular(textToShow) },
+                    text = { BisqText.baseLight(textToShow, singleLine = true) },
                     onClick = {
                         showError.value = false
                         if (chipMultiSelect) {
@@ -143,7 +143,7 @@ fun BisqDropDown(
         BisqGap.VHalf()
 
         if(showError.value) {
-            BisqText.smallRegular(
+            BisqText.smallLight(
                 text = "mobile.components.dropdown.maxSelection".i18n(maxSelectionLimit.toString()), // "Maximum of {0} items can be selected",
                 modifier = Modifier.padding(
                     start = BisqUIConstants.ScreenPaddingQuarter,
@@ -153,7 +153,7 @@ fun BisqDropDown(
                 color = BisqTheme.colors.danger
             )
         } else {
-            BisqText.smallRegular(
+            BisqText.smallLight(
                 text = helpText,
                 modifier = Modifier.padding(
                     start = BisqUIConstants.ScreenPaddingQuarter,

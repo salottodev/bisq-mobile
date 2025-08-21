@@ -31,6 +31,7 @@ enum class BisqButtonType {
     Danger,
     Outline,
     GreyOutline,
+    WarningOutline,
     Clear
 }
 
@@ -75,6 +76,7 @@ fun BisqButton(
         BisqButtonType.Danger -> if (disabled) BisqTheme.colors.danger.copy(alpha = 0.75F) else BisqTheme.colors.danger
         BisqButtonType.Outline -> Color.Transparent
         BisqButtonType.GreyOutline -> Color.Transparent
+        BisqButtonType.WarningOutline -> Color.Transparent
         BisqButtonType.Clear -> Color.Transparent
     }
 
@@ -84,6 +86,7 @@ fun BisqButton(
         BisqButtonType.Danger -> null
         BisqButtonType.Outline -> BorderStroke(1.dp, borderColor)
         BisqButtonType.GreyOutline -> BorderStroke(1.dp, grey2)
+        BisqButtonType.WarningOutline -> BorderStroke(1.dp, if (disabled) BisqTheme.colors.mid_grey10 else BisqTheme.colors.warning)
         BisqButtonType.Clear -> null
     }
 
@@ -93,6 +96,7 @@ fun BisqButton(
         BisqButtonType.Danger -> if (disabled) grey2 else color
         BisqButtonType.Outline -> if (disabled) BisqTheme.colors.primaryDisabled else BisqTheme.colors.primary
         BisqButtonType.GreyOutline -> if (disabled) BisqTheme.colors.mid_grey10 else grey2
+        BisqButtonType.WarningOutline -> if (disabled) BisqTheme.colors.mid_grey10 else BisqTheme.colors.warning
         BisqButtonType.Clear -> if (disabled) grey2 else color
     }
 
@@ -114,7 +118,7 @@ fun BisqButton(
         modifier = if (fullWidth) modifier.fillMaxWidth() else modifier
     ) {
         if (iconOnly == null && text == null && textComponent == null) {
-            BisqText.baseMedium("mobile.components.button.passEitherTextOrCustomTextorIcon".i18n())
+            BisqText.baseLight("mobile.components.button.passEitherTextOrCustomTextorIcon".i18n())
         }
 
         if (iconOnly != null) {
@@ -137,7 +141,7 @@ fun BisqButton(
                 if (textComponent != null) {
                     textComponent()
                 } else {
-                    BisqText.baseMedium(
+                    BisqText.baseRegular(
                         text = text,
                         color = finalContentColor,
                         textAlign = textAlign,

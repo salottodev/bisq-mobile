@@ -86,7 +86,7 @@ fun BottomNavigation(
                         text = navigationItem.title.i18n(),
                         color = if (navigationItem.route == currentRoute) BisqTheme.colors.primary else BisqTheme.colors.white,
                         fontSize = FontSize.BASE,
-                        fontWeight = FontWeight.REGULAR,
+                        fontWeight = FontWeight.LIGHT,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         minimumFontSize = 8.sp

@@ -67,7 +67,7 @@ fun CreateOfferAmountSelectorScreen() {
         onConfirmedClose = presenter::onClose
     ) {
 
-        BisqText.h3Regular(
+        BisqText.h3Light(
             text = presenter.headline,
             modifier = Modifier.align(Alignment.Start)
         )

@@ -60,7 +60,7 @@ fun AboutScreen() {
 
         BisqGap.V2()
 
-        BisqText.h3Regular(
+        BisqText.h3Light(
             text = "${presenter.appName} v${versioning.appVersion}",
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),

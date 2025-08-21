@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
@@ -102,11 +103,12 @@ fun <T> ToggleTab(
                     .background(BisqTheme.colors.primary, RoundedCornerShape(4.dp))
                     .wrapContentSize()
             ) {
-                BisqText.baseRegular(
+                BisqText.baseLight(
                     text = getDisplayString(selectedOption),
                     modifier = Modifier
                         .padding(horizontal = hPadding, vertical = vPadding)
-                        .alpha(0f),
+                        .alpha(0f)
+                        .clearAndSetSemantics { },
                     singleLine = singleLine
                 )
             }
@@ -133,7 +135,7 @@ fun <T> ToggleTab(
                             .weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
-                        BisqText.baseRegular(
+                        BisqText.baseLight(
                             text = getDisplayString(option),
                             textAlign = TextAlign.Center,
                             singleLine = singleLine

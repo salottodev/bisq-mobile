@@ -135,17 +135,17 @@ fun OfferCard(
 
             BisqGap.VHalf()
 
-            BisqText.baseRegular(item.formattedQuoteAmount)
+            BisqText.baseLight(item.formattedQuoteAmount)
 
             BisqGap.VHalf()
 
-//            BisqText.smallRegular("@ " + item.formattedPriceSpec)
             AutoResizeText(
                 text = "@ " + item.formattedPriceSpec,
                 fontSize = FontSize.SMALL,
-                fontWeight = FontWeight.REGULAR,
+                fontWeight = FontWeight.LIGHT,
                 maxLines = 1,
             )
+
 
             Spacer(modifier = Modifier.weight(1f))
 

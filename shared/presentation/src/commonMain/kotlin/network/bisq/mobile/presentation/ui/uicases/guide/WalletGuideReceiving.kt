@@ -52,11 +52,11 @@ fun WalletGuideReceiving() {
         horizontalAlignment = Alignment.Start,
         isInteractive = isInteractive,
     ) {
-        BisqText.h3Regular("bisqEasy.walletGuide.receive.headline".i18n())
+        BisqText.h3Light("bisqEasy.walletGuide.receive.headline".i18n())
 
         BisqGap.V2()
 
-        BisqText.baseRegular("bisqEasy.walletGuide.receive.content".i18n())
+        BisqText.baseLight("bisqEasy.walletGuide.receive.content".i18n())
 
         BisqGap.V2()
 

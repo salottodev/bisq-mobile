@@ -66,7 +66,7 @@ fun BisqChip(
         onClick = {
             onClick?.invoke(label)
         },
-        label = { BisqText.baseRegular(label, modifier = Modifier.padding(vertical = BisqUIConstants.ScreenPadding)) },
+        label = { BisqText.baseLight(label, modifier = Modifier.padding(vertical = BisqUIConstants.ScreenPadding)) },
         selected = false,
         trailingIcon = {
             if (showRemove) {

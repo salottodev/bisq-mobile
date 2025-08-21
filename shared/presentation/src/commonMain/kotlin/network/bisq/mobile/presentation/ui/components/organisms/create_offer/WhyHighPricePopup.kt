@@ -18,16 +18,15 @@ fun WhyHighPricePopup(
         onDismissRequest = onDismiss,
     ) {
 
-        BisqText.h6Medium("bisqEasy.price.feedback.learnWhySection.title".i18n())
+        BisqText.h6Light("bisqEasy.price.feedback.learnWhySection.title".i18n())
 
         BisqGap.V1()
 
-        BisqText.baseRegular("bisqEasy.price.feedback.learnWhySection.description.intro".i18n())
+        BisqText.baseLight("bisqEasy.price.feedback.learnWhySection.description.intro".i18n())
 
         BisqGap.V1()
 
-        // TODO:i18n: This isn't looking good. Have to give new lines in translation text
-        BisqText.baseRegular("bisqEasy.price.feedback.learnWhySection.description.exposition".i18n())
+        BisqText.baseLight("bisqEasy.price.feedback.learnWhySection.description.exposition".i18n())
 
         BisqGap.V1()
 

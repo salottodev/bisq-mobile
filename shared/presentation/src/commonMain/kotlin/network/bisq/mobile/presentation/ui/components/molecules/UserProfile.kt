@@ -52,7 +52,7 @@ fun UserProfile(
         BisqGap.V1()
         Column {
             if (showUserName) {
-                BisqText.baseRegular(
+                BisqText.baseLight(
                     text = user.userName,
                     singleLine = true,
                 )

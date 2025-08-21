@@ -28,11 +28,11 @@ fun ReputationBasedSellerLimitsPopup(
         onDismissRequest = onDismiss,
     ) {
 
-        BisqText.h6Medium("bisqEasy.tradeWizard.amount.limitInfo.overlay.headline".i18n())
+        BisqText.h6Light("bisqEasy.tradeWizard.amount.limitInfo.overlay.headline".i18n())
 
         BisqGap.V1()
 
-        BisqText.baseRegular("bisqEasy.tradeWizard.amount.seller.limitInfo.overlay".i18n(reputationScore, maxSellAmount))
+        BisqText.baseLight("bisqEasy.tradeWizard.amount.seller.limitInfo.overlay".i18n(reputationScore, maxSellAmount))
 
         BisqGap.V3()
 

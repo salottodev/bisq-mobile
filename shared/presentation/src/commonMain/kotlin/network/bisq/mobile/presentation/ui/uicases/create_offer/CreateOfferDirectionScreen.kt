@@ -41,7 +41,7 @@ fun CreateOfferDirectionScreen() {
         closeAction = !showSellerReputationWarning,
         onConfirmedClose = presenter::onClose
     ) {
-        BisqText.h3Regular(presenter.headline)
+        BisqText.h3Light(presenter.headline)
 
         BisqGap.V2()
 
@@ -53,7 +53,7 @@ fun CreateOfferDirectionScreen() {
             backgroundColor = buyBackgroundColor,
             modifier = Modifier.fillMaxWidth(),
             padding = PaddingValues(vertical = BisqUIConstants.ScreenPadding4X),
-            textComponent = { BisqText.h3Medium("bisqEasy.tradeWizard.directionAndMarket.buy".i18n()) }
+            textComponent = { BisqText.h3Light("bisqEasy.tradeWizard.directionAndMarket.buy".i18n()) }
         )
         BisqGap.VHalf()
         BisqText.largeLightGrey("mobile.bisqEasy.tradeWizard.direction.buy.helpText".i18n())
@@ -68,7 +68,7 @@ fun CreateOfferDirectionScreen() {
             backgroundColor = sellBackgroundColor, //BisqTheme.colors.secondary,
             modifier = Modifier.fillMaxWidth(),
             padding = PaddingValues(vertical = BisqUIConstants.ScreenPadding4X),
-            textComponent = { BisqText.h3Medium("bisqEasy.tradeWizard.directionAndMarket.sell".i18n()) }
+            textComponent = { BisqText.h3Light("bisqEasy.tradeWizard.directionAndMarket.sell".i18n()) }
         )
         BisqGap.VHalf()
         BisqText.largeLightGrey("mobile.bisqEasy.tradeWizard.direction.sell.helpText".i18n())

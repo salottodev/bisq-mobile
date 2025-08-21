@@ -36,7 +36,7 @@ fun TakeOfferTradeAmountScreen() {
         closeAction = true,
         onConfirmedClose = presenter::onClose,
     ) {
-        BisqText.h3Regular("bisqEasy.takeOffer.amount.headline.buyer".i18n())
+        BisqText.h3Light("bisqEasy.takeOffer.amount.headline.buyer".i18n())
         BisqGap.V1()
         BisqText.largeLightGrey(
             // We get currency code appended but for formattedMinAmount we want to omit it in the string

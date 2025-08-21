@@ -308,14 +308,14 @@ fun BisqTextField(
         // Error text has priority over help field. But on focus, helper text is shown over error text.
         if (validationError?.isNotEmpty() == true && hasInteracted && !isFocused) {
             BisqGap.VQuarter()
-            BisqText.smallRegular(
+            BisqText.smallLight(
                 text = validationError!!,
                 modifier = Modifier.padding(start = 4.dp, top = 1.dp, bottom = 4.dp),
                 color = BisqTheme.colors.danger
             )
         } else if (helperText.isNotEmpty()) {
             BisqGap.VQuarter()
-            BisqText.smallRegularGrey(
+            BisqText.smallLightGrey(
                 text = helperText,
                 modifier = Modifier.padding(start = 4.dp, top = 1.dp, bottom = 4.dp),
             )

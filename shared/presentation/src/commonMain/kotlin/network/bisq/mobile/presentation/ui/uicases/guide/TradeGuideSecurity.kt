@@ -30,11 +30,11 @@ fun TradeGuideSecurity() {
         horizontalAlignment = Alignment.Start,
         isInteractive = isInteractive,
     ) {
-        BisqText.h3Regular("bisqEasy.tradeGuide.security.headline".i18n())
+        BisqText.h3Light("bisqEasy.tradeGuide.security.headline".i18n())
 
         BisqGap.V2()
 
-        BisqText.baseRegular("bisqEasy.tradeGuide.security.content".i18n())
+        BisqText.baseLight("bisqEasy.tradeGuide.security.content".i18n())
 
         BisqGap.V2()
 

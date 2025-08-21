@@ -308,6 +308,7 @@ object BisqText {
         text: String,
         color: Color = BisqTheme.colors.white,
         textAlign: TextAlign = TextAlign.Start,
+        singleLine: Boolean = false,
         modifier: Modifier = Modifier,
     ) {
         styledText(
@@ -316,6 +317,8 @@ object BisqText {
             fontWeight = FontWeight.LIGHT,
             color = color,
             textAlign = textAlign,
+            maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+            overflow = if (singleLine) TextOverflow.Ellipsis else TextOverflow.Clip,
             modifier = modifier,
         )
     }

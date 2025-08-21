@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -80,6 +81,7 @@ fun FiatInputField(
                 color = Color.White,
                 fontSize = fontSize,
                 textAlign = textAlign,
+                fontWeight = FontWeight.Light,
                 textDecoration = TextDecoration.None
             ),
             validation = {

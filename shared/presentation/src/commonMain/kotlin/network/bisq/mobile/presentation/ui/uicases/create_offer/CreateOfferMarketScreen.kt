@@ -46,7 +46,7 @@ fun CreateOfferCurrencySelectorScreen() {
         onConfirmedClose = presenter::onClose,
     ) {
 
-        BisqText.h3Regular(presenter.headline)
+        BisqText.h3Light(presenter.headline)
         BisqGap.V1()
 
         BisqText.largeLightGrey("mobile.bisqEasy.tradeWizard.market.subTitle".i18n())

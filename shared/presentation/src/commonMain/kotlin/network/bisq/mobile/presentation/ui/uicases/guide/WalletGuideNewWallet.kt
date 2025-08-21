@@ -28,11 +28,11 @@ fun WalletGuideNewWallet() {
         nextOnClick = presenter::newWalletNextClick,
         horizontalAlignment = Alignment.Start,
     ) {
-        BisqText.h3Regular("bisqEasy.walletGuide.createWallet.headline".i18n())
+        BisqText.h3Light("bisqEasy.walletGuide.createWallet.headline".i18n())
 
         BisqGap.V2()
 
-        BisqText.baseRegular("bisqEasy.walletGuide.createWallet.content".i18n())
+        BisqText.baseLight("bisqEasy.walletGuide.createWallet.content".i18n())
 
         BisqGap.V2()
 

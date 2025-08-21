@@ -97,9 +97,9 @@ fun PaymentAccountSettingsScreen() {
 
                 BisqText.baseLightGrey("user.paymentAccounts.noAccounts.info".i18n())
                 BisqGap.V2()
-                BisqText.h2Regular("user.paymentAccounts.noAccounts.whySetup".i18n())
+                BisqText.h2Light("user.paymentAccounts.noAccounts.whySetup".i18n())
                 BisqGap.V1()
-                BisqText.baseRegular("user.paymentAccounts.noAccounts.whySetup.info".i18n())
+                BisqText.baseLight("user.paymentAccounts.noAccounts.whySetup.info".i18n())
                 BisqGap.V2()
                 BisqText.baseLightGrey("user.paymentAccounts.noAccounts.whySetup.note".i18n())
 

@@ -13,8 +13,6 @@ import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.BtcSatsText
 import network.bisq.mobile.presentation.ui.components.atoms.FontSize
-import network.bisq.mobile.presentation.ui.components.atoms.button.BisqIconButton
-import network.bisq.mobile.presentation.ui.components.atoms.icons.CloseIcon
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqHDivider
 import network.bisq.mobile.presentation.ui.components.layout.MultiScreenWizardScaffold
@@ -68,7 +66,7 @@ fun CreateOfferReviewOfferScreen() {
                                     noCode = true,
                                     fontSize = FontSize.H6
                                 )
-                                BisqText.baseRegular(" - ")
+                                BisqText.baseLight(" - ")
                                 BtcSatsText(presenter.formattedBaseRangeMaxAmount, fontSize = FontSize.H6)
                             }
                         }
@@ -87,7 +85,7 @@ fun CreateOfferReviewOfferScreen() {
                                     noCode = true,
                                     fontSize = FontSize.H6
                                 )
-                                BisqText.baseRegular(" - ")
+                                BisqText.baseLight(" - ")
                                 BtcSatsText(presenter.formattedBaseRangeMaxAmount, fontSize = FontSize.H6)
                             }
                         }
@@ -128,9 +126,9 @@ fun CreateOfferReviewOfferScreen() {
                         verticalAlignment = Alignment.Bottom,
                         horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        BisqText.h6Regular(presenter.formattedPrice)
+                        BisqText.h6Light(presenter.formattedPrice)
                         BisqGap.HQuarter()
-                        BisqText.baseRegularGrey(presenter.marketCodes)
+                        BisqText.baseLightGrey(presenter.marketCodes)
                     }
                 },
                 subvalue = presenter.priceDetails

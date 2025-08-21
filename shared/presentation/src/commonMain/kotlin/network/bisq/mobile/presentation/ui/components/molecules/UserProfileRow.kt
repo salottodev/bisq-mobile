@@ -47,7 +47,7 @@ fun UserProfileRow(
         )
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (showUserName) {
-                BisqText.baseRegular(
+                BisqText.baseLight(
                     text = user.userName,
                     singleLine = true,
                 )

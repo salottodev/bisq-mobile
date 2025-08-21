@@ -40,11 +40,11 @@ fun TradeGuideTradeRules() {
         isInteractive = isInteractive,
         showJumpToBottom = true
     ) {
-        BisqText.h3Regular("bisqEasy.tradeGuide.rules.headline".i18n())
+        BisqText.h3Light("bisqEasy.tradeGuide.rules.headline".i18n())
 
         BisqGap.V2()
 
-        BisqText.baseRegular("bisqEasy.tradeGuide.rules.content".i18n())
+        BisqText.baseLight("bisqEasy.tradeGuide.rules.content".i18n())
 
         BisqGap.V2()
 

@@ -42,12 +42,12 @@ fun AppPaymentAccountCard(
         ), verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding)
     ) {
         BisqGap.VQuarter()
-        BisqText.h5Regular(
+        BisqText.h5Light(
             text = "user.paymentAccounts.createAccount.headline".i18n(),
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
-        BisqText.smallRegularGrey(
+        BisqText.smallLightGrey(
             text = "user.paymentAccounts.createAccount.subtitle".i18n(),
             textAlign = TextAlign.Center
         )

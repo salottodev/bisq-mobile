@@ -132,7 +132,7 @@ fun TopBar(
             } else {
                 if (isFlowScreen) {
                     Column {
-                        BisqText.smallRegularGrey(
+                        BisqText.smallLightGrey(
                             text = "mobile.components.topBar.step".i18n(stepText),
                             modifier = Modifier.offset(y = 2.dp)
                         )
@@ -144,7 +144,7 @@ fun TopBar(
                         AutoResizeText(
                             text = title,
                             fontSize = FontSize.H5,
-                            fontWeight = FontWeight.MEDIUM,
+                            fontWeight = FontWeight.REGULAR,
                             color = BisqTheme.colors.white,
                         )
                     }
@@ -153,7 +153,7 @@ fun TopBar(
                     AutoResizeText(
                         text = title,
                         fontSize = FontSize.H4,
-                        fontWeight = FontWeight.MEDIUM,
+                        fontWeight = FontWeight.REGULAR,
                         color = BisqTheme.colors.white,
                         maxLines = 2,
                     )

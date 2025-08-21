@@ -243,7 +243,7 @@ fun TradeDetailsHeader() {
                                         modifier = Modifier.weight(1f).fillMaxHeight(),
                                         text = openMediationButtonText,
                                         onClick = { presenter.onOpenMediationConfirmationDialog() },
-                                        type = BisqButtonType.GreyOutline,
+                                        type = BisqButtonType.WarningOutline,
                                     )
                                 }
                             }

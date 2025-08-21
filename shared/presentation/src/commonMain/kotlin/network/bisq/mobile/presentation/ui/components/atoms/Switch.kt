@@ -26,7 +26,7 @@ fun BisqSwitch(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BisqText.baseRegular(
+        BisqText.baseLight(
             label,
             modifier = Modifier
                 .weight(1f)

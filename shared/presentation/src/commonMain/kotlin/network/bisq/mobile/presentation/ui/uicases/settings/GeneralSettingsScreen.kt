@@ -81,7 +81,7 @@ fun GeneralSettingsScreen() {
         isInteractive = isInteractive,
     ) {
 
-        BisqText.h4Regular("settings.language".i18n())
+        BisqText.h4Light("settings.language".i18n())
 
         BisqGap.V1()
 
@@ -91,8 +91,6 @@ fun GeneralSettingsScreen() {
             value = selectedLanguage,
             onValueChanged = { presenter.setLanguageCode(it.first) },
         )
-
-        BisqGap.V1()
 
         BisqDropDown(
             label = "settings.language.supported.headline".i18n(),
@@ -114,7 +112,7 @@ fun GeneralSettingsScreen() {
 
         /*
         TODO: Will enable later
-        BisqText.h4Regular("settings.notification.options".i18n())
+        BisqText.h4Light("settings.notification.options".i18n())
 
         BisqGap.V1()
 
@@ -132,7 +130,7 @@ fun GeneralSettingsScreen() {
         BisqHDivider()
         */
 
-        BisqText.h4Regular("settings.trade.headline".i18n())
+        BisqText.h4Light("settings.trade.headline".i18n())
 
         BisqGap.V1()
 
@@ -183,7 +181,7 @@ fun GeneralSettingsScreen() {
 
         BisqHDivider()
 
-        BisqText.h4Regular("settings.display.headline".i18n())
+        BisqText.h4Light("settings.display.headline".i18n())
 
         BisqGap.V1()
 
@@ -196,7 +194,7 @@ fun GeneralSettingsScreen() {
         if (shouldShowPoWAdjustmentFactor) {
             BisqHDivider()
 
-            BisqText.h4Regular("settings.network.headline".i18n())
+            BisqText.h4Light("settings.network.headline".i18n())
 
             BisqGap.V1()
 

@@ -28,11 +28,11 @@ fun TradeGuideOverview() {
         horizontalAlignment = Alignment.Start,
         isInteractive = isInteractive,
     ) {
-        BisqText.h3Regular("bisqEasy.tradeGuide.welcome.headline".i18n())
+        BisqText.h3Light("bisqEasy.tradeGuide.welcome.headline".i18n())
 
         BisqGap.V2()
 
-        BisqText.baseRegular("bisqEasy.tradeGuide.welcome.content".i18n())
+        BisqText.baseLight("bisqEasy.tradeGuide.welcome.content".i18n())
     }
 }
 

@@ -30,15 +30,15 @@ fun TradeGuideProcess() {
         horizontalAlignment = Alignment.Start,
         isInteractive = isInteractive,
     ) {
-        BisqText.h3Regular("bisqEasy.tradeGuide.process.headline".i18n())
+        BisqText.h3Light("bisqEasy.tradeGuide.process.headline".i18n())
 
         BisqGap.V2()
 
-        BisqText.baseRegular("bisqEasy.tradeGuide.process.content".i18n())
+        BisqText.baseLight("bisqEasy.tradeGuide.process.content".i18n())
 
         BisqGap.V1()
 
-        BisqText.baseRegular("bisqEasy.tradeGuide.process.steps".i18n())
+        BisqText.baseLight("bisqEasy.tradeGuide.process.steps".i18n())
 
         BisqGap.V2()
 

@@ -122,11 +122,11 @@ fun TakeOfferReviewTradeScreen() {
                             verticalAlignment = Alignment.Bottom,
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            BisqText.h6Regular(presenter.price)
+                            BisqText.h6Light(presenter.price)
                             BisqGap.HQuarter()
-                            BisqText.baseRegularGrey(presenter.marketCodes)
+                            BisqText.baseLightGrey(presenter.marketCodes)
                         }
-                        BisqText.smallRegularGrey(presenter.priceDetails)
+                        BisqText.smallLightGrey(presenter.priceDetails)
                     }
                 }
             )
@@ -148,9 +148,9 @@ fun TakeOfferReviewTradeScreen() {
                             verticalAlignment = Alignment.Bottom,
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            BisqText.h6Regular(presenter.fee)
+                            BisqText.h6Light(presenter.fee)
                         }
-                        BisqText.smallRegularGrey(presenter.feeDetails)
+                        BisqText.smallLightGrey(presenter.feeDetails)
                     }
                 }
             )

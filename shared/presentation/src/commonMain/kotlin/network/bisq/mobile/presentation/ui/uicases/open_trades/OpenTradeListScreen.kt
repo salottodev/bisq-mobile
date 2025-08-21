@@ -155,7 +155,7 @@ fun WelcomeToFirstTradePane(presenter: OpenTradeListPresenter) {
             textAlign = TextAlign.Center
         )
         BisqGap.VHalf()
-        BisqText.baseRegularGrey(
+        BisqText.baseLightGrey(
             // Please make yourself familiar with the concept, process and rules for trading on Bisq
             "bisqEasy.openTrades.welcome.info".i18n()
         )
@@ -190,7 +190,7 @@ fun IconWithTextLine(image: DrawableResource, title: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Image(painterResource(image), null, Modifier.size(30.dp))
         Spacer(modifier = Modifier.width(15.dp))
-        BisqText.baseRegular(title)
+        BisqText.baseLight(title)
     }
 }
 

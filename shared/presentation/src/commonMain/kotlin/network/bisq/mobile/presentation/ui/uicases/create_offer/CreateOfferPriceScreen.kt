@@ -67,7 +67,7 @@ fun CreateOfferTradePriceSelectorScreen() {
         closeAction = true,
         onConfirmedClose = presenter::onClose,
     ) {
-        BisqText.h3Regular(
+        BisqText.h3Light(
             text = "mobile.bisqEasy.tradeWizard.price.title".i18n(), modifier = Modifier.align(Alignment.Start)
         )
         BisqGap.V1()
