@@ -1,13 +1,14 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.InputStreamReader
 import java.util.Properties
 import kotlin.io.path.Path
 
 plugins {
-    alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.kotlinCocoapods)
-    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kotlin.cocoapods)
+    alias(libs.plugins.android.library)
     alias(libs.plugins.buildconfig)
-    kotlin("plugin.serialization") version "2.0.20"
+    alias(libs.plugins.kotlin.serialization)
 }
 
 version = project.findProperty("shared.version") as String
@@ -75,10 +76,8 @@ buildConfig {
 
 kotlin {
     androidTarget {
-        compilations.all {
-            kotlinOptions {
-                jvmTarget = "1.8"
-            }
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_1_8)
         }
     }
     iosX64()
@@ -104,7 +103,7 @@ kotlin {
         commonMain.dependencies {
             //put your multiplatform dependencies here
             implementation(libs.koin.core)
-            implementation(libs.kotlinx.coroutines)
+            implementation(libs.kotlinx.coroutines.core)
             implementation(libs.logging.kermit)
             implementation(libs.okio)
             implementation(libs.kotlinx.datetime)
@@ -112,19 +111,16 @@ kotlin {
 
             implementation(libs.ktor.client.core)
             implementation(libs.kotlinx.serialization.core)
-            implementation(libs.ktor.client.serialization)
-            implementation(libs.ktor.client.json)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.cio)
             implementation(libs.ktor.client.content.negotiation)
-            implementation(libs.jetbrains.serialization.gradle.plugin)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.websockets)
 
             implementation(libs.multiplatform.settings)
 
             implementation(libs.atomicfu)
-            implementation(libs.jetbrains.kotlin.reflect)
+            implementation(libs.kotlin.reflect)
 
             configurations.all {
                 exclude(group = "org.slf4j", module = "slf4j-api")
@@ -144,14 +140,10 @@ kotlin {
             implementation(libs.koin.android)
         }
         androidUnitTest.dependencies {
-            implementation(libs.mock.io)
-            implementation(libs.kotlin.test.junit.v180)
+            implementation(libs.mockk)
+            implementation(libs.kotlin.test.junit)
             implementation(libs.junit)
-
-            implementation(libs.roboelectric)
-            implementation(libs.androidx.test)
-            implementation(libs.androidx.test.espresso)
-            implementation(libs.androidx.test.junit)
+            implementation(libs.robolectric)
 
 //            implementation("com.russhwolf:multiplatform-settings-datastore:1.2.0")
 //
@@ -169,9 +161,9 @@ kotlin {
 
 android {
     namespace = "network.bisq.mobile.shared.domain"
-    compileSdk = 34
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
     defaultConfig {
-        minSdk = 24
+        minSdk = libs.versions.android.minSdk.get().toInt()
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
