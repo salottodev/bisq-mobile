@@ -6,11 +6,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 
-private val LocalBisqTypography = staticCompositionLocalOf<BisqTypography> {
-    error("BisqTypography not provided. Make sure to wrap your UI in BisqTheme { ... }")
-}
-
 object BisqTheme {
+    private val LocalBisqTypography = staticCompositionLocalOf<BisqTypography> {
+        error("BisqTypography not provided. Make sure to wrap your UI in BisqTheme { ... }")
+    }
 
     val typography: BisqTypography
         @Composable
