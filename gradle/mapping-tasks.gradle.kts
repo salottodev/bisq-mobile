@@ -23,12 +23,12 @@ tasks.register("saveMappingFiles") {
 
     // Configuration cache compatible - capture values at configuration time
     val mappingsDirPath = "${rootProject.projectDir}/mappings/$moduleName"
-    val buildOutputsDirPath = "${layout.buildDirectory.get().asFile}/outputs"
+    val outputsDirProvider = layout.buildDirectory.dir("outputs")
     val moduleNameForLogging = moduleName
 
     doLast {
         val mappingsDir = File(mappingsDirPath)
-        val buildOutputsDir = File(buildOutputsDirPath)
+        val buildOutputsDir = outputsDirProvider.get().asFile
 
         // Create mappings directory if it doesn't exist
         mappingsDir.mkdirs()
@@ -79,34 +79,35 @@ tasks.register("saveOutputMetadata") {
 
     // Configuration cache compatible - capture values at configuration time
     val mappingsDirPath = "${rootProject.projectDir}/mappings/$moduleName"
-    val buildOutputsDirPath = "${layout.buildDirectory.get().asFile}/outputs"
+    val outputsDirProvider = layout.buildDirectory.dir("outputs")
     val moduleNameForLogging = moduleName
 
     doLast {
         val mappingsDir = File(mappingsDirPath)
-        val buildOutputsDir = File(buildOutputsDirPath)
+        val buildOutputsDir = outputsDirProvider.get().asFile
 
         // Create mappings directory if it doesn't exist
         mappingsDir.mkdirs()
 
-        // Copy output-metadata.json
-        val metadataFile = File(buildOutputsDir, "apk/release/output-metadata.json")
-        if (metadataFile.exists()) {
-            metadataFile.copyTo(File(mappingsDir, "output-metadata.json"), overwrite = true)
-            println("[$moduleNameForLogging] Saved output-metadata.json to $mappingsDir")
+        // Copy output-metadata.json from either APK or Bundle output location
+        val apkMetadata = File(buildOutputsDir, "apk/release/output-metadata.json")
+        val bundleMetadata = File(buildOutputsDir, "bundle/release/output-metadata.json")
+        val source = when {
+            apkMetadata.exists() -> apkMetadata
+            bundleMetadata.exists() -> bundleMetadata
+            else -> null
+        }
+        if (source != null) {
+            source.copyTo(File(mappingsDir, "output-metadata.json"), overwrite = true)
+            println("[$moduleNameForLogging] Saved output-metadata.json from ${source.name} to $mappingsDir")
         } else {
-            println("[$moduleNameForLogging] output-metadata.json not found at ${metadataFile.absolutePath}")
+            println("[$moduleNameForLogging] output-metadata.json not found at ${apkMetadata.absolutePath} or ${bundleMetadata.absolutePath}")
         }
     }
 }
 
-// Hook the tasks to run after successful release builds
-afterEvaluate {
-    tasks.findByName("bundleRelease")?.let { task ->
-        task.finalizedBy("saveMappingFiles")
-    }
-    
-    tasks.findByName("assembleRelease")?.let { task ->
-        task.finalizedBy("saveOutputMetadata")
-    }
+// Hook after release builds without afterEvaluate; works even if tasks are created later
+tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
+    finalizedBy("saveMappingFiles")
+    finalizedBy("saveOutputMetadata")
 }
