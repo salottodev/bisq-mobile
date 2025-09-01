@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +34,7 @@ fun AutoResizeText(
     minimumFontSize: TextUnit = 10.sp,
     modifier: Modifier = Modifier,
 ) {
+    val inPreview = LocalInspectionMode.current
     var readyToDraw by remember(text, textStyle.fontSize, maxLines, overflow) {
         mutableStateOf(false)
     }
@@ -52,7 +54,11 @@ fun AutoResizeText(
     Text(
         text = text,
         modifier = modifier.drawWithContent {
-            if (readyToDraw) drawContent()
+            // During previews, the `onTextLayout` recomposition loop may not complete,
+            // which would leave `readyToDraw` as false and result in an empty render.
+            // Bypassing the check in preview mode ensures the component is always visible
+            // for development, without affecting runtime behavior.
+            if (readyToDraw || inPreview) drawContent()
         },
         color = color,
         style = textStyle.copy(fontSize = determinedFontSize),

@@ -3,15 +3,13 @@ package network.bisq.mobile.presentation.ui.components.organisms.market
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.ui.components.atoms.BisqSegmentButton
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
+import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
-import network.bisq.mobile.presentation.ui.uicases.offerbook.OfferbookMarketPresenter
-import org.koin.compose.koinInject
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 enum class MarketSortBy {
     MostOffers,
@@ -39,36 +37,43 @@ fun MarketFilter.getDisplayName(): String {
     }
 }
 
-
 @Composable
-fun MarketFilters() {
-
-    val presenter: OfferbookMarketPresenter = koinInject()
-    val sortBy by presenter.sortBy.collectAsState()
-    val filter by presenter.filter.collectAsState()
-
+fun MarketFilters(
+    sortBy: MarketSortBy,
+    filter: MarketFilter,
+    onSortByChange: (MarketSortBy) -> Unit,
+    onFilterChange: (MarketFilter) -> Unit,
+) {
     Column(modifier = Modifier.padding(all = BisqUIConstants.ScreenPadding2X)) {
-
         BisqSegmentButton(
             label = "mobile.components.marketFilter.sortBy".i18n(),
             value = sortBy,
             items = MarketSortBy.entries.map { it to it.getDisplayName() },
             onValueChange = { pair ->
-                presenter.setSortBy(pair.first)
+                onSortByChange(pair.first)
             },
         )
-
         BisqGap.V2()
-
         BisqSegmentButton(
             label = "mobile.components.marketFilter.showMarkets".i18n(),
             items = MarketFilter.entries.map { it to it.getDisplayName() },
             value = filter,
             onValueChange = { pair ->
-                presenter.setFilter(pair.first)
+                onFilterChange(pair.first)
             },
         )
-
     }
+}
 
+@Preview
+@Composable
+private fun MarketFiltersPreview() {
+    BisqTheme.Preview {
+        MarketFilters(
+            sortBy = MarketSortBy.MostOffers,
+            filter = MarketFilter.WithOffers,
+            onSortByChange = {},
+            onFilterChange = {}
+        )
+    }
 }
