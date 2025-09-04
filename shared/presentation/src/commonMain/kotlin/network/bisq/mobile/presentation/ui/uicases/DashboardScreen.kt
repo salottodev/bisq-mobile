@@ -38,6 +38,7 @@ import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 
 @Composable
@@ -51,13 +52,33 @@ fun DashboardScreen() {
     val marketPrice by presenter.marketPrice.collectAsState()
     val tradeRulesConfirmed by presenter.tradeRulesConfirmed.collectAsState()
 
+    DashboardContent(
+        offersOnline = offersOnline,
+        publishedProfiles = publishedProfiles,
+        isInteractive = isInteractive,
+        marketPrice = marketPrice,
+        tradeRulesConfirmed = tradeRulesConfirmed,
+        onNavigateToMarkets = presenter::onNavigateToMarkets,
+        onOpenTradeGuide = presenter::onOpenTradeGuide
+    )
+}
+
+@Composable
+private fun DashboardContent(
+    offersOnline: Number,
+    publishedProfiles: Number,
+    isInteractive: Boolean,
+    marketPrice: String,
+    tradeRulesConfirmed: Boolean,
+    onNavigateToMarkets: () -> Unit,
+    onOpenTradeGuide: () -> Unit
+) {
     val padding = BisqUIConstants.ScreenPadding
     BisqScrollLayout(
         padding = PaddingValues(all = BisqUIConstants.Zero),
         verticalArrangement = Arrangement.spacedBy(padding),
         isInteractive = isInteractive,
     ) {
-
         Column {
             PriceProfileCard(
                 price = marketPrice,
@@ -91,7 +112,7 @@ fun DashboardScreen() {
                     Pair("mobile.dashboard.main.content3".i18n(), Res.drawable.reputation)
                 ),
                 buttonText = "mobile.dashboard.startTrading.button".i18n(),
-                buttonHandler = { presenter.onNavigateToMarkets() }
+                buttonHandler = onNavigateToMarkets
             )
         } else {
             DashBoardCard(
@@ -102,12 +123,13 @@ fun DashboardScreen() {
                     Pair("bisqEasy.onboarding.top.content3".i18n(), Res.drawable.icon_chat)
                 ),
                 buttonText = "support.resources.guides.tradeGuide".i18n(),
-                buttonHandler = { presenter.onOpenTradeGuide() }
+                buttonHandler = onOpenTradeGuide
             )
         }
         Spacer(modifier = Modifier.fillMaxHeight().weight(0.2f))
     }
 }
+
 
 @Composable
 fun DashBoardCard(
@@ -120,15 +142,12 @@ fun DashBoardCard(
         padding = BisqUIConstants.ScreenPadding2X,
         verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding2X)
     ) {
-//        BisqText.h1Light(title)
         AutoResizeText(
-            title, maxLines = 1,
+            text = title,
+            maxLines = 1,
             textStyle = BisqTheme.typography.h1Light,
             color = BisqTheme.colors.white,
             textAlign = TextAlign.Start,
-//            lineHeight = lineHeight,
-//            overflow = overflow,
-//            modifier = modifier
         )
 
         Column {
@@ -148,7 +167,7 @@ fun DashBoardCard(
         }
 
         BisqButton(
-            buttonText,
+            text = buttonText,
             fullWidth = true,
             onClick = buttonHandler,
         )
@@ -163,12 +182,47 @@ fun PriceProfileCard(modifier: Modifier = Modifier, price: String, priceText: St
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AmountWithCurrency(price)
-
         BisqGap.V1()
-
         BisqText.smallRegularGrey(
             text = priceText,
             textAlign = TextAlign.Center,
         )
     }
 }
+
+@Composable
+private fun DashboardContentPreview(
+    language: String = "en",
+    tradeRulesConfirmed: Boolean = true
+) {
+    BisqTheme.Preview(language = language) {
+        DashboardContent(
+            offersOnline = 1,
+            publishedProfiles = 2,
+            isInteractive = true,
+            marketPrice = "111247.40 BTC/USD",
+            tradeRulesConfirmed = tradeRulesConfirmed,
+            onNavigateToMarkets = {},
+            onOpenTradeGuide = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun DashboardContentPreview_En() = DashboardContentPreview(tradeRulesConfirmed = true)
+
+@Preview
+@Composable
+private fun DashboardContentPreview_EnRulesNotConfirmed() =
+    DashboardContentPreview(tradeRulesConfirmed = false)
+
+@Preview
+@Composable
+private fun DashboardContentPreview_Ru() = DashboardContentPreview("ru", true)
+
+@Preview
+@Composable
+private fun DashboardContentPreview_RuRulesNotConfirmed() = DashboardContentPreview("ru", false)
+
+

@@ -34,7 +34,7 @@ object BisqText {
         modifier: Modifier = Modifier,
     ) {
 
-        return Text(
+        Text(
             text = text,
             color = color,
             style = style,
@@ -58,7 +58,7 @@ object BisqText {
         modifier: Modifier = Modifier,
     ) {
 
-        return Text(
+        Text(
             text = text,
             color = color,
             style = style,

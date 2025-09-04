@@ -14,6 +14,7 @@ plugins {
 dependencies {
     androidTestImplementation(libs.androidx.test.compose.junit4)
     androidTestImplementation(libs.androidx.test.compose.manifest)
+    debugImplementation(compose.uiTooling)
 }
 
 version = project.findProperty("shared.version") as String
