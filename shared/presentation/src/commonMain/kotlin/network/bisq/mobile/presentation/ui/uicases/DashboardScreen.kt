@@ -75,7 +75,7 @@ private fun DashboardContent(
 ) {
     val padding = BisqUIConstants.ScreenPadding
     BisqScrollLayout(
-        padding = PaddingValues(all = BisqUIConstants.Zero),
+        contentPadding = PaddingValues(all = BisqUIConstants.Zero),
         verticalArrangement = Arrangement.spacedBy(padding),
         isInteractive = isInteractive,
     ) {
