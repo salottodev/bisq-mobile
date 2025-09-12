@@ -79,7 +79,7 @@ private fun OfferbookMarketScreenContent(
     onDismissFilterDialog: () -> Unit,
 ) {
     BisqStaticLayout(
-        padding = PaddingValues(all = BisqUIConstants.Zero),
+        contentPadding = PaddingValues(all = BisqUIConstants.Zero),
         verticalArrangement = Arrangement.Top,
         isInteractive = isInteractive,
     ) {
