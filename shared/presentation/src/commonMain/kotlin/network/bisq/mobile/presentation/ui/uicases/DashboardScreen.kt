@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.dp
 import bisqapps.shared.presentation.generated.resources.Res
 import bisqapps.shared.presentation.generated.resources.icon_chat
 import bisqapps.shared.presentation.generated.resources.icon_markets
-import bisqapps.shared.presentation.generated.resources.icon_offers
 import bisqapps.shared.presentation.generated.resources.icon_payment
 import bisqapps.shared.presentation.generated.resources.reputation
 import bisqapps.shared.presentation.generated.resources.thumbs_up
@@ -49,6 +48,7 @@ fun DashboardScreen() {
 
     val offersOnline: Number by presenter.offersOnline.collectAsState()
     val publishedProfiles: Number by presenter.publishedProfiles.collectAsState()
+    val numConnections by presenter.numConnections.collectAsState()
     val isInteractive by presenter.isInteractive.collectAsState()
     val marketPrice by presenter.marketPrice.collectAsState()
     val tradeRulesConfirmed by presenter.tradeRulesConfirmed.collectAsState()
@@ -56,6 +56,7 @@ fun DashboardScreen() {
     DashboardContent(
         offersOnline = offersOnline,
         publishedProfiles = publishedProfiles,
+        numConnections = numConnections,
         isInteractive = isInteractive,
         marketPrice = marketPrice,
         tradeRulesConfirmed = tradeRulesConfirmed,
@@ -68,6 +69,7 @@ fun DashboardScreen() {
 private fun DashboardContent(
     offersOnline: Number,
     publishedProfiles: Number,
+    numConnections: Number,
     isInteractive: Boolean,
     marketPrice: String,
     tradeRulesConfirmed: Boolean,
@@ -81,24 +83,25 @@ private fun DashboardContent(
         isInteractive = isInteractive,
     ) {
         Column {
-            PriceProfileCard(
+            HomeInfoCard(
                 price = marketPrice,
-                priceText = "dashboard.marketPrice".i18n()
+                text = "dashboard.marketPrice".i18n()
             )
             BisqGap.V1()
+
             Row(
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
                 horizontalArrangement = Arrangement.spacedBy(padding)
             ) {
-                PriceProfileCard(
+                HomeInfoCard(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                     price = offersOnline.toString(),
-                    priceText = "dashboard.offersOnline".i18n()
+                    text = "dashboard.offersOnline".i18n()
                 )
-                PriceProfileCard(
+                HomeInfoCard(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
-                    price = publishedProfiles.toString(),
-                    priceText = "dashboard.activeUsers".i18n()
+                    price = numConnections.toString(),
+                    text = "dashboard.numConnections".i18n()
                 )
             }
         }
@@ -176,16 +179,16 @@ fun DashBoardCard(
 }
 
 @Composable
-fun PriceProfileCard(modifier: Modifier = Modifier, price: String, priceText: String) {
+fun HomeInfoCard(modifier: Modifier = Modifier, price: String, text: String) {
     BisqCard(
         modifier = modifier,
         borderRadius = BisqUIConstants.ScreenPaddingQuarter,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        AmountWithCurrency(price)
+        AmountWithCurrency(price) // TODO should be generic
         BisqGap.V1()
         BisqText.smallRegularGrey(
-            text = priceText,
+            text = text,
             textAlign = TextAlign.Center,
         )
     }
@@ -200,6 +203,7 @@ private fun DashboardContentPreview(
         DashboardContent(
             offersOnline = 1,
             publishedProfiles = 2,
+            numConnections = 8,
             isInteractive = true,
             marketPrice = "111247.40 BTC/USD",
             tradeRulesConfirmed = tradeRulesConfirmed,
