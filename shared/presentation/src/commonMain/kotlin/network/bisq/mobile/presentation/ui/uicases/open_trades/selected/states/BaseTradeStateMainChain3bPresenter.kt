@@ -15,12 +15,13 @@ import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
+import network.bisq.mobile.presentation.ui.helpers.EMPTY_STRING
 import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.TxConfirmationState.CONFIRMED
 import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.TxConfirmationState.IDLE
 import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.TxConfirmationState.IN_MEMPOOL
 import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.TxConfirmationState.REQUEST_STARTED
 
-// todo: btc address/ tx validation missing
+// TODO: Add btc address/tx validation missing
 abstract class BaseTradeStateMainChain3bPresenter(
     mainPresenter: MainPresenter,
     private val tradesServiceFacade: TradesServiceFacade,
@@ -29,16 +30,16 @@ abstract class BaseTradeStateMainChain3bPresenter(
 
     val selectedTrade: StateFlow<TradeItemPresentationModel?> get() = tradesServiceFacade.selectedTrade
 
-    private val _buttonText: MutableStateFlow<String> = MutableStateFlow("")
+    private val _buttonText: MutableStateFlow<String> = MutableStateFlow(EMPTY_STRING)
     val buttonText: StateFlow<String> get() = _buttonText.asStateFlow()
 
     private val _txConfirmationState: MutableStateFlow<TxConfirmationState> = MutableStateFlow(IDLE)
     val txConfirmationState: StateFlow<TxConfirmationState> get() = _txConfirmationState.asStateFlow()
 
-    private val _blockExplorer: MutableStateFlow<String> = MutableStateFlow("")
+    private val _blockExplorer: MutableStateFlow<String> = MutableStateFlow(EMPTY_STRING)
     val blockExplorer: StateFlow<String> get() = _blockExplorer.asStateFlow()
 
-    private val _balanceFromTx: MutableStateFlow<String> = MutableStateFlow("")
+    private val _balanceFromTx: MutableStateFlow<String> = MutableStateFlow(EMPTY_STRING)
     val balanceFromTx: StateFlow<String> get() = _balanceFromTx.asStateFlow()
 
     private val _errorMessage: MutableStateFlow<String?> = MutableStateFlow(null)
@@ -46,6 +47,21 @@ abstract class BaseTradeStateMainChain3bPresenter(
 
     private val _skip: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val skip: StateFlow<Boolean> get() = _skip.asStateFlow()
+
+    private val _amountNotMatchingDialogText: MutableStateFlow<String?> =
+        MutableStateFlow(null)
+    val amountNotMatchingDialogText: StateFlow<String?> get() = _amountNotMatchingDialogText.asStateFlow()
+
+    private var txAmount: Long? = null
+    private var txAmountFormatted: String? = null
+    private val openTradeItemModel = tradesServiceFacade.selectedTrade.value
+    private val tradeAmount = openTradeItemModel?.bisqEasyTradeModel?.contract?.baseSideAmount
+    private val tradeAmountFormatted =
+        if (tradeAmount != null && openTradeItemModel != null) AmountFormatter.formatAmount(
+            CoinVOFactory.from(tradeAmount, openTradeItemModel.baseCurrencyCode),
+            useLowPrecision = false,
+            withCode = true
+        ) else EMPTY_STRING
 
     override fun onViewAttached() {
         super.onViewAttached()
@@ -62,15 +78,51 @@ abstract class BaseTradeStateMainChain3bPresenter(
     }
 
     override fun onViewUnattaching() {
-        _buttonText.value = ""
+        _buttonText.value = EMPTY_STRING
         _txConfirmationState.value = IDLE
-        _blockExplorer.value = ""
-        _balanceFromTx.value = ""
+        _blockExplorer.value = EMPTY_STRING
+        _balanceFromTx.value = EMPTY_STRING
         _errorMessage.value = null
         super.onViewUnattaching()
     }
 
+    fun onCtaClick() {
+        if (txAmount != null && tradeAmount != null && txAmount != tradeAmount) {
+            val errorText = getAmountNotMatchingDialogText()
+            if (errorText != null) {
+                _amountNotMatchingDialogText.value = errorText
+                return
+            }
+        }
+        completeTrade()
+    }
+
+    private fun getAmountNotMatchingDialogText(): String? {
+        val bisqEasyTradeModel = openTradeItemModel?.bisqEasyTradeModel
+        val txId: String? = bisqEasyTradeModel?.paymentProof?.value
+        val address: String? = bisqEasyTradeModel?.bitcoinPaymentData?.value
+        val txAmountFormatted = txAmountFormatted
+        return if (address != null && txId != null && txAmountFormatted != null) {
+            "bisqEasy.tradeState.info.phase3b.button.next.amountNotMatching".i18n(
+                address,
+                txId,
+                txAmountFormatted,
+                tradeAmountFormatted
+            )
+        } else {
+            null
+        }
+    }
+
+    fun onAmountNotMatchingDialogDismiss() {
+        _amountNotMatchingDialogText.value = null
+    }
+
     fun onCompleteTrade() {
+        completeTrade()
+    }
+
+    private fun completeTrade() {
         launchIO {
             tradesServiceFacade.btcConfirmed()
         }
@@ -80,15 +132,14 @@ abstract class BaseTradeStateMainChain3bPresenter(
         if (txConfirmationState.value == REQUEST_STARTED || tradesServiceFacade.selectedTrade.value == null) {
             return
         }
-        val openTradeItemModel = tradesServiceFacade.selectedTrade.value!!
-        val bisqEasyTradeModel = openTradeItemModel.bisqEasyTradeModel
-        val txId: String? = bisqEasyTradeModel.paymentProof.value
-        val address: String? = bisqEasyTradeModel.bitcoinPaymentData.value
+        val bisqEasyTradeModel = openTradeItemModel?.bisqEasyTradeModel
+        val txId: String? = bisqEasyTradeModel?.paymentProof?.value
+        val address: String? = bisqEasyTradeModel?.bitcoinPaymentData?.value
         if (txId == null || address == null) {
             return
         }
 
-        _blockExplorer.value = ""
+        _blockExplorer.value = EMPTY_STRING
         launchUI {
             val result = withContext(IODispatcher) {
                 explorerServiceFacade.getSelectedBlockExplorer()
@@ -111,7 +162,7 @@ abstract class BaseTradeStateMainChain3bPresenter(
 
         _txConfirmationState.value = REQUEST_STARTED
         _errorMessage.value = null
-        _balanceFromTx.value = ""
+        _balanceFromTx.value = EMPTY_STRING
         launchUI {
             val explorerResult = withContext(IODispatcher) {
                 explorerServiceFacade.requestTx(txId, address)
@@ -134,21 +185,26 @@ abstract class BaseTradeStateMainChain3bPresenter(
 
                 val outputValues = explorerResult.outputValues
                 if (outputValues.size == 1) {
-                    val outputValue = outputValues[0]
-                    val formattedAmount = AmountFormatter.formatAmount(
-                        CoinVOFactory.from(outputValue, openTradeItemModel.baseCurrencyCode),
-                        useLowPrecision = false,
-                        withCode = true
-                    )
-                    _balanceFromTx.value = formattedAmount
+                    outputValues[0].let { transactionAmount ->
+                        txAmount = transactionAmount
+                        txAmountFormatted = AmountFormatter.formatAmount(
+                            CoinVOFactory.from(
+                                transactionAmount,
+                                openTradeItemModel.baseCurrencyCode
+                            ),
+                            useLowPrecision = false,
+                            withCode = true
+                        )
+                        _balanceFromTx.value = txAmountFormatted ?: EMPTY_STRING
 
-                    val tradeAmount: Long = openTradeItemModel.bisqEasyTradeModel.contract.baseSideAmount
-                    if (outputValue != tradeAmount) {
-                        _errorMessage.value =
-                            "bisqEasy.tradeState.info.phase3b.balance.invalid.amountNotMatching".i18n()
+                        if (tradeAmount != null && transactionAmount != tradeAmount) {
+                            _errorMessage.value =
+                                "bisqEasy.tradeState.info.phase3b.balance.invalid.amountNotMatching".i18n()
+                        }
                     }
                 } else if (outputValues.isEmpty()) {
-                    _errorMessage.value = "bisqEasy.tradeState.info.phase3b.balance.invalid.noOutputsForAddress".i18n()
+                    _errorMessage.value =
+                        "bisqEasy.tradeState.info.phase3b.balance.invalid.noOutputsForAddress".i18n()
                 } else {
                     // Not expected use case and not further handled. User should look up in explorer to validate tx
                     _errorMessage.value =
@@ -165,5 +221,4 @@ abstract class BaseTradeStateMainChain3bPresenter(
             }
         }
     }
-
 }

@@ -8,6 +8,10 @@ class BuyerStateMainChain3bPresenter(
     mainPresenter: MainPresenter,
     tradesServiceFacade: TradesServiceFacade,
     explorerServiceFacade: ExplorerServiceFacade
-) : BaseTradeStateMainChain3bPresenter(mainPresenter, tradesServiceFacade, explorerServiceFacade) {
+) : BaseTradeStateMainChain3bPresenter(
+    mainPresenter,
+    tradesServiceFacade,
+    explorerServiceFacade
+) {
     // This class is now a placeholder for any future Buyer-specific logic.
 }
