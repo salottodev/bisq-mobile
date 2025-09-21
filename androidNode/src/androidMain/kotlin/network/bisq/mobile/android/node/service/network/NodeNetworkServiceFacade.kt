@@ -40,6 +40,9 @@ class NodeNetworkServiceFacade(private val provider: AndroidApplicationService.P
         val networkService = provider.applicationService.networkService
         val serviceNodesByTransport = networkService.serviceNodesByTransport.serviceNodesByTransport
         // We only support one transport type in mobile
+        require(serviceNodesByTransport.size == 1) {
+            "Expected exactly one transport type on mobile, found ${serviceNodesByTransport.size}"
+        }
         serviceNodesByTransport.values.forEach { serviceNode ->
             serviceNodeStatePin = serviceNode.state.addObserver { state ->
                 if (ServiceNode.State.INITIALIZING == state) {
