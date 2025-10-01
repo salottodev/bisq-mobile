@@ -36,7 +36,7 @@ import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.ui.BisqLinks
 import network.bisq.mobile.presentation.ui.helpers.AmountValidator
-import network.bisq.mobile.presentation.ui.navigation.Routes
+import network.bisq.mobile.presentation.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferPresenter.AmountType
 
 // TODO Create/Take offer amount preseenters are very similar a base class could be extracted
@@ -314,7 +314,7 @@ class CreateOfferAmountPresenter(
             return
         }
         commitToModel()
-        navigateTo(Routes.CreateOfferPrice)
+        navigateTo(NavRoute.CreateOfferPrice)
     }
 
     fun navigateToReputation() {

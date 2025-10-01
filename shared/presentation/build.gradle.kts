@@ -5,6 +5,7 @@ import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSetTree
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.cocoapods)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.android.library)
     alias(libs.plugins.jetbrains.compose)
     alias(libs.plugins.compose.compiler)
@@ -18,7 +19,6 @@ dependencies {
     debugImplementation(compose.uiTooling)
     debugImplementation(libs.androidx.test.compose.manifest)
 }
-
 
 version = project.findProperty("shared.version") as String
 
@@ -64,6 +64,7 @@ kotlin {
             implementation(libs.logging.kermit)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.datetime)
+            implementation(libs.kotlinx.serialization.json)
 
             implementation(libs.koin.core)
             implementation(libs.koin.compose)

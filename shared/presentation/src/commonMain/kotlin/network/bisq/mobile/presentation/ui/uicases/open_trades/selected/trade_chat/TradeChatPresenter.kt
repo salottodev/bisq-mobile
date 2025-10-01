@@ -30,7 +30,7 @@ import network.bisq.mobile.presentation.BasePresenter
 import network.bisq.mobile.presentation.MainPresenter
 import network.bisq.mobile.presentation.notification.NotificationController
 import network.bisq.mobile.presentation.notification.NotificationIds
-import network.bisq.mobile.presentation.ui.navigation.Routes
+import network.bisq.mobile.presentation.ui.navigation.NavRoute
 
 class TradeChatPresenter(
     mainPresenter: MainPresenter,
@@ -43,7 +43,8 @@ class TradeChatPresenter(
     private val messageDeliveryServiceFacade: MessageDeliveryServiceFacade
 ) : BasePresenter(mainPresenter) {
 
-    val selectedTrade: StateFlow<TradeItemPresentationModel?> get() = tradesServiceFacade.selectedTrade
+    private val _selectedTrade = MutableStateFlow<TradeItemPresentationModel?>(null)
+    val selectedTrade: StateFlow<TradeItemPresentationModel?> get() = _selectedTrade.asStateFlow()
 
     private val _sortedChatMessages: MutableStateFlow<List<BisqEasyOpenTradeMessageModel>> =
         MutableStateFlow(listOf())
@@ -87,15 +88,20 @@ class TradeChatPresenter(
 
     private val observedChatMessages = MutableStateFlow<Set<BisqEasyOpenTradeMessageModel>>(emptySet())
 
-    override fun onViewAttached() {
-        super.onViewAttached()
-        require(tradesServiceFacade.selectedTrade.value != null)
-        val selectedTrade = tradesServiceFacade.selectedTrade.value!!
+    fun initialize(tradeId: String) {
+        tradesServiceFacade.selectOpenTrade(tradeId)
+        _selectedTrade.value = tradesServiceFacade.selectedTrade.value
+
+        val currentTrade = _selectedTrade.value
+        if (currentTrade == null) {
+            log.w { "TradeChatPresenter.initialize called but selectedTrade is null - skipping flow collection" }
+            return
+        }
 
         launchUI {
-            val bisqEasyOpenTradeChannelModel = selectedTrade.bisqEasyOpenTradeChannelModel
+            val bisqEasyOpenTradeChannelModel = currentTrade.bisqEasyOpenTradeChannelModel
             // cancel notifications of chat related to this trade
-            notificationController.cancel(NotificationIds.getNewChatMessageId(selectedTrade.shortTradeId))
+            notificationController.cancel(NotificationIds.getNewChatMessageId(currentTrade.shortTradeId))
 
             collectUI(bisqEasyOpenTradeChannelModel.chatMessages) { messages ->
                 observedChatMessages.update {
@@ -243,7 +249,7 @@ class TradeChatPresenter(
     }
 
     fun onOpenChatRules() {
-        navigateTo(Routes.ChatRules)
+        navigateTo(NavRoute.ChatRules)
     }
 
     fun onDontShowAgainChatRulesWarningBox() {
