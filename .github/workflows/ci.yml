@@ -15,7 +15,7 @@ jobs:
     name: Build & Test (No Secrets)
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-14]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -29,15 +29,27 @@ jobs:
           distribution: 'zulu'
           cache: gradle
 
-      - name: Cache Gradle dependencies
+      - name: Cache Gradle dependencies (Mac only)
+        if: startsWith(matrix.os, 'macos')
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: macos-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/settings.gradle*', '**/build.gradle*', 'gradle/libs.versions.toml') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-
+            macos-gradle-
+
+      - name: Cache Kotlin/Native (konan) (Mac only)
+        if: startsWith(matrix.os, 'macos')
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.konan
+          key: macos-konan-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/settings.gradle*', '**/build.gradle*', 'gradle/libs.versions.toml') }}
+          restore-keys: |
+            macos-konan-
+
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -53,7 +65,7 @@ jobs:
       - name: Set up Xcode (Mac only)
         if: startsWith(matrix.os, 'macos')
         run: |
-          sudo xcode-select -s /Applications/Xcode_14.3.app
+          sudo xcode-select -s /Applications/Xcode.app || true
           xcodebuild -version
 
       - name: Create fake local.properties
@@ -65,10 +77,15 @@ jobs:
           echo "KEY_PASSWORD=yourKeyPassword" >> local.properties
           echo "CLI_KEY_PASSWORD=yourCliKeyPassword" >> local.properties
 
-      - name: Run Tests
+      - name: Run Android Tests (Ubuntu only)
+        if: startsWith(matrix.os, 'ubuntu')
         env:
           CI: true
         run: ./gradlew clean test -x :androidNode:testDebugUnitTest -x :androidNode:testReleaseUnitTest -x :androidNode:test --info
+
+      - name: Android compile-only (Mac only)
+        if: startsWith(matrix.os, 'macos')
+        run: ./gradlew :androidClient:assembleDebug -x test -x lint
 
 #      TODO seems GH default ci doesn't have support for this
 #      - name: Headless Android emulator and run instrumentation tests
@@ -84,8 +101,53 @@ jobs:
 #          disable-animations: true
 #          script: ./gradlew androidClient:testDebugUnitTest androidClient:connectedDebugAndroidTest
 
-      - name: Run iOS Tests
-        if: startsWith(runner.os, 'macOS')
+      - name: Generate KMP dummy frameworks (Mac only)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          ./gradlew :shared:domain:generateDummyFramework :shared:presentation:generateDummyFramework --no-daemon
+
+#      If we figure out how to fix the Build iOS client task re-enable this
+#      - name: Install CocoaPods dependencies (Mac only)
+#        if: startsWith(matrix.os, 'macos')
+#        working-directory: iosClient
+#        run: pod install
+
+#     Not needed anymore since we are not using xcodebuild
+#      - name: Warm KMP compile outputs (Apple Silicon)
+#        if: startsWith(matrix.os, 'macos') && runner.arch == 'ARM64'
+#        run: |
+#          ./gradlew :shared:domain:compileKotlinIosSimulatorArm64 :shared:presentation:compileKotlinIosSimulatorArm64 --no-daemon
+#
+#      - name: Warm KMP compile outputs (Intel)
+#        if: startsWith(matrix.os, 'macos') && runner.arch == 'X64'
+#        run: |
+#          ./gradlew :shared:domain:compileKotlinIosX64 :shared:presentation:compileKotlinIosX64 --no-daemon
+
+#     Takes way too much time in GH CI Actions
+#      - name: Build iOS Client (Mac only)
+#        if: startsWith(matrix.os, 'macos')
+#        env:
+#          GRADLE_OPTS: "-Dorg.gradle.configuration-cache=false -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
+#        run: |
+#          xcodebuild -workspace iosClient/iosClient.xcworkspace \
+#            -scheme "iosClient Release" \
+#            -configuration Release \
+#            -sdk iphonesimulator \
+#            -destination 'generic/platform=iOS Simulator' \
+#            -parallelizeTargets NO \
+#            -jobs 1 \
+#            clean build \
+#            CODE_SIGN_IDENTITY="" \
+#            CODE_SIGNING_REQUIRED=NO \
+#            CODE_SIGNING_ALLOWED=NO
+
+
+      - name: Run iOS Tests (Intel runner)
+        if: startsWith(runner.os, 'macOS') && runner.arch == 'X64'
+        run: ./gradlew shared:presentation:iosX64Test
+
+      - name: Run iOS Tests (Apple Silicon runner)
+        if: startsWith(runner.os, 'macOS') && runner.arch == 'ARM64'
         run: ./gradlew shared:presentation:iosSimulatorArm64Test
 
   # --- Node-specific Maven build (needs secrets) ---
