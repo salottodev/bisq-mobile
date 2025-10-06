@@ -98,7 +98,7 @@ fun RootNavGraph(rootNavController: NavHostController) {
         }
 
         addScreen<NavRoute.TradeChat>(
-            navAnimation = NavAnimation.SLIDE_IN_FROM_BOTTOM,
+            navAnimation = NavAnimation.FADE_IN,
             deepLinks = listOf(
                 navDeepLink<NavRoute.TradeChat>(
                     basePath = getDeepLinkBasePath<NavRoute.TradeChat>()
