@@ -157,7 +157,13 @@ class OpenTradePresenter(
     }
 
     fun onOpenChat() {
-        navigateTo(NavRoute.TradeChat(selectedTrade.value?.tradeId ?: EMPTY_STRING))
+        selectedTrade.value?.tradeId?.let { tradeId ->
+            if (tradeId.isNotBlank()) {
+                navigateTo(NavRoute.TradeChat(tradeId))
+            } else {
+                log.w { "onOpenChat: tradeId is blank, ignoring navigation" }
+            }
+        } ?: log.w { "onOpenChat: tradeId is null, ignoring navigation" }
     }
 
     private fun tradeStateChanged(state: BisqEasyTradeStateEnum?) {

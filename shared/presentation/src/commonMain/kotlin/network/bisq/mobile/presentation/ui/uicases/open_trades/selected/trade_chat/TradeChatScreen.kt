@@ -2,6 +2,7 @@ package network.bisq.mobile.presentation.ui.uicases.open_trades.selected.trade_c
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -26,9 +27,10 @@ import org.koin.compose.koinInject
 @Composable
 fun TradeChatScreen(tradeId: String) {
     val presenter: TradeChatPresenter = koinInject()
-    RememberPresenterLifecycle(presenter, onExecute = {
+    RememberPresenterLifecycle(presenter)
+    LaunchedEffect(presenter, tradeId) {
         presenter.initialize(tradeId)
-    })
+    }
 
     val isInteractive by presenter.isInteractive.collectAsState()
     val selectedTrade by presenter.selectedTrade.collectAsState()
