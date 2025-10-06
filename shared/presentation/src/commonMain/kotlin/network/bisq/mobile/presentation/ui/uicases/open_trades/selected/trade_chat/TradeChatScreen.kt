@@ -17,6 +17,7 @@ import network.bisq.mobile.presentation.ui.components.molecules.chat.ChatInputFi
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.ConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.organisms.chat.ChatMessageList
 import network.bisq.mobile.presentation.ui.components.organisms.chat.UndoIgnoreDialog
+import network.bisq.mobile.presentation.ui.helpers.EMPTY_STRING
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.helpers.toClipEntry
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
@@ -40,6 +41,7 @@ fun TradeChatScreen(tradeId: String) {
     val showUndoIgnoreUserWarnBox = undoIgnoreUserId.isNotBlank()
     val showChatRulesWarnBox by presenter.showChatRulesWarnBox.collectAsState()
     val readCount by presenter.readCount.collectAsState()
+    val showTradeNotFoundDialog by presenter.showTradeNotFoundDialog.collectAsState()
 
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -111,6 +113,16 @@ fun TradeChatScreen(tradeId: String) {
             UndoIgnoreDialog(
                 onConfirm = { presenter.onConfirmedUndoIgnoreUser(undoIgnoreUserId) },
                 onDismiss = { presenter.onDismissUndoIgnoreUser() }
+            )
+        }
+
+        if (showTradeNotFoundDialog) {
+            ConfirmationDialog(
+                headline = "mobile.openTrades.tradeNotFoundDialog.title".i18n(),
+                message = "mobile.openTrades.tradeNotFoundDialog.text".i18n(),
+                confirmButtonText = "confirmation.ok".i18n(),
+                dismissButtonText = EMPTY_STRING,
+                onConfirm = presenter::onTradeNotFoundDialogDismiss
             )
         }
     }

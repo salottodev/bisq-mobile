@@ -56,6 +56,8 @@ class OpenTradePresenter(
     private val _isInMediation: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isInMediation: StateFlow<Boolean> get() = _isInMediation.asStateFlow()
 
+    private val _showTradeNotFoundDialog = MutableStateFlow(false)
+    val showTradeNotFoundDialog: StateFlow<Boolean> get() = _showTradeNotFoundDialog.asStateFlow()
 
     private val readCount: Flow<Int> =
         _selectedTrade.combine(tradeReadStateRepository.data.map { it.map }) { trade, readStates ->
@@ -108,6 +110,7 @@ class OpenTradePresenter(
         val currentTrade = _selectedTrade.value
         if (currentTrade == null) {
             log.w { "OpenTradePresenter.initialize called but selectedTrade is null - skipping flow collection" }
+            _showTradeNotFoundDialog.value = true
             return
         }
 
@@ -257,5 +260,10 @@ class OpenTradePresenter(
                 enableInteractive()
             }
         }
+    }
+
+    fun onTradeNotFoundDialogDismiss() {
+        _showTradeNotFoundDialog.value = false
+        navigateBack()
     }
 }

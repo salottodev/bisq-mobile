@@ -73,6 +73,8 @@ class TradeChatPresenter(
 
     val userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage get() = userProfileServiceFacade::getUserProfileIcon
 
+    private val _showTradeNotFoundDialog = MutableStateFlow(false)
+    val showTradeNotFoundDialog: StateFlow<Boolean> get() = _showTradeNotFoundDialog.asStateFlow()
     val readCount =
         selectedTrade.combine(tradeReadStateRepository.data.map { it.map }) { trade, readStates ->
             if (trade?.tradeId != null) {
@@ -95,6 +97,7 @@ class TradeChatPresenter(
         val currentTrade = _selectedTrade.value
         if (currentTrade == null) {
             log.w { "TradeChatPresenter.initialize called but selectedTrade is null - skipping flow collection" }
+            _showTradeNotFoundDialog.value = true
             return
         }
 
@@ -264,6 +267,11 @@ class TradeChatPresenter(
         launchIO {
             tradeReadStateRepository.setCount(tradeId, newValue)
         }
+    }
+
+    fun onTradeNotFoundDialogDismiss() {
+        _showTradeNotFoundDialog.value = false
+        navigateBack()
     }
 }
 

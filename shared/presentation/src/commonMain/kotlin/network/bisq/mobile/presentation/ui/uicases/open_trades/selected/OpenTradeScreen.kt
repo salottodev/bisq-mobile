@@ -27,6 +27,7 @@ import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.layout.BisqStaticScaffold
 import network.bisq.mobile.presentation.ui.components.molecules.TopBar
+import network.bisq.mobile.presentation.ui.components.molecules.dialog.ConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.WarningConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.molecules.inputfield.PaymentProofType
 import network.bisq.mobile.presentation.ui.components.organisms.chat.UndoIgnoreDialog
@@ -35,6 +36,7 @@ import network.bisq.mobile.presentation.ui.components.organisms.trades.CloseTrad
 import network.bisq.mobile.presentation.ui.components.organisms.trades.InvalidAddressConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.organisms.trades.InvalidPaymentProofConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.organisms.trades.OpenMediationDialog
+import network.bisq.mobile.presentation.ui.helpers.EMPTY_STRING
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.helpers.spaceBetweenWithMin
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
@@ -69,6 +71,7 @@ fun OpenTradeScreen(tradeId: String) {
     val tradeCloseType by headerPresenter.tradeCloseType.collectAsState()
     val showInterruptionConfirmationDialog by headerPresenter.showInterruptionConfirmationDialog.collectAsState()
     val showMediationConfirmationDialog by headerPresenter.showMediationConfirmationDialog.collectAsState()
+    val showTradeNotFoundDialog by presenter.showTradeNotFoundDialog.collectAsState()
     val mediationError by headerPresenter.mediationError.collectAsState()
     val showUndoIgnoreDialog by presenter.showUndoIgnoreDialog.collectAsState()
     val newMsgCount by presenter.newMsgCount.collectAsState()
@@ -173,6 +176,16 @@ fun OpenTradeScreen(tradeId: String) {
                 }
             }
         }
+    }
+
+    if (showTradeNotFoundDialog) {
+        ConfirmationDialog(
+            headline = "mobile.openTrades.tradeNotFoundDialog.title".i18n(),
+            message = "mobile.openTrades.tradeNotFoundDialog.text".i18n(),
+            confirmButtonText = "confirmation.ok".i18n(),
+            dismissButtonText = EMPTY_STRING,
+            onConfirm = presenter::onTradeNotFoundDialogDismiss
+        )
     }
 
     if (showInterruptionConfirmationDialog) {
