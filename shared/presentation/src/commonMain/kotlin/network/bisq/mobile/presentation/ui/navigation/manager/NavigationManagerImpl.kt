@@ -164,7 +164,10 @@ class NavigationManagerImpl(
             val rootNavController = getRootNavController()
             if (rootNavController == null) return@launchUI
             if (rootNavController.graph.hasDeepLink(navUri)) {
-                rootNavController.navigate(navUri)
+                val navOptions = navOptions {
+                    launchSingleTop = true
+                }
+                rootNavController.navigate(navUri, navOptions)
             } else if (isAtMainScreen()) {
                 val tabNavController = getTabNavController()
                 if (tabNavController == null) return@launchUI

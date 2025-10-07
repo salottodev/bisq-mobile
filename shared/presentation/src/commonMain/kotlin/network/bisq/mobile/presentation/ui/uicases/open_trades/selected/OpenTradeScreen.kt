@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -58,9 +59,10 @@ fun OpenTradeScreen(tradeId: String) {
 
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
-    RememberPresenterLifecycle(presenter, {
+    RememberPresenterLifecycle(presenter)
+    LaunchedEffect(presenter, tradeId) {
         presenter.initialize(tradeId, scrollState, scope)
-    })
+    }
 
     val focusManager = LocalFocusManager.current
 
