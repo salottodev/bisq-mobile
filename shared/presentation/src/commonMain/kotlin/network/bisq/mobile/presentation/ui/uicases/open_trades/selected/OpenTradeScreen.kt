@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -27,6 +28,7 @@ import network.bisq.mobile.presentation.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.ui.components.layout.BisqStaticScaffold
 import network.bisq.mobile.presentation.ui.components.molecules.TopBar
+import network.bisq.mobile.presentation.ui.components.molecules.dialog.ConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.WarningConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.molecules.inputfield.PaymentProofType
 import network.bisq.mobile.presentation.ui.components.organisms.chat.UndoIgnoreDialog
@@ -35,6 +37,7 @@ import network.bisq.mobile.presentation.ui.components.organisms.trades.CloseTrad
 import network.bisq.mobile.presentation.ui.components.organisms.trades.InvalidAddressConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.organisms.trades.InvalidPaymentProofConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.organisms.trades.OpenMediationDialog
+import network.bisq.mobile.presentation.ui.helpers.EMPTY_STRING
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.helpers.spaceBetweenWithMin
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
@@ -46,7 +49,7 @@ import network.bisq.mobile.presentation.ui.uicases.open_trades.selected.states.S
 import org.koin.compose.koinInject
 
 @Composable
-fun OpenTradeScreen() {
+fun OpenTradeScreen(tradeId: String) {
     val presenter: OpenTradePresenter = koinInject()
     val headerPresenter: TradeDetailsHeaderPresenter = koinInject()
     val buyerState1aPresenter: BuyerState1aPresenter = koinInject()
@@ -56,10 +59,10 @@ fun OpenTradeScreen() {
 
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
-    RememberPresenterLifecycle(presenter, {
-        presenter.setTradePaneScrollState(scrollState)
-        presenter.setUIScope(scope)
-    })
+    RememberPresenterLifecycle(presenter)
+    LaunchedEffect(presenter, tradeId) {
+        presenter.initialize(tradeId, scrollState, scope)
+    }
 
     val focusManager = LocalFocusManager.current
 
@@ -70,6 +73,7 @@ fun OpenTradeScreen() {
     val tradeCloseType by headerPresenter.tradeCloseType.collectAsState()
     val showInterruptionConfirmationDialog by headerPresenter.showInterruptionConfirmationDialog.collectAsState()
     val showMediationConfirmationDialog by headerPresenter.showMediationConfirmationDialog.collectAsState()
+    val showTradeNotFoundDialog by presenter.showTradeNotFoundDialog.collectAsState()
     val mediationError by headerPresenter.mediationError.collectAsState()
     val showUndoIgnoreDialog by presenter.showUndoIgnoreDialog.collectAsState()
     val newMsgCount by presenter.newMsgCount.collectAsState()
@@ -98,7 +102,13 @@ fun OpenTradeScreen() {
     }
 
     BisqStaticScaffold(
-        topBar = { TopBar("mobile.bisqEasy.openTrades.title".i18n(selectedTrade?.shortTradeId ?: "")) },
+        topBar = {
+            TopBar(
+                "mobile.bisqEasy.openTrades.title".i18n(
+                    selectedTrade?.shortTradeId ?: ""
+                )
+            )
+        },
         shouldBlurBg = shouldBlurBg,
     ) {
         Box(
@@ -168,6 +178,16 @@ fun OpenTradeScreen() {
                 }
             }
         }
+    }
+
+    if (showTradeNotFoundDialog) {
+        ConfirmationDialog(
+            headline = "mobile.openTrades.tradeNotFoundDialog.title".i18n(),
+            message = "mobile.openTrades.tradeNotFoundDialog.text".i18n(),
+            confirmButtonText = "confirmation.ok".i18n(),
+            dismissButtonText = EMPTY_STRING,
+            onConfirm = presenter::onTradeNotFoundDialogDismiss
+        )
     }
 
     if (showInterruptionConfirmationDialog) {

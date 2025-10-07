@@ -2,6 +2,7 @@ package network.bisq.mobile.presentation.ui.uicases.open_trades.selected.trade_c
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -17,15 +18,19 @@ import network.bisq.mobile.presentation.ui.components.molecules.chat.ChatInputFi
 import network.bisq.mobile.presentation.ui.components.molecules.dialog.ConfirmationDialog
 import network.bisq.mobile.presentation.ui.components.organisms.chat.ChatMessageList
 import network.bisq.mobile.presentation.ui.components.organisms.chat.UndoIgnoreDialog
+import network.bisq.mobile.presentation.ui.helpers.EMPTY_STRING
 import network.bisq.mobile.presentation.ui.helpers.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.ui.helpers.toClipEntry
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import org.koin.compose.koinInject
 
 @Composable
-fun TradeChatScreen() {
+fun TradeChatScreen(tradeId: String) {
     val presenter: TradeChatPresenter = koinInject()
     RememberPresenterLifecycle(presenter)
+    LaunchedEffect(presenter, tradeId) {
+        presenter.initialize(tradeId)
+    }
 
     val isInteractive by presenter.isInteractive.collectAsState()
     val selectedTrade by presenter.selectedTrade.collectAsState()
@@ -38,6 +43,7 @@ fun TradeChatScreen() {
     val showUndoIgnoreUserWarnBox = undoIgnoreUserId.isNotBlank()
     val showChatRulesWarnBox by presenter.showChatRulesWarnBox.collectAsState()
     val readCount by presenter.readCount.collectAsState()
+    val showTradeNotFoundDialog by presenter.showTradeNotFoundDialog.collectAsState()
 
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -109,6 +115,16 @@ fun TradeChatScreen() {
             UndoIgnoreDialog(
                 onConfirm = { presenter.onConfirmedUndoIgnoreUser(undoIgnoreUserId) },
                 onDismiss = { presenter.onDismissUndoIgnoreUser() }
+            )
+        }
+
+        if (showTradeNotFoundDialog) {
+            ConfirmationDialog(
+                headline = "mobile.openTrades.tradeNotFoundDialog.title".i18n(),
+                message = "mobile.openTrades.tradeNotFoundDialog.text".i18n(),
+                confirmButtonText = "confirmation.ok".i18n(),
+                dismissButtonText = EMPTY_STRING,
+                onConfirm = presenter::onTradeNotFoundDialogDismiss
             )
         }
     }
