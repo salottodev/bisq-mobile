@@ -21,6 +21,14 @@ import bisq.offer.amount.spec.AmountSpec
 import bisq.offer.bisq_easy.BisqEasyOffer
 import bisq.offer.price.spec.PriceSpec
 import bisq.user.banned.BannedUserService
+import network.bisq.mobile.domain.formatters.AmountFormatter
+import network.bisq.mobile.domain.formatters.PriceQuoteFormatter
+import network.bisq.mobile.domain.data.replicated.offer.amount.spec.QuoteSideFixedAmountSpecVO
+import network.bisq.mobile.domain.data.replicated.offer.amount.spec.QuoteSideRangeAmountSpecVO
+import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVOFactory
+import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVOExtensions.toBaseSideMonetary
+import network.bisq.mobile.domain.data.replicated.offer.price.spec.FixPriceSpecVO
+import network.bisq.mobile.domain.data.replicated.offer.price.spec.PriceSpecVOExtensions.getPriceQuoteVO
 import bisq.user.identity.UserIdentity
 import bisq.user.identity.UserIdentityService
 import bisq.user.profile.UserProfileService
@@ -30,7 +38,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
-
 import kotlinx.coroutines.flow.update
 import network.bisq.mobile.android.node.AndroidApplicationService
 import network.bisq.mobile.android.node.mapping.Mappings
@@ -43,6 +50,9 @@ import network.bisq.mobile.domain.data.replicated.offer.amount.spec.AmountSpecVO
 import network.bisq.mobile.domain.data.replicated.offer.price.spec.PriceSpecVO
 import network.bisq.mobile.domain.data.replicated.presentation.offerbook.OfferItemPresentationModel
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import network.bisq.mobile.domain.service.offers.OfferFormattingUtil
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
 import network.bisq.mobile.domain.utils.BisqEasyTradeAmountLimits
 import java.util.Date
@@ -63,14 +73,11 @@ class NodeOffersServiceFacade(
     private val bannedUserService: BannedUserService by lazy { applicationService.userService.get().bannedUserService }
     private val bisqEasyOfferbookChannelSelectionService: BisqEasyOfferbookSelectionService by lazy { applicationService.chatService.get().bisqEasyOfferbookChannelSelectionService }
 
-//  TODO restore for usage of v2.1.8
-//    private val bisqEasyOfferbookMessageService: BisqEasyOfferbookMessageService by lazy { applicationService.bisqEasyService.get().bisqEasyOfferbookMessageService }
-
-
     // Misc
     private var ignoredIdsJob: Job? = null
 
     private var selectedChannel: BisqEasyOfferbookChannel? = null
+    private var marketPriceUpdateJob: Job? = null
     private var numOffersObservers: MutableList<NumOffersObserver> = mutableListOf()
     private var chatMessagesPin: Pin? = null
     private var selectedChannelPin: Pin? = null
@@ -84,7 +91,6 @@ class NodeOffersServiceFacade(
         // React to ignore/unignore to update both lists and counts immediately
         observeIgnoredProfiles()
 
-        // to avoid memory and cpu pressure at startup.
         // We only want to fill it when we select a market.
         bisqEasyOfferbookChannelSelectionService.selectChannel(null)
 
@@ -119,6 +125,8 @@ class NodeOffersServiceFacade(
         selectedChannelPin = null
         marketPricePin?.unbind()
         marketPricePin = null
+        marketPriceUpdateJob?.cancel()
+        marketPriceUpdateJob = null
         ignoredIdsJob?.cancel()
         ignoredIdsJob = null
         numOffersObservers.forEach { it.dispose() }
@@ -144,7 +152,8 @@ class NodeOffersServiceFacade(
 
     override suspend fun deleteOffer(offerId: String): Result<Boolean> {
         try {
-            val optionalOfferbookMessage: Optional<BisqEasyOfferbookMessage> = bisqEasyOfferbookChannelService.findMessageByOfferId(offerId)
+            val optionalOfferbookMessage: Optional<BisqEasyOfferbookMessage> =
+                bisqEasyOfferbookChannelService.findMessageByOfferId(offerId)
             check(optionalOfferbookMessage.isPresent) { "Could not find offer for offer ID $offerId" }
             val offerbookMessage: BisqEasyOfferbookMessage = optionalOfferbookMessage.get()
             val authorUserProfileId: String = offerbookMessage.authorUserProfileId
@@ -153,7 +162,10 @@ class NodeOffersServiceFacade(
             val userIdentity = optionalUserIdentity.get()
             check(userIdentity == userIdentityService.selectedUserIdentity) { "Selected selectedUserIdentity does not match the offers authorUserIdentity" }
             val broadcastResult: BroadcastResult =
-                bisqEasyOfferbookChannelService.deleteChatMessage(offerbookMessage, userIdentity.networkIdWithKeyPair).join()
+                bisqEasyOfferbookChannelService.deleteChatMessage(
+                    offerbookMessage,
+                    userIdentity.networkIdWithKeyPair
+                ).join()
             val broadcastResultNotEmpty = broadcastResult.isNotEmpty()
             if (!broadcastResultNotEmpty) {
                 log.w { "Delete offer message was not broadcast to network. Maybe there are no peers connected." }
@@ -226,7 +238,8 @@ class NodeOffersServiceFacade(
 //            BuildNodeConfig.TRADE_PROTOCOL_VERSION,
         )
 
-        val channel: BisqEasyOfferbookChannel = bisqEasyOfferbookChannelService.findChannel(market).get()
+        val channel: BisqEasyOfferbookChannel =
+            bisqEasyOfferbookChannelService.findChannel(market).get()
         val myOfferMessage = BisqEasyOfferbookMessage(
             channel.id,
             userProfile.id,
@@ -248,22 +261,23 @@ class NodeOffersServiceFacade(
 
     private fun observeSelectedChannel() {
         selectedChannelPin?.unbind()
-        selectedChannelPin = bisqEasyOfferbookChannelSelectionService.selectedChannel.addObserver { channel ->
-            if (channel == null) {
-                selectedChannel = channel
-                chatMessagesPin?.unbind()
-            } else if (channel is BisqEasyOfferbookChannel) {
-                selectedChannel = channel
-                marketPriceService.setSelectedMarket(channel.market)
-                val marketVO = Mappings.MarketMapping.fromBisq2Model(channel.market)
-                _selectedOfferbookMarket.value = OfferbookMarket(marketVO)
-                updateMarketPrice()
+        selectedChannelPin =
+            bisqEasyOfferbookChannelSelectionService.selectedChannel.addObserver { channel ->
+                if (channel == null) {
+                    selectedChannel = channel
+                    chatMessagesPin?.unbind()
+                } else if (channel is BisqEasyOfferbookChannel) {
+                    selectedChannel = channel
+                    marketPriceService.setSelectedMarket(channel.market)
+                    val marketVO = Mappings.MarketMapping.fromBisq2Model(channel.market)
+                    _selectedOfferbookMarket.value = OfferbookMarket(marketVO)
+                    updateMarketPrice()
 
-                observeChatMessages(channel)
-            } else {
-                log.w { "Selected channel is not a BisqEasyOfferbookChannel: ${channel::class.simpleName}" }
+                    observeChatMessages(channel)
+                } else {
+                    log.w { "Selected channel is not a BisqEasyOfferbookChannel: ${channel::class.simpleName}" }
+                }
             }
-        }
     }
 
 
@@ -329,8 +343,10 @@ class NodeOffersServiceFacade(
     private fun isValidOfferbookMessage(message: BisqEasyOfferbookMessage): Boolean {
         // Mirrors Bisq main: see bisqEasyOfferbookMessageService.isValid(message)
         return isNotBanned(message) &&
-            isNotIgnored(message) &&
-            (isTextMessage(message) || isBuyOffer(message) || hasSellerSufficientReputation(message))
+                isNotIgnored(message) &&
+                (isTextMessage(message) || isBuyOffer(message) || hasSellerSufficientReputation(
+                    message
+                ))
     }
 
     private fun isNotBanned(message: BisqEasyOfferbookMessage): Boolean {
@@ -368,16 +384,18 @@ class NodeOffersServiceFacade(
 
         // Compute required seller reputation based on offer amount in fiat using our domain util.
         val offerVO = Mappings.BisqEasyOfferMapping.fromBisq2Model(offer)
-        val requiredScore = BisqEasyTradeAmountLimits.findRequiredReputationScoreForMinOrFixedAmount(
-            marketPriceServiceFacade,
-            offerVO
-        )
+        val requiredScore =
+            BisqEasyTradeAmountLimits.findRequiredReputationScoreForMinOrFixedAmount(
+                marketPriceServiceFacade,
+                offerVO
+            )
 
         // If we cannot determine required score (missing market prices), we err on the safe side
         // and do not filter by reputation to avoid hiding legitimate offers due to transient price lookups.
         if (requiredScore == null) return true
 
-        val authorScore = reputationService.getReputationScore(message.authorUserProfileId).totalScore
+        val authorScore =
+            reputationService.getReputationScore(message.authorUserProfileId).totalScore
         return authorScore >= requiredScore
     }
 
@@ -446,13 +464,37 @@ class NodeOffersServiceFacade(
         marketPricePin = marketPriceService.marketPriceByCurrencyMap.addObserver(Runnable {
             marketPriceService.findMarketPriceQuote(marketPriceService.selectedMarket.get())
             updateMarketPrice()
+            // Debounced per-offer updates when market price changes
+            scheduleOffersPriceRefresh()
         })
     }
 
     private fun updateMarketPrice() {
         if (marketPriceServiceFacade.selectedMarketPriceItem.value != null) {
-            val formattedPrice = marketPriceServiceFacade.selectedMarketPriceItem.value!!.formattedPrice
+            val formattedPrice =
+                marketPriceServiceFacade.selectedMarketPriceItem.value!!.formattedPrice
             _selectedOfferbookMarket.value.setFormattedPrice(formattedPrice)
         }
     }
+
+    private fun scheduleOffersPriceRefresh() {
+        marketPriceUpdateJob?.cancel()
+        marketPriceUpdateJob = serviceScope.launch(Dispatchers.Default) {
+            try {
+                // Debounce to avoid UI churn during high-frequency price ticks
+                delay(MARKET_TICK_DEBOUNCE_MS)
+                refreshOffersFormattedValues()
+            } catch (e: Exception) {
+                log.e(e) { "Error scheduling offers price refresh" }
+            }
+        }
+    }
+
+    private fun refreshOffersFormattedValues() {
+        val marketItem = marketPriceServiceFacade.selectedMarketPriceItem.value ?: return
+        val currentOffers = _offerbookListItems.value
+        if (currentOffers.isEmpty()) return
+        OfferFormattingUtil.updateOffersFormattedValues(currentOffers, marketItem)
+    }
+
 }

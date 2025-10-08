@@ -20,12 +20,25 @@ import network.bisq.mobile.domain.data.replicated.presentation.offerbook.OfferIt
 import network.bisq.mobile.domain.data.replicated.presentation.offerbook.OfferItemPresentationModel
 import network.bisq.mobile.domain.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.domain.service.offers.OffersServiceFacade
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import network.bisq.mobile.domain.formatters.AmountFormatter
+import network.bisq.mobile.domain.formatters.PriceQuoteFormatter
+import network.bisq.mobile.domain.data.replicated.common.monetary.FiatVOFactory
+import network.bisq.mobile.domain.data.replicated.common.monetary.PriceQuoteVOExtensions.toBaseSideMonetary
+import network.bisq.mobile.domain.data.replicated.offer.amount.spec.QuoteSideFixedAmountSpecVO
+import network.bisq.mobile.domain.data.replicated.offer.amount.spec.QuoteSideRangeAmountSpecVO
+import network.bisq.mobile.domain.data.replicated.offer.price.spec.PriceSpecVOExtensions.getPriceQuoteVO
+import network.bisq.mobile.domain.service.offers.OfferFormattingUtil
 
 class ClientOffersServiceFacade(
     private val marketPriceServiceFacade: MarketPriceServiceFacade,
     private val apiGateway: OfferbookApiGateway,
     private val json: Json
 ) : OffersServiceFacade() {
+
+    private var marketPriceUpdateJob: Job? = null
 
     // Misc
     private val offersMutex = Mutex()
@@ -113,6 +126,8 @@ class ClientOffersServiceFacade(
                 marketPriceServiceFacade.selectedMarketPriceItem.collectLatest { marketPriceItem ->
                     if (marketPriceItem != null) {
                         _selectedOfferbookMarket.value.setFormattedPrice(marketPriceItem.formattedPrice)
+                        // Debounced per-offer updates when market price changes
+                        scheduleOffersPriceRefresh()
                     }
                 }
             }.onFailure {
@@ -244,12 +259,33 @@ class ClientOffersServiceFacade(
         log.d { "Offers found for $selectedCurrency: ${list?.size ?: 0}" }
 
         if (!list.isNullOrEmpty()) {
-            log.d { "Offers for $selectedCurrency: ${list.map { "${it.offerId} (${it.bisqEasyOffer.market.quoteCurrencyCode})" }}" }
+            log.d { "Offers for $selectedCurrency: ${list.map { "${'$'}{it.offerId} (${ '$' }{it.bisqEasyOffer.market.quoteCurrencyCode})" }}" }
         } else {
             log.w { "No offers found for selected market $selectedCurrency. Available markets: $availableMarkets" }
         }
 
         _offerbookListItems.value = list ?: emptyList()
+    }
+
+    private fun scheduleOffersPriceRefresh() {
+        marketPriceUpdateJob?.cancel()
+        marketPriceUpdateJob = serviceScope.launch(Dispatchers.Default) {
+            try {
+                // Debounce to avoid UI churn during high-frequency price ticks
+                delay(MARKET_TICK_DEBOUNCE_MS)
+                refreshOffersFormattedValues()
+            } catch (e: Exception) {
+                log.e(e) { "Error scheduling offers price refresh (client)" }
+            }
+        }
+    }
+
+    private fun refreshOffersFormattedValues() {
+        val marketItem = marketPriceServiceFacade.selectedMarketPriceItem.value ?: return
+        val currentOffers = _offerbookListItems.value
+        if (currentOffers.isEmpty()) return
+
+        OfferFormattingUtil.updateOffersFormattedValues(currentOffers, marketItem)
     }
 
     private fun fillMarketListItems(markets: List<MarketVO>) {
