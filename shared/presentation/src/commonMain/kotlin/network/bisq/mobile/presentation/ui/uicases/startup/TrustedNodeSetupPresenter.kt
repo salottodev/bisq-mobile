@@ -4,6 +4,8 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import network.bisq.mobile.client.shared.BuildConfig
 import network.bisq.mobile.client.websocket.ConnectionState
@@ -151,7 +153,7 @@ class TrustedNodeSetupPresenter(
         _status.value = "mobile.trustedNodeSetup.status.connecting".i18n()
         log.d { "Test: ${_host.value} isWorkflow $isWorkflow" }
 
-        launchUI {
+        launchIO {
             try {
                 // Add a timeout to prevent indefinite waiting
                 val error = port.value.toIntOrNull().let { portValue ->
@@ -182,40 +184,29 @@ class TrustedNodeSetupPresenter(
                     }
 
                     null -> {
-                        val previousUrl =
-                            withContext(IODispatcher) { settingsRepository.fetch().bisqApiUrl }
-                        withContext(IODispatcher) { updateSettings() } // trigger ws client update
-                        kotlinx.coroutines.delay(100) // Ensure settings observer completes before connecting
-                        val error = wsClientProvider.get().connect()
-                        kotlinx.coroutines.delay(100) // wait for state collector in wsClientProvider
-                        _wsClientConnectionState.value = wsClientProvider.connectionState.value
+                        val previousUrl = settingsRepository.fetch().bisqApiUrl
+                        updateSettings() // trigger ws client update
+                        wsClientProvider.initialize() // ensure new client is setup correctly
+                        val error = wsClientProvider.connect()
                         if (error != null) {
+                            _wsClientConnectionState.value = ConnectionState.Disconnected(error)
                             onConnectionError(error)
-                            return@launchUI
+                            return@launchIO
                         }
+                        // wait till connectionState is changed to a final state
+                        wsClientProvider.connectionState.filter { it !is ConnectionState.Connecting }
+                            .first()
+                        _wsClientConnectionState.value =
+                            ConnectionState.Connected // this is a successful test regardless of final state
                         _status.value = "mobile.trustedNodeSetup.status.connected".i18n()
 
                         val newApiUrl = _host.value + ":" + _port.value
                         if (previousUrl != newApiUrl) {
                             log.d { "user setup a new trusted node $newApiUrl" }
-                            withContext(IODispatcher) {
-                                userRepository.clear()
-                            }
+                            userRepository.clear()
                         }
 
-                        if (isWorkflow) {
-                            // Compare current host/port with saved settings to decide navigation
-                            val currentApiUrl = "${_host.value}:${_port.value}"
-                            if (previousUrl.isBlank() || previousUrl != currentApiUrl) {
-                                // No saved URL or different URL -> create profile
-                                navigateToCreateProfile()
-                            } else {
-                                // Same URL as saved -> go to home
-                                navigateToHome()
-                            }
-                        } else {
-                            navigateBack()
-                        }
+                        navigateToSplashScreen() // to trigger navigateToNextScreen again
                     }
 
                     else -> {
@@ -231,7 +222,6 @@ class TrustedNodeSetupPresenter(
 
     private fun onConnectionError(error: Throwable?) {
         val errorMessage = error?.message
-        log.e(error) { "Error testing connection: $errorMessage" }
         if (errorMessage != null) {
             showSnackbar(
                 "mobile.trustedNodeSetup.connectionJob.messages.connectionError".i18n(
@@ -257,10 +247,10 @@ class TrustedNodeSetupPresenter(
         }
     }
 
-    private fun navigateToHome() {
+    private fun navigateToSplashScreen() {
         launchUI {
-            navigateTo(NavRoute.TabContainer) {
-                it.popUpTo(NavRoute.TrustedNodeSetup) { inclusive = true }
+            navigateTo(NavRoute.Splash) {
+                it.popUpTo(NavRoute.Splash) { inclusive = true }
             }
         }
     }

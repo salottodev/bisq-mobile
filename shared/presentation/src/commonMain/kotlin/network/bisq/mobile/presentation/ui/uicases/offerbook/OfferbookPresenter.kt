@@ -1,5 +1,6 @@
 package network.bisq.mobile.presentation.ui.uicases.offerbook
 
+import com.ionspin.kotlin.bignum.integer.Quadruple
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -71,33 +72,28 @@ class OfferbookPresenter(
 
     private var selectedOffer: OfferItemPresentationModel? = null
 
-    lateinit var selectedUserProfile: UserProfileVO
+    val selectedUserProfile get() = userProfileServiceFacade.selectedUserProfile
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onViewAttached() {
         super.onViewAttached()
 
         selectedOffer = null
-
         launchIO {
-            userProfileServiceFacade.getSelectedUserProfile()?.let { selectedUserProfile = it }
-                ?: run {
-                    log.w { "No selected user profile; offer list skipped" }
-                    return@launchIO
-                }
-
             combine(
                 offersServiceFacade.offerbookListItems,
                 selectedDirection,
                 offersServiceFacade.selectedOfferbookMarket,
-                mainPresenter.languageCode
-            ) { offers, direction, selectedMarket, _ ->
-                Triple(offers, direction, selectedMarket)
+                mainPresenter.languageCode,
+                userProfileServiceFacade.selectedUserProfile,
+            ) { offers, direction, selectedMarket, _, selectedProfile ->
+                Quadruple(offers, direction, selectedMarket, selectedProfile)
             }
-                .mapLatest { (offers, direction, selectedMarket) ->
+                .mapLatest { (offers, direction, selectedMarket, selectedProfile) ->
                     log.d { "OfferbookPresenter filtering - Selected market: ${selectedMarket.market.quoteCurrencyCode}, Direction: $direction, Input offers: ${offers.size}" }
 
                     val filtered = mutableListOf<OfferItemPresentationModel>()
+                    if (selectedProfile == null) return@mapLatest filtered to selectedProfile
                     var directionFilteredCount = 0
                     var ignoredUserFilteredCount = 0
 
@@ -123,25 +119,28 @@ class OfferbookPresenter(
                     }
 
                     log.d { "OfferbookPresenter filtering results - Market: ${selectedMarket.market.quoteCurrencyCode}, Direction matches: $directionFilteredCount, Ignored users filtered: $ignoredUserFilteredCount, Final count: ${filtered.size}" }
-                    filtered
+                    filtered to selectedProfile
                 }
-                .collectLatest { filtered ->
-                    val processed = processAllOffers(filtered)
-                    val sorted = processed.sortedWith(
-                        compareByDescending<OfferItemPresentationModel> { it.bisqEasyOffer.date }.thenBy { it.bisqEasyOffer.id })
-                    _sortedFilteredOffers.value = sorted
-                    log.d { "OfferbookPresenter final result - ${sorted.size} offers displayed for market" }
+                .collectLatest { (filtered, selectedProfile) ->
+                    if (selectedProfile != null) {
+                        val processed = processAllOffers(filtered, selectedProfile)
+                        val sorted = processed.sortedWith(
+                            compareByDescending<OfferItemPresentationModel> { it.bisqEasyOffer.date }.thenBy { it.bisqEasyOffer.id })
+                        _sortedFilteredOffers.value = sorted
+                        log.d { "OfferbookPresenter final result - ${sorted.size} offers displayed for market" }
+                    }
                 }
         }
     }
 
     private suspend fun processAllOffers(
-        offers: List<OfferItemPresentationModel>
+        offers: List<OfferItemPresentationModel>,
+        userProfile: UserProfileVO,
     ): List<OfferItemPresentationModel> = withContext(IODispatcher) {
-        offers.map { offer -> processOffer(offer) }
+        offers.map { offer -> processOffer(offer, userProfile) }
     }
 
-    private suspend fun processOffer(item: OfferItemPresentationModel): OfferItemPresentationModel {
+    private suspend fun processOffer(item: OfferItemPresentationModel, userProfile: UserProfileVO): OfferItemPresentationModel {
         val offer = item.bisqEasyOffer
 
         // todo: Reformatting should ideally only happen with language change
@@ -170,9 +169,10 @@ class OfferbookPresenter(
                 useCache = true,
                 marketPriceServiceFacade = marketPriceServiceFacade,
                 reputationServiceFacade = reputationServiceFacade,
-                userProfileId = selectedUserProfile.id
+                userProfileId = userProfile.id
             )
         } else false
+
 
         // Not doing copyWith of item to assign these properties.
         // Because `OfferItemPresentationModel` class has StateFlow props
@@ -235,9 +235,11 @@ class OfferbookPresenter(
         runCatching {
             selectedOffer?.let { item ->
                 require(!item.isMyOffer)
+                val selectedProfile = selectedUserProfile.value
+                require(selectedProfile != null)
                 launchUI {
                     try {
-                        if (canTakeOffer(item)) {
+                        if (canTakeOffer(item, selectedProfile)) {
                             takeOfferPresenter.selectOfferToTake(item)
                             if (takeOfferPresenter.showAmountScreen()) {
                                 navigateTo(NavRoute.TakeOfferTradeAmount)
@@ -266,7 +268,7 @@ class OfferbookPresenter(
         }
     }
 
-    private suspend fun canTakeOffer(item: OfferItemPresentationModel): Boolean {
+    private suspend fun canTakeOffer(item: OfferItemPresentationModel, userProfile: UserProfileVO): Boolean {
         val bisqEasyOffer = item.bisqEasyOffer
         val requiredReputationScoreForMaxOrFixed = BisqEasyTradeAmountLimits.findRequiredReputationScoreForMaxOrFixedAmount(
             marketPriceServiceFacade, bisqEasyOffer
@@ -295,7 +297,7 @@ class OfferbookPresenter(
         val userProfileId = if (bisqEasyOffer.direction == DirectionEnum.SELL) {
             bisqEasyOffer.makerNetworkId.pubKey.id // Offer maker is seller (wants to sell Bitcoin)
         } else {
-            selectedUserProfile.id // I am seller (taker selling to maker who wants to buy)
+            userProfile.id // I am seller (taker selling to maker who wants to buy)
         }
 
         val reputationResult: Result<ReputationScoreVO> = withContext(IODispatcher) {
@@ -389,8 +391,12 @@ class OfferbookPresenter(
     fun showReputationRequirementInfo(item: OfferItemPresentationModel) {
         launchUI {
             try {
+                val selectedProfile = selectedUserProfile.value
+                if (selectedProfile == null) {
+                    throw IllegalStateException("selectedUserProfile is null")
+                }
                 // Set up the dialog content
-                setupReputationDialogContent(item)
+                setupReputationDialogContent(item, selectedProfile)
 
                 // Show the dialog
                 _showNotEnoughReputationDialog.value = true
@@ -414,8 +420,8 @@ class OfferbookPresenter(
         navigateToUrl(BisqLinks.BUILD_REPUTATION_WIKI_URL)
     }
 
-    private suspend fun setupReputationDialogContent(item: OfferItemPresentationModel) {
-        canTakeOffer(item)
+    private suspend fun setupReputationDialogContent(item: OfferItemPresentationModel, userProfile: UserProfileVO) {
+        canTakeOffer(item, userProfile)
     }
 
     private suspend fun isOfferFromIgnoredUser(offer: BisqEasyOfferVO): Boolean {

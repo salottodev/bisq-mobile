@@ -62,7 +62,6 @@ import network.bisq.mobile.domain.data.replicated.offer.price.spec.FixPriceSpecV
 import network.bisq.mobile.domain.data.replicated.offer.price.spec.FloatPriceSpecVO
 import network.bisq.mobile.domain.data.replicated.offer.price.spec.MarketPriceSpecVO
 import network.bisq.mobile.domain.data.replicated.offer.price.spec.PriceSpecVO
-import network.bisq.mobile.domain.service.TrustedNodeService
 import network.bisq.mobile.domain.service.accounts.AccountsServiceFacade
 import network.bisq.mobile.domain.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.domain.service.chat.trade.TradeChatMessagesServiceFacade
@@ -163,8 +162,6 @@ val clientModule = module {
         )
     }
 
-    single { TrustedNodeService(get()) }
-
     // single { WebSocketHttpClient(get()) }
     single {
         println("Running on simulator: ${get<EnvironmentController>().isSimulator()}")
@@ -185,16 +182,23 @@ val clientModule = module {
     single<MarketPriceServiceFacade> { ClientMarketPriceServiceFacade(get(), get(), get()) }
 
     single { UserProfileApiGateway(get(), get()) }
-    single<UserProfileServiceFacade> { ClientUserProfileServiceFacade(get(), get(), get()) }
+    single<UserProfileServiceFacade> { ClientUserProfileServiceFacade(get(), get(), get(), get()) }
 
     single { OfferbookApiGateway(get(), get()) }
-    single<OffersServiceFacade> { ClientOffersServiceFacade(get(), get(), get()) }
+    single<OffersServiceFacade> { ClientOffersServiceFacade(get(), get(), get(), get()) }
 
     single { TradesApiGateway(get(), get()) }
     single<TradesServiceFacade> { ClientTradesServiceFacade(get(), get(), get()) }
 
     single { TradeChatMessagesApiGateway(get(), get()) }
-    single<TradeChatMessagesServiceFacade> { ClientTradeChatMessagesServiceFacade(get(), get(), get(), get()) }
+    single<TradeChatMessagesServiceFacade> {
+        ClientTradeChatMessagesServiceFacade(
+            get(),
+            get(),
+            get(),
+            get()
+        )
+    }
 
     single { ExplorerApiGateway(get()) }
     single<ExplorerServiceFacade> { ClientExplorerServiceFacade(get()) }

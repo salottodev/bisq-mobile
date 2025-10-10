@@ -17,19 +17,22 @@ interface WebSocketClient {
 
     suspend fun connect(timeout: Long = 10000L): Throwable?
 
-    /**
-     * @param isReconnect true if this was called from a reconnect method
-     */
-    suspend fun disconnect(isReconnect: Boolean = false)
+    suspend fun disconnect()
 
     fun reconnect()
 
-    suspend fun sendRequestAndAwaitResponse(webSocketRequest: WebSocketRequest, awaitConnection: Boolean = true): WebSocketResponse?
+    suspend fun sendRequestAndAwaitResponse(
+        webSocketRequest: WebSocketRequest,
+        awaitConnection: Boolean = true,
+    ): WebSocketResponse?
 
-    /** Suspends until `webSocketClientStatus` is `ConnectionState.Connected`. Use with caution, may suspend indefinitely. */
-    suspend fun awaitConnection()
-
-    suspend fun subscribe(topic: Topic, parameter: String? = null): WebSocketEventObserver
+    suspend fun subscribe(
+        topic: Topic,
+        parameter: String? = null,
+        webSocketEventObserver: WebSocketEventObserver = WebSocketEventObserver(),
+    ): WebSocketEventObserver
 
     suspend fun unSubscribe(topic: Topic, requestId: String)
+
+    suspend fun dispose()
 }

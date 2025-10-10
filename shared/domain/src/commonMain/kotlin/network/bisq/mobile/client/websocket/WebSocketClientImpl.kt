@@ -10,8 +10,13 @@ import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.atomicfu.atomic
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +33,7 @@ import network.bisq.mobile.client.shared.BuildConfig
 import network.bisq.mobile.client.websocket.exception.IncompatibleHttpApiVersionException
 import network.bisq.mobile.client.websocket.exception.MaximumRetryReachedException
 import network.bisq.mobile.client.websocket.exception.WebSocketIsReconnecting
+import network.bisq.mobile.client.websocket.exception.WebSocketSessionClosedByServer
 import network.bisq.mobile.client.websocket.exception.WebSocketSessionClosedEarly
 import network.bisq.mobile.client.websocket.messages.SubscriptionRequest
 import network.bisq.mobile.client.websocket.messages.SubscriptionResponse
@@ -60,10 +66,7 @@ class WebSocketClientImpl(
         const val MAX_RECONNECT_DELAY = 30000L // 30 seconds max delay
     }
 
-    // Add these properties to track reconnection state
     private var reconnectAttempts = 0
-
-
     private var isReconnecting = atomic(false)
     private var reconnectJob: Job? = null
 
@@ -92,8 +95,7 @@ class WebSocketClientImpl(
                 if (isConnected()) {
                     return null
                 }
-                session?.close()
-                listenerJob?.cancel()
+                doDisconnect() // clean up state
                 log.d { "WS connecting.." }
                 _webSocketClientStatus.value = ConnectionState.Connecting
                 val startTime = DateUtils.now()
@@ -136,32 +138,26 @@ class WebSocketClientImpl(
         }
     }
 
-    /**
-     * @param isReconnect true if this was called from a reconnect method
-     */
-    override suspend fun disconnect(isReconnect: Boolean) {
+    override suspend fun disconnect() {
         connectionMutex.withLock {
-            doDisconnect(isReconnect)
+            log.d { "WS disconnect called" }
+            doDisconnect()
         }
     }
 
     /**
      * Disconnect and cleanup logic, without the lock for internal calls
      */
-    private suspend fun doDisconnect(isReconnect: Boolean = false) {
-        log.d { "disconnecting socket isReconnect $isReconnect" }
-        if (!isReconnect) {
-            reconnectJob?.cancel()
-            reconnectJob = null
-        }
-        session?.close()
-        session = null
-
+    private suspend fun doDisconnect() {
+        // order is important. we want to know the difference between server close and our close
+        // so we cancel the listen job so it throws cancellation exception first then cose the session
         listenerJob?.cancel()
         listenerJob = null
-        log.d { "WS disconnected" }
+        session?.close()
+        session = null
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun reconnect() {
         if (isReconnecting.getAndSet(true)) {
             log.d { "Reconnect already in progress, skipping" }
@@ -169,18 +165,9 @@ class WebSocketClientImpl(
         }
         reconnectJob?.cancel()
 
-        val newReconnectJob = ioScope.launch {
+        val newReconnectJob: Deferred<Throwable?> = ioScope.async {
             log.d { "Launching reconnect attempt #${reconnectAttempts + 1}" }
-
-            // Implement exponential backoff
-            val delayMillis = minOf(
-                DELAY_TO_RECONNECT * (1 shl minOf(reconnectAttempts, 4)), // Exponential backoff
-                MAX_RECONNECT_DELAY
-            )
-
-            log.d { "Waiting ${delayMillis}ms before reconnect attempt" }
-            disconnect(true)
-            delay(delayMillis)
+            doDisconnect() // clean up state
 
             // Check if we've exceeded max attempts
             if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
@@ -189,20 +176,34 @@ class WebSocketClientImpl(
                 _webSocketClientStatus.value = ConnectionState.Disconnected(e)
                 // Reset counter for future reconnects
                 reconnectAttempts = 0
-                return@launch
+                return@async null
             }
 
+            // Implement exponential backoff
+            val delayMillis = minOf(
+                DELAY_TO_RECONNECT * (1 shl minOf(reconnectAttempts, 4)), // Exponential backoff
+                MAX_RECONNECT_DELAY
+            )
+            log.d { "Waiting ${delayMillis}ms before reconnect attempt" }
+            delay(delayMillis)
             reconnectAttempts++
-            connect()
+            val error = connect()
+            return@async error
         }
         reconnectJob = newReconnectJob
         newReconnectJob.invokeOnCompletion {
             isReconnecting.value = false
+            if (it == null && newReconnectJob.getCompleted() != null) {
+                reconnect()
+            }
         }
     }
 
     // Blocking request until we get the associated response
-    override suspend fun sendRequestAndAwaitResponse(webSocketRequest: WebSocketRequest, awaitConnection: Boolean): WebSocketResponse? {
+    override suspend fun sendRequestAndAwaitResponse(
+        webSocketRequest: WebSocketRequest,
+        awaitConnection: Boolean,
+    ): WebSocketResponse? {
         if (awaitConnection) {
             awaitConnection()
         }
@@ -222,29 +223,32 @@ class WebSocketClientImpl(
         }
     }
 
-    override suspend fun awaitConnection() {
-        webSocketClientStatus.first { it is ConnectionState.Connected }
+    private suspend fun awaitConnection() {
+        withContext(ioScope.coroutineContext) {
+            webSocketClientStatus.first { it is ConnectionState.Connected }
+        }
     }
 
     private suspend fun awaitDisconnection() {
-        webSocketClientStatus.first { it is ConnectionState.Disconnected }
+        withContext(ioScope.coroutineContext) {
+            webSocketClientStatus.first { it is ConnectionState.Disconnected }
+        }
     }
 
-    override suspend fun subscribe(topic: Topic, parameter: String?): WebSocketEventObserver {
+    override suspend fun subscribe(
+        topic: Topic,
+        parameter: String?,
+        webSocketEventObserver: WebSocketEventObserver,
+    ): WebSocketEventObserver {
         val subscriberId = createUuid()
         log.i { "Subscribe for topic $topic and subscriberId $subscriberId" }
 
-        val subscriptionRequest = SubscriptionRequest(
-            subscriberId,
-            topic,
-            parameter
-        )
-        val response: WebSocketResponse? = sendRequestAndAwaitResponse(subscriptionRequest)
+        val response: WebSocketResponse? =
+            sendRequestAndAwaitResponse(SubscriptionRequest(topic, parameter, subscriberId))
         require(response is SubscriptionResponse)
         log.i {
             "Received SubscriptionResponse for topic $topic and subscriberId $subscriberId."
         }
-        val webSocketEventObserver = WebSocketEventObserver()
         webSocketEventObservers[subscriberId] = webSocketEventObserver
         val webSocketEvent = WebSocketEvent(
             topic,
@@ -289,8 +293,10 @@ class WebSocketClientImpl(
                 }
             }
 
-            // If we get here, the loop exited normally (session closed gracefully)
-            log.d { "WebSocket session closed normally" }
+            // If we get here, the websocket was closed by server,
+            // as we cancel the coroutine before reaching here
+            log.d { "WebSocket session closed by server" }
+            throw WebSocketSessionClosedByServer()
         } catch (e: Throwable) {
             log.e(e) { "Exception occurred whilst listening for WS messages" }
             error = e
@@ -308,9 +314,6 @@ class WebSocketClientImpl(
                     ConnectionState.Disconnected(WebSocketIsReconnecting())
             } else {
                 _webSocketClientStatus.value = ConnectionState.Disconnected(error)
-                // Only reconnect on exception
-                // TODO this needs more work
-                // reconnect()
             }
         }
     }
@@ -355,5 +358,10 @@ class WebSocketClientImpl(
             log.e(e) { "Failed to parse nodeApiVersion or requiredVersion into a sematic version for comparison" }
             false
         }
+    }
+
+    override suspend fun dispose() {
+        disconnect()
+        ioScope.cancel(CancellationException("WebSocket client disposed"))
     }
 }
