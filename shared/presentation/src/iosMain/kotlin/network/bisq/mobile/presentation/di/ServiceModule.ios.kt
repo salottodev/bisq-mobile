@@ -16,7 +16,7 @@ val serviceModule = module {
     single { NotificationControllerImpl(get()) } bind NotificationController::class
     single { ForegroundServiceControllerImpl(get()) } bind ForegroundServiceController::class
     single {
-        OpenTradesNotificationService(get(), get(), get(), get())
+        OpenTradesNotificationService(get(), get(), get(), get(), get())
     }
 
     single<ClientApplicationLifecycleService> {
