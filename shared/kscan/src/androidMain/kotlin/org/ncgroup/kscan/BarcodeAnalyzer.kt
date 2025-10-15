@@ -118,6 +118,7 @@ class BarcodeAnalyzer(
 
         for (mlKitBarcode in mlKitBarcodes) {
             val displayValue = mlKitBarcode.displayValue ?: continue
+            val rawBytes = mlKitBarcode.rawBytes ?: displayValue.encodeToByteArray()
 
             barcodesDetected[displayValue] = (barcodesDetected[displayValue] ?: 0) + 1
             if ((barcodesDetected[displayValue] ?: 0) >= 2) {
@@ -126,6 +127,7 @@ class BarcodeAnalyzer(
                     Barcode(
                         data = displayValue,
                         format = appSpecificFormat.toString(),
+                        rawBytes = rawBytes,
                     )
 
                 if (!filter(detectedAppBarcode)) return
