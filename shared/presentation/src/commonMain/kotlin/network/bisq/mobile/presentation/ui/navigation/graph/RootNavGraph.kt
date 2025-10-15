@@ -6,8 +6,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavBackStackEntry
@@ -21,9 +19,7 @@ import androidx.navigation.toRoute
 import network.bisq.mobile.presentation.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.ui.navigation.NavUtils.getDeepLinkBasePath
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
-import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.ui.uicases.TabContainerScreen
-import network.bisq.mobile.presentation.ui.uicases.banners.Banner
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferAmountScreen
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferDirectionScreen
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferMarketScreen
@@ -204,11 +200,6 @@ inline fun <reified T : NavRoute> NavGraphBuilder.addScreen(
             }
         }
     ) { backStackEntry ->
-        Column(
-            verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingQuarter)
-        ) {
-            Banner()
-            content(backStackEntry)
-        }
+        content(backStackEntry)
     }
 }
