@@ -57,6 +57,7 @@ import network.bisq.mobile.presentation.ui.uicases.settings.ResourcesPresenter
 import network.bisq.mobile.presentation.ui.uicases.settings.SettingsPresenter
 import network.bisq.mobile.presentation.ui.uicases.startup.IOnboardingPresenter
 import network.bisq.mobile.presentation.ui.uicases.startup.SplashPresenter
+import okio.Path.Companion.toOkioPath
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.bind
 import org.koin.dsl.module
@@ -71,13 +72,24 @@ val androidNodeModule = module {
         AndroidNodeCatHashService(context, context.filesDir.toPath())
     }
 
-    single { AndroidApplicationService.Provider() }
+    single<AndroidApplicationService> {
+        AndroidApplicationService(get(), androidContext(), androidContext().filesDir.toPath())
+    }
+
+    single {
+        val provider = AndroidApplicationService.Provider()
+        provider.applicationService = get<AndroidApplicationService>()
+        provider
+    }
 
     single<MessageDeliveryServiceFacade> { NodeMessageDeliveryServiceFacade(get()) }
 
     single { NodeNetworkServiceFacade(get()) } bind NetworkServiceFacade::class
 
-    single<KmpTorService> { KmpTorService() }
+    single<KmpTorService> {
+        val applicationService = get<AndroidApplicationService>()
+        KmpTorService(applicationService.config.baseDir.toOkioPath(true))
+    }
 
     single { NodeApplicationBootstrapFacade(get(), get()) } bind ApplicationBootstrapFacade::class
 

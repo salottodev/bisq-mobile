@@ -14,7 +14,6 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import network.bisq.mobile.android.node.service.AndroidMemoryReportService
 import network.bisq.mobile.android.node.service.network.NodeConnectivityService
 import network.bisq.mobile.domain.service.BaseService
 import network.bisq.mobile.domain.service.accounts.AccountsServiceFacade
@@ -34,9 +33,7 @@ import network.bisq.mobile.domain.service.trades.TradesServiceFacade
 import network.bisq.mobile.domain.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.presentation.MainActivity
 import network.bisq.mobile.presentation.service.OpenTradesNotificationService
-import okio.Path.Companion.toPath
 import java.io.File
-import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.system.exitProcess
@@ -59,7 +56,7 @@ class NodeApplicationLifecycleService(
     private val tradesServiceFacade: TradesServiceFacade,
     private val userProfileServiceFacade: UserProfileServiceFacade,
     private val provider: AndroidApplicationService.Provider,
-    private val androidMemoryReportService: AndroidMemoryReportService,
+    private val androidApplicationService: AndroidApplicationService,
     private val kmpTorService: KmpTorService,
     private val networkServiceFacade: NetworkServiceFacade,
     private val messageDeliveryServiceFacade: MessageDeliveryServiceFacade,
@@ -74,26 +71,23 @@ class NodeApplicationLifecycleService(
     private val isRestarting = AtomicBoolean(false)
 
 
-    fun initialize(filesDirsPath: Path, applicationContext: Context) {
+    fun initialize() {
         log.i { "Initialize core services and Tor" }
-
-        val applicationService = AndroidApplicationService(androidMemoryReportService, applicationContext, filesDirsPath)
-        provider.applicationService = applicationService
 
         launchIO {
             runCatching {
                 networkServiceFacade.activate()
                 applicationBootstrapFacade.activate()
 
-                val networkServiceConfig: NetworkServiceConfig = applicationService.networkServiceConfig
+                val networkServiceConfig: NetworkServiceConfig = androidApplicationService.networkServiceConfig
                 if (isTorSupported(networkServiceConfig)) {
                     // Block until tor is ready or a timeout exception is thrown
-                    initializeTor(applicationService).await()
+                    initializeTor().await()
                 }
 
                 log.i { "Start initializing applicationService" }
                 // Block until applicationService initialization is completed
-                applicationService.initialize().join()
+                androidApplicationService.initialize().join()
 
                 log.i { "ApplicationService initialization completed" }
                 activateServiceFacades()
@@ -260,15 +254,13 @@ class NodeApplicationLifecycleService(
         }
     }
 
-    private fun initializeTor(applicationService: AndroidApplicationService): CompletableDeferred<Boolean> {
+    private fun initializeTor(): CompletableDeferred<Boolean> {
         val result = CompletableDeferred<Boolean>()
         launchIO {
-
             try {
                 log.i { "Starting Tor" }
-                val baseDir: Path = applicationService.config.baseDir
                 // We block until Tor is ready, or timeout after 60 sec
-                withTimeout(TIMEOUT_SEC * 1000) { kmpTorService.startTor(baseDir.toString().toPath(true)).await() }
+                withTimeout(TIMEOUT_SEC * 1000) { kmpTorService.startTor().await() }
                 log.i { "Tor successfully started" }
                 result.complete(true)
             } catch (e: TimeoutCancellationException) {
