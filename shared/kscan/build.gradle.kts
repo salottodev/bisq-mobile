@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.library)
@@ -10,6 +12,7 @@ kotlin {
         publishLibraryVariants("release")
     }
 
+    jvm()
 
     listOf(
         iosX64(),
@@ -22,6 +25,8 @@ kotlin {
         }
     }
 
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs()
     sourceSets {
         androidMain.dependencies {
             implementation(libs.android.mlkit.barcode.scanning)
@@ -31,15 +36,7 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
-            implementation(compose.ui)
             implementation(compose.materialIconsExtended)
-        }
-        val androidInstrumentedTest by getting {
-            dependencies {
-                implementation(libs.androidx.test.core)
-                implementation(libs.androidx.test.junit)
-                implementation(libs.androidx.test.espresso.core)
-            }
         }
     }
 }

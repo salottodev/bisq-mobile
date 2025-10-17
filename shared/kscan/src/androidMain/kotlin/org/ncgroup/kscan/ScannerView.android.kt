@@ -12,6 +12,7 @@ import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -107,7 +108,7 @@ actual fun ScannerView(
 
             cameraProvider != null -> {
                 AndroidView(
-                    modifier = Modifier.matchParentSize(),
+                    modifier = Modifier.fillMaxSize(),
                     factory = { ctx ->
                         val previewView = PreviewView(ctx)
                         val preview = Preview.Builder().build()
@@ -120,14 +121,16 @@ actual fun ScannerView(
 
                         val imageAnalysis =
                             ImageAnalysis.Builder()
-                                .setResolutionSelector(ResolutionSelector.Builder()
-                                    .setResolutionStrategy(
-                                        ResolutionStrategy(
-                                            Size(1280, 720),
-                                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                                .setResolutionSelector(
+                                    ResolutionSelector.Builder()
+                                        .setResolutionStrategy(
+                                            ResolutionStrategy(
+                                                Size(1280, 720),
+                                                ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                                            )
                                         )
-                                    )
-                                    .build())
+                                        .build()
+                                )
                                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                 .build()
 
@@ -164,6 +167,7 @@ actual fun ScannerView(
                     },
                 )
             }
+
             else -> {}
         }
 
