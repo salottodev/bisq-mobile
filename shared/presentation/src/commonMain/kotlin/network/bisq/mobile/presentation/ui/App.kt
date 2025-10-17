@@ -50,6 +50,7 @@ import network.bisq.mobile.presentation.ui.navigation.graph.RootNavGraph
 import network.bisq.mobile.presentation.ui.navigation.manager.NavigationManager
 import network.bisq.mobile.presentation.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.ui.theme.BisqUIConstants
+import network.bisq.mobile.presentation.ui.uicases.banners.NetworkStatusBanner
 import org.koin.compose.koinInject
 
 interface AppPresenter : ViewPresenter {
@@ -149,18 +150,21 @@ fun App() {
 
     BisqTheme {
         SafeInsetsContainer {
-                SwipeBackIOSNavigationHandler(rootNavController) {
-                    CompositionLocalProvider(LocalAnimationsEnabled provides showAnimation) {
-                        DisposableEffect(Unit) {
-                            ExternalUriHandler.listener = { uri ->
-                                navigationManager.navigateFromUri(uri)
-                            }
-                            onDispose {
-                                ExternalUriHandler.listener = null
-                            }
+            SwipeBackIOSNavigationHandler(rootNavController) {
+                CompositionLocalProvider(LocalAnimationsEnabled provides showAnimation) {
+                    DisposableEffect(Unit) {
+                        ExternalUriHandler.listener = { uri ->
+                            navigationManager.navigateFromUri(uri)
                         }
+                        onDispose {
+                            ExternalUriHandler.listener = null
+                        }
+                    }
+                    Column {
+                        NetworkStatusBanner()
                         RootNavGraph(rootNavController)
                     }
+                }
             }
 
             ErrorOverlay()
@@ -195,7 +199,10 @@ fun ReconnectingOverlay(onClick: (() -> Unit)? = null) {
             shape = RoundedCornerShape(BisqUIConstants.ScreenPadding),
             color = BisqTheme.colors.dark_grey40,
             modifier = Modifier.align(Alignment.Center)
-                .padding(horizontal = BisqUIConstants.ScreenPadding4X, vertical = BisqUIConstants.ScreenPadding2X),
+                .padding(
+                    horizontal = BisqUIConstants.ScreenPadding4X,
+                    vertical = BisqUIConstants.ScreenPadding2X
+                ),
         ) {
             Column(
                 modifier = Modifier.padding(

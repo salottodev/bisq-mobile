@@ -12,7 +12,7 @@ import network.bisq.mobile.presentation.ui.navigation.manager.NavigationManagerI
 import network.bisq.mobile.presentation.ui.uicases.DashboardPresenter
 import network.bisq.mobile.presentation.ui.uicases.ITabContainerPresenter
 import network.bisq.mobile.presentation.ui.uicases.TabContainerPresenter
-import network.bisq.mobile.presentation.ui.uicases.banners.BannerPresenter
+import network.bisq.mobile.presentation.ui.uicases.banners.NetworkStatusBannerPresenter
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferAmountPresenter
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferDirectionPresenter
 import network.bisq.mobile.presentation.ui.uicases.create_offer.CreateOfferMarketPresenter
@@ -90,7 +90,7 @@ val presentationModule = module {
         )
     } bind AppPresenter::class
 
-    single<BannerPresenter> { BannerPresenter(get(), get()) }
+    single<NetworkStatusBannerPresenter> { NetworkStatusBannerPresenter(get(), get()) }
 
     single<SplashPresenter> {
         ClientSplashPresenter(
@@ -105,8 +105,6 @@ val presentationModule = module {
     }
 
     single<TopBarPresenter> { TopBarPresenter(get(), get(), get(), get()) } bind ITopBarPresenter::class
-
-    single<BannerPresenter> { BannerPresenter(get(), get()) }
 
     factory<UserAgreementPresenter> { UserAgreementPresenter(get(), get()) } bind IAgreementPresenter::class
 
