@@ -80,4 +80,10 @@ object StringUtils {
         }
 }
 
+fun String.maskTail(visible: Int): String {
+    if (isEmpty()) return this
+    if (length <= visible) return "*".repeat(length)
+    return "*".repeat(length - visible) + takeLast(visible)
+}
+
 const val EMPTY_STRING = ""

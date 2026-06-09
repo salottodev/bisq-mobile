@@ -7,6 +7,7 @@ import network.bisq.mobile.client.payment_accounts.domain.model.fiat.common.curr
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.common.currency.FiatPaymentSingleCurrencyAccountPayload
 import network.bisq.mobile.domain.model.account.fiat.FiatPaymentAccountPayload
 import network.bisq.mobile.domain.model.account.fiat.FiatPaymentMethodChargebackRisk
+import network.bisq.mobile.domain.utils.maskTail
 
 data class AchTransferAccountPayload(
     override val chargebackRisk: FiatPaymentMethodChargebackRisk? = null,
@@ -21,4 +22,16 @@ data class AchTransferAccountPayload(
     val bankAccountType: BankAccountType,
 ) : FiatPaymentAccountPayload,
     FiatPaymentCountryBasedAccountPayload,
-    FiatPaymentSingleCurrencyAccountPayload
+    FiatPaymentSingleCurrencyAccountPayload {
+    override fun toString(): String =
+        "AchTransferAccountPayload(paymentMethodName=$paymentMethodName, " +
+            "currency=$currency, " +
+            "country=$country, " +
+            "holderName=***, " +
+            "holderAddress=***," +
+            "bankName=$bankName," +
+            "routingNr=${routingNr.maskTail(2)}," +
+            "accountNr=${accountNr.maskTail(4)}," +
+            "bankAccountType=$bankAccountType, " +
+            "chargebackRisk=$chargebackRisk)"
+}
