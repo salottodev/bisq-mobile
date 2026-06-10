@@ -12,7 +12,7 @@ import network.bisq.mobile.client.payment_accounts.domain.model.fiat.FiatPayment
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.common.country.Country
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.sepa.CreateSepaAccount
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.sepa.CreateSepaAccountPayload
-import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CountryPickerItem
+import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.PickerItem
 import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.step2_payment_account_form.form.AccountFormPresenter
 import network.bisq.mobile.data.replicated.common.validation.PaymentAccountValidation
 import network.bisq.mobile.data.replicated.common.validation.SepaPaymentAccountValidation
@@ -37,7 +37,7 @@ open class SepaFormPresenter(
         _uiState.update { current ->
             current.copy(
                 countries = sortedCountries,
-                availableAcceptedCountries = sortedCountries.map { country -> CountryPickerItem(country.code, country.name) },
+                availableAcceptedCountries = sortedCountries.map { country -> PickerItem(country.code, country.name) },
                 selectedAcceptedCountryCodes = sortedCountries.map { country -> country.code }.toSet(),
                 ibanEntry =
                     current.ibanEntry.copy(
@@ -99,7 +99,7 @@ open class SepaFormPresenter(
             SepaFormUiAction.OnSelectAllAcceptedCountries -> {
                 _uiState.update {
                     it.copy(
-                        selectedAcceptedCountryCodes = it.availableAcceptedCountries.map { item -> item.code }.toSet(),
+                        selectedAcceptedCountryCodes = it.availableAcceptedCountries.map { item -> item.id }.toSet(),
                         acceptedCountriesErrorMessage = null,
                     )
                 }

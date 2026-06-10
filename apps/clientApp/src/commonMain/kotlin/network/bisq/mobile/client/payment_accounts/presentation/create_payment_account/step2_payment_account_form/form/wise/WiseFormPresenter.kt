@@ -13,7 +13,7 @@ import network.bisq.mobile.client.payment_accounts.domain.model.fiat.common.curr
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.wise.CreateWiseAccount
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.wise.CreateWiseAccountPayload
 import network.bisq.mobile.client.payment_accounts.presentation.common.util.toDisplayString
-import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CurrencyPickerItem
+import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.PickerItem
 import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.step2_payment_account_form.form.AccountFormPresenter
 import network.bisq.mobile.data.replicated.common.validation.EmailValidation
 import network.bisq.mobile.data.replicated.common.validation.PaymentAccountValidation
@@ -36,7 +36,7 @@ open class WiseFormPresenter(
         val supportedCurrencies = paymentMethod.supportedCurrencies
         _uiState.update { currentState ->
             currentState.copy(
-                availableCurrencies = supportedCurrencies.sortedBy { currency -> currency.code }.map { currency -> CurrencyPickerItem(currency.code, currency.toDisplayString()) },
+                availableCurrencies = supportedCurrencies.sortedBy { currency -> currency.code }.map { currency -> PickerItem(currency.code, currency.toDisplayString()) },
                 selectedCurrencyCodes = supportedCurrencies.map { currency -> currency.code }.toSet(),
             )
         }
@@ -104,7 +104,7 @@ open class WiseFormPresenter(
             WiseFormUiAction.OnSelectAllCurrencies -> {
                 _uiState.update {
                     it.copy(
-                        selectedCurrencyCodes = it.availableCurrencies.map { item -> item.code }.toSet(),
+                        selectedCurrencyCodes = it.availableCurrencies.map { item -> item.id }.toSet(),
                         currencyErrorMessage = null,
                     )
                 }
@@ -117,8 +117,6 @@ open class WiseFormPresenter(
                     )
                 }
             }
-
-            else -> Unit
         }
     }
 

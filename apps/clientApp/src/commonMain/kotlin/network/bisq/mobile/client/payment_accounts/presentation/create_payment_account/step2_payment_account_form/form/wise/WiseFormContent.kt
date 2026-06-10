@@ -12,8 +12,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.FiatPaymentMethod
 import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CurrencyPickerBottomSheet
-import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CurrencyPickerItem
 import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CurrencySummaryRow
+import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.PickerItem
 import network.bisq.mobile.domain.model.account.create.CreatePaymentAccount
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
@@ -133,9 +133,9 @@ private fun WiseFormContent_DefaultPreview() {
                     emailEntry = DataEntry(value = "satoshi@example.com"),
                     availableCurrencies =
                         listOf(
-                            CurrencyPickerItem("USD", "USD (US Dollar)"),
-                            CurrencyPickerItem("EUR", "EUR (Euro)"),
-                            CurrencyPickerItem("GBP", "GBP (British Pound)"),
+                            PickerItem("USD", "USD (US Dollar)"),
+                            PickerItem("EUR", "EUR (Euro)"),
+                            PickerItem("GBP", "GBP (British Pound)"),
                         ),
                     selectedCurrencyCodes = setOf("USD", "EUR"),
                 ),
@@ -155,8 +155,8 @@ private fun WiseFormContent_ErrorPreview() {
                     emailEntry = DataEntry(value = "bad-email", errorMessage = "validation.invalidEmail".i18n()),
                     availableCurrencies =
                         listOf(
-                            CurrencyPickerItem("USD", "USD (US Dollar)"),
-                            CurrencyPickerItem("EUR", "EUR (Euro)"),
+                            PickerItem("USD", "USD (US Dollar)"),
+                            PickerItem("EUR", "EUR (Euro)"),
                         ),
                     selectedCurrencyCodes = emptySet(),
                     currencyErrorMessage = "mobile.paymentAccounts.currencyPicker.error".i18n(),

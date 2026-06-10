@@ -1,7 +1,7 @@
 package network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.step2_payment_account_form.form.sepa
 
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.common.country.Country
-import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CountryPickerItem
+import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.PickerItem
 import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.step2_payment_account_form.form.AccountFormUiState
 import network.bisq.mobile.domain.utils.EMPTY_STRING
 import network.bisq.mobile.presentation.common.ui.utils.DataEntry
@@ -14,7 +14,7 @@ data class SepaFormUiState(
     val ibanEntry: DataEntry = DataEntry(),
     val bicEntry: DataEntry = DataEntry(validator = ::validateBic),
     val selectedAcceptedCountryCodes: Set<String> = emptySet(),
-    val availableAcceptedCountries: List<CountryPickerItem> = emptyList(),
+    val availableAcceptedCountries: List<PickerItem> = emptyList(),
     val acceptedCountriesErrorMessage: String? = null,
     val isAcceptedCountriesPickerOpen: Boolean = false,
     val acceptedCountrySearchQuery: String = EMPTY_STRING,

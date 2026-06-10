@@ -14,8 +14,8 @@ import androidx.compose.ui.unit.dp
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.FiatPaymentMethod
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.common.country.Country
 import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CountryPickerBottomSheet
-import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CountryPickerItem
 import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CountrySummaryRow
+import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.PickerItem
 import network.bisq.mobile.domain.model.account.create.CreatePaymentAccount
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqDropdownSearchable
@@ -189,9 +189,9 @@ private fun SepaFormContentPreview() {
                     bicEntry = DataEntry(value = "DEUTDEFF"),
                     availableAcceptedCountries =
                         listOf(
-                            CountryPickerItem("DE", "Germany"),
-                            CountryPickerItem("FR", "France"),
-                            CountryPickerItem("ES", "Spain"),
+                            PickerItem("DE", "Germany"),
+                            PickerItem("FR", "France"),
+                            PickerItem("ES", "Spain"),
                         ),
                     selectedAcceptedCountryCodes = setOf("DE", "FR"),
                 ),
@@ -212,7 +212,7 @@ private fun SepaFormContentErrorPreview() {
                     holderNameEntry = DataEntry(value = "A", errorMessage = "validation.tooShortOrTooLong".i18n(2, 70)),
                     ibanEntry = DataEntry(value = "bad", errorMessage = "validation.invalid".i18n()),
                     bicEntry = DataEntry(value = "bad", errorMessage = "validation.invalid".i18n()),
-                    availableAcceptedCountries = listOf(CountryPickerItem("DE", "Germany")),
+                    availableAcceptedCountries = listOf(PickerItem("DE", "Germany")),
                     acceptedCountriesErrorMessage = "paymentAccounts.createAccount.accountData.sepa.acceptCountries.error".i18n(),
                 ),
             onAction = {},

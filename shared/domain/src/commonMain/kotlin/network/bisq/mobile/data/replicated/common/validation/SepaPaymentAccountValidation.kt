@@ -28,12 +28,12 @@ object SepaPaymentAccountValidation {
 
     fun validateBic(bic: String) {
         require(bic.isNotEmpty()) { "BIC must not be null or empty" }
-        require(bic.length == 8 || bic.length == 11) { "BIC length must be 8 or 11 characters." }
-        require(bicRegex.matches(bic)) {
-            "Invalid BIC/SWIFT format. Must follow pattern of institution code (4 letters) + country code (2 letters) + location code (2 alphanumeric) + optional branch code (3 alphanumeric)."
-        }
 
         val upperBic = bic.uppercase()
+        require(upperBic.length == 8 || upperBic.length == 11) { "BIC length must be 8 or 11 characters." }
+        require(bicRegex.matches(upperBic)) {
+            "Invalid BIC/SWIFT format. Must follow pattern of institution code (4 letters) + country code (2 letters) + location code (2 alphanumeric) + optional branch code (3 alphanumeric)."
+        }
 
         for (i in 0 until 6) {
             require(upperBic[i].isLetter()) {
@@ -67,9 +67,10 @@ object SepaPaymentAccountValidation {
     ) {
         require(iban.isNotEmpty()) { "IBAN must not be empty for country consistency check" }
         require(countryCode.isNotEmpty()) { "Country code must not be empty for IBAN consistency check" }
-        require(iban.length >= 2) { "IBAN too short for country code extraction." }
 
         val cleanIban = iban.replace(Regex("\\s"), "").uppercase()
+        require(cleanIban.length >= 2) { "IBAN too short for country code extraction." }
+
         val ibanCountryCode = cleanIban.substring(0, 2)
         require(countryCode == ibanCountryCode) {
             "IBAN country code '$ibanCountryCode' does not match declared country '$countryCode'."

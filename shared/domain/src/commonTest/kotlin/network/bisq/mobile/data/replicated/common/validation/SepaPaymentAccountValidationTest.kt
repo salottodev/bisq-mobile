@@ -120,6 +120,12 @@ class SepaPaymentAccountValidationTest {
     }
 
     @Test
+    fun `test valid lowercase bic should pass`() {
+        SepaPaymentAccountValidation.validateBic("deutdeff")
+        SepaPaymentAccountValidation.validateBic("deutdeff500")
+    }
+
+    @Test
     fun `test bic with invalid length should fail`() {
         val exception =
             assertFailsWith<IllegalArgumentException> {
@@ -199,6 +205,18 @@ class SepaPaymentAccountValidationTest {
             assertFailsWith<IllegalArgumentException> {
                 SepaPaymentAccountValidation.validateIbanMatchesCountryCode(
                     iban = "D",
+                    countryCode = "DE",
+                )
+            }
+        assertEquals(true, exception.message?.contains("too short"))
+    }
+
+    @Test
+    fun `test whitespace-short iban should fail without index crash`() {
+        val exception =
+            assertFailsWith<IllegalArgumentException> {
+                SepaPaymentAccountValidation.validateIbanMatchesCountryCode(
+                    iban = "D ",
                     countryCode = "DE",
                 )
             }

@@ -13,7 +13,7 @@ import network.bisq.mobile.client.payment_accounts.domain.model.fiat.common.curr
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.revolut.CreateRevolutAccount
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.revolut.CreateRevolutAccountPayload
 import network.bisq.mobile.client.payment_accounts.presentation.common.util.toDisplayString
-import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CurrencyPickerItem
+import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.PickerItem
 import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.step2_payment_account_form.form.AccountFormPresenter
 import network.bisq.mobile.data.replicated.common.validation.PaymentAccountValidation
 import network.bisq.mobile.i18n.i18n
@@ -37,8 +37,8 @@ open class RevolutFormPresenter(
             it.copy(
                 availableCurrencies =
                     supportedCurrencies.sortedBy { currency -> currency.code }.map { currency ->
-                        CurrencyPickerItem(
-                            code = currency.code,
+                        PickerItem(
+                            id = currency.code,
                             displayName = currency.toDisplayString(),
                         )
                     },
@@ -91,7 +91,7 @@ open class RevolutFormPresenter(
             RevolutFormUiAction.OnSelectAllCurrencies -> {
                 _uiState.update {
                     it.copy(
-                        selectedCurrencyCodes = it.availableCurrencies.map { item -> item.code }.toSet(),
+                        selectedCurrencyCodes = it.availableCurrencies.map { item -> item.id }.toSet(),
                         currencyErrorMessage = null,
                     )
                 }

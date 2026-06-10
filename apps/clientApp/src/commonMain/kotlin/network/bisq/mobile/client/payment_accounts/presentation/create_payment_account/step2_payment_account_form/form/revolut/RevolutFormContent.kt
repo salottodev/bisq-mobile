@@ -10,8 +10,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import network.bisq.mobile.client.payment_accounts.domain.model.fiat.FiatPaymentMethod
 import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CurrencyPickerBottomSheet
-import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CurrencyPickerItem
 import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.CurrencySummaryRow
+import network.bisq.mobile.client.payment_accounts.presentation.create_payment_account.common.ui.PickerItem
 import network.bisq.mobile.domain.model.account.create.CreatePaymentAccount
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
@@ -116,9 +116,9 @@ private fun RevolutFormContent_DefaultPreview() {
                     userNameEntry = DataEntry(value = "satoshi"),
                     availableCurrencies =
                         listOf(
-                            CurrencyPickerItem("USD", "USD (US Dollar)"),
-                            CurrencyPickerItem("EUR", "EUR (Euro)"),
-                            CurrencyPickerItem("GBP", "GBP (British Pound)"),
+                            PickerItem("USD", "USD (US Dollar)"),
+                            PickerItem("EUR", "EUR (Euro)"),
+                            PickerItem("GBP", "GBP (British Pound)"),
                         ),
                     selectedCurrencyCodes = setOf("USD", "EUR"),
                 ),
@@ -137,8 +137,8 @@ private fun RevolutFormContent_ErrorPreview() {
                     userNameEntry = DataEntry(value = "a", errorMessage = "validation.tooShortOrTooLong".i18n(2, 70)),
                     availableCurrencies =
                         listOf(
-                            CurrencyPickerItem("USD", "USD (US Dollar)"),
-                            CurrencyPickerItem("EUR", "EUR (Euro)"),
+                            PickerItem("USD", "USD (US Dollar)"),
+                            PickerItem("EUR", "EUR (Euro)"),
                         ),
                     selectedCurrencyCodes = emptySet(),
                     currencyErrorMessage = "mobile.paymentAccounts.currencyPicker.error".i18n(),
