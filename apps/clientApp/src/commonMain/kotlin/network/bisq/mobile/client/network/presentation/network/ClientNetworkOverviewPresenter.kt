@@ -72,7 +72,6 @@ class ClientNetworkOverviewPresenter(
     fun onAction(action: ClientNetworkOverviewUiAction) {
         when (action) {
             ClientNetworkOverviewUiAction.OnConnectionsClick -> navigateTo(ClientNavRoute.NetworkConnections)
-            ClientNetworkOverviewUiAction.OnMyConnectionClick -> navigateTo(ClientNavRoute.NetworkMyConnection)
             ClientNetworkOverviewUiAction.OnCheckConnectionSettings -> navigateTo(ClientNavRoute.TrustedNodeSetupSettings)
         }
     }

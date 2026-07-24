@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
 
 @Config(application = TestApplication::class)
 @RunWith(AndroidJUnit4::class)
-class NetworkConnectionsContentTest {
+class NodeNetworkConnectionsContentTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
@@ -30,11 +30,11 @@ class NetworkConnectionsContentTest {
         I18nSupport.setLanguage()
     }
 
-    private fun setTestContent(uiState: NetworkConnectionsUiState) {
+    private fun setTestContent(uiState: NodeNetworkConnectionsUiState) {
         composeTestRule.setContent {
             CompositionLocalProvider(LocalIsTest provides true) {
                 BisqTheme {
-                    NetworkConnectionsContent(uiState = uiState, topBar = {})
+                    NodeNetworkConnectionsContent(uiState = uiState, topBar = {})
                 }
             }
         }
@@ -42,7 +42,7 @@ class NetworkConnectionsContentTest {
 
     @Test
     fun `when there are no peers then the empty state is displayed`() {
-        setTestContent(NetworkConnectionsUiState())
+        setTestContent(NodeNetworkConnectionsUiState())
         composeTestRule.waitForIdle()
 
         composeTestRule
@@ -117,8 +117,8 @@ class NetworkConnectionsContentTest {
             .assertIsDisplayed()
     }
 
-    private fun sampleState(): NetworkConnectionsUiState =
-        NetworkConnectionsUiState(
+    private fun sampleState(): NodeNetworkConnectionsUiState =
+        NodeNetworkConnectionsUiState(
             peerCount = 2,
             peers =
                 listOf(
@@ -139,8 +139,8 @@ class NetworkConnectionsContentTest {
                 ),
         )
 
-    private fun singlePeerState(): NetworkConnectionsUiState =
-        NetworkConnectionsUiState(
+    private fun singlePeerState(): NodeNetworkConnectionsUiState =
+        NodeNetworkConnectionsUiState(
             peerCount = 1,
             peers =
                 listOf(

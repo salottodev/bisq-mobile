@@ -3,6 +3,7 @@ package network.bisq.mobile.client.common.di
 import network.bisq.mobile.client.common.presentation.support.ClientSupportPresenter
 import network.bisq.mobile.client.common.presentation.top_bar.ClientTopBarPresenter
 import network.bisq.mobile.client.main.ClientMainPresenter
+import network.bisq.mobile.client.network.presentation.connections.ClientNetworkConnectionsPresenter
 import network.bisq.mobile.client.network.presentation.network.ClientNetworkOverviewPresenter
 import network.bisq.mobile.client.offerbook.ClientOfferbookPresenter
 import network.bisq.mobile.client.settings.faqs.FaqClientPresenter
@@ -95,6 +96,8 @@ val clientPresentationModule =
         factory<MiscItemsPresenter> { ClientMiscItemsPresenter(get(), get()) }
 
         factory { ClientNetworkOverviewPresenter(get(), get(), get(), get()) }
+
+        factory { ClientNetworkConnectionsPresenter(get(), get(), get()) }
 
         factory<FaqPresenter> { FaqClientPresenter(get()) }
 

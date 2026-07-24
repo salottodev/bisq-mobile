@@ -37,7 +37,6 @@ class ClientNetworkOverviewContentTest : BisqComposeUiTestBase() {
         composeTestRule.onNodeWithText("mobile.networkInfo.connect.topology.connectedVia".i18n()).assertIsDisplayed()
         composeTestRule.onNodeWithText("mobile.networkInfo.connect.routing.tor".i18n()).performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("mobile.networkInfo.overview.connections".i18nPlural(12)).performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText("mobile.networkInfo.connect.myConnection.title".i18n()).performScrollTo().assertIsDisplayed()
     }
 
     @Test
