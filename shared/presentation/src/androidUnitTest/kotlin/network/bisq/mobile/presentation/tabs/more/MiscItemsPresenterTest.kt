@@ -3,11 +3,16 @@ package network.bisq.mobile.presentation.tabs.more
 import bisqapps.shared.presentation.generated.resources.Res
 import bisqapps.shared.presentation.generated.resources.nav_settings
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.domain.service.capabilities.BackendCapabilities
+import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesService
+import network.bisq.mobile.domain.service.capabilities.Feature
 import network.bisq.mobile.i18n.UiString
 import network.bisq.mobile.presentation.common.test_utils.coroutines.PresentationKoinTestBase
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
@@ -21,21 +26,34 @@ import kotlin.test.assertTrue
 class MiscItemsPresenterTest : PresentationKoinTestBase() {
     private lateinit var userProfileService: UserProfileServiceFacade
     private lateinit var mainPresenter: MainPresenter
+    private lateinit var backendCapabilitiesService: BackendCapabilitiesService
+
+    private val capabilitiesFlow = MutableStateFlow(BackendCapabilities.UNAVAILABLE)
 
     private lateinit var presenter: MiscItemsPresenter
 
     override fun onKoinReady() {
         userProfileService = mockk(relaxed = true)
         mainPresenter = mockk(relaxed = true)
+        capabilitiesFlow.value = BackendCapabilities.UNAVAILABLE
+        backendCapabilitiesService =
+            mockk<BackendCapabilitiesService>(relaxed = true).also {
+                every { it.capabilities } returns capabilitiesFlow
+            }
         coEvery { userProfileService.getIgnoredUserProfileIds() } returns emptySet()
     }
 
-    private fun createPresenter(): MiscItemsPresenter = TestMiscItemsPresenter(userProfileService, mainPresenter)
+    private fun createPresenter(): MiscItemsPresenter = TestMiscItemsPresenter(userProfileService, backendCapabilitiesService, mainPresenter)
 
     private fun ignoredUsersItem(): MenuItem =
         presenter.uiState.value.sections
             .flatMap { it.items }
             .first { it.route == NavRoute.IgnoredUsers }
+
+    private fun hasNetworkItem(): Boolean =
+        presenter.uiState.value.sections
+            .flatMap { it.items }
+            .any { it.route == NavRoute.NetworkOverview }
 
     @Test
     fun `when attached then exposes the four sections in order`() =
@@ -112,6 +130,7 @@ class MiscItemsPresenterTest : PresentationKoinTestBase() {
     fun `when custom app items added then they appear in the app section`() =
         runTest {
             // Given
+            capabilitiesFlow.value = BackendCapabilities(setOf(Feature.NETWORK_INFO.key))
             presenter = createPresenter()
 
             // When
@@ -129,14 +148,79 @@ class MiscItemsPresenterTest : PresentationKoinTestBase() {
             )
         }
 
+    @Test
+    fun `when node does not support network info then network item is hidden`() =
+        runTest {
+            // Given
+            presenter = createPresenter()
+
+            // When
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            // Then
+            assertFalse(hasNetworkItem())
+        }
+
+    @Test
+    fun `when node supports network info then network item is shown`() =
+        runTest {
+            // Given
+            capabilitiesFlow.value = BackendCapabilities(setOf(Feature.NETWORK_INFO.key))
+            presenter = createPresenter()
+
+            // When
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            // Then
+            assertTrue(hasNetworkItem())
+        }
+
+    @Test
+    fun `when network info capability appears after attach then network item is added`() =
+        runTest {
+            // Given
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+            assertFalse(hasNetworkItem())
+
+            // When
+            capabilitiesFlow.value = BackendCapabilities(setOf(Feature.NETWORK_INFO.key))
+            advanceUntilIdle()
+
+            // Then
+            assertTrue(hasNetworkItem())
+        }
+
+    @Test
+    fun `when network info capability disappears then network item is removed`() =
+        runTest {
+            // Given
+            capabilitiesFlow.value = BackendCapabilities(setOf(Feature.NETWORK_INFO.key))
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+            assertTrue(hasNetworkItem())
+
+            // When
+            capabilitiesFlow.value = BackendCapabilities.UNAVAILABLE
+            advanceUntilIdle()
+
+            // Then
+            assertFalse(hasNetworkItem())
+        }
+
     /**
      * Minimal concrete subclass providing the two abstract hooks so the shared behaviour can be exercised
      * without pulling in per-app resource/BuildConfig dependencies.
      */
     private class TestMiscItemsPresenter(
         userProfileService: UserProfileServiceFacade,
+        backendCapabilitiesService: BackendCapabilitiesService,
         mainPresenter: MainPresenter,
-    ) : MiscItemsPresenter(userProfileService, mainPresenter) {
+    ) : MiscItemsPresenter(userProfileService, backendCapabilitiesService, mainPresenter) {
         override fun getPaymentAccountNavRoute(): NavRoute = NavRoute.PaymentAccounts
 
         override fun addCustomSettings(appItems: MutableList<MenuItem>): List<MenuItem> {

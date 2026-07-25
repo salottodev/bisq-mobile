@@ -12,4 +12,9 @@ data class NodePeerInfo(
     val isOutbound: Boolean,
     val establishedAtMillis: Long,
     val isSeed: Boolean,
+    val rttMillis: Long?,
+    val sentBytes: Long,
+    val sentMessageCount: Long,
+    val receivedBytes: Long,
+    val receivedMessageCount: Long,
 )

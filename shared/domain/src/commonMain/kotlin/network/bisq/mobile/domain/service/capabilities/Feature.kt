@@ -12,7 +12,7 @@ enum class Feature(
     val key: String,
 ) {
     CLOSED_TRADES("closed-trades"),
-    // TODO Add NETWORK_INFO("network-info") and any other new bisq2 dependent feature
+    NETWORK_INFO("network-info"),
     ;
 
     companion object {

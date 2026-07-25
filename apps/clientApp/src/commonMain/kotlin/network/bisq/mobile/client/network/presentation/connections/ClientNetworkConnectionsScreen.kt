@@ -25,6 +25,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGa
 import network.bisq.mobile.presentation.common.ui.components.layout.BisqScaffold
 import network.bisq.mobile.presentation.common.ui.components.molecules.TopBar
 import network.bisq.mobile.presentation.common.ui.components.network.ConnectionCard
+import network.bisq.mobile.presentation.common.ui.components.network.ConnectionsIdentityHeader
 import network.bisq.mobile.presentation.common.ui.components.network.NetworkConnectionUiItem
 import network.bisq.mobile.presentation.common.ui.components.network.NetworkConnectionsEmptyState
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
@@ -63,6 +64,12 @@ internal fun ClientNetworkConnectionsContent(
             // Kept above the list (and the empty state) so the trust framing is always visible.
             ViaYourNodeBanner()
             BisqGap.VHalf()
+
+            // These connections belong to the trusted node — echo its identity. Self-hides while the link is down.
+            ConnectionsIdentityHeader(keyId = uiState.keyId, nodeTag = uiState.nodeTag)
+            if (uiState.keyId != null) {
+                BisqGap.VHalf()
+            }
 
             if (uiState.peers.isEmpty()) {
                 NetworkConnectionsEmptyState(

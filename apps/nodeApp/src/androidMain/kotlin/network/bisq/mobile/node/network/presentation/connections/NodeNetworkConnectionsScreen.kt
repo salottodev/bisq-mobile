@@ -1,6 +1,7 @@
 package network.bisq.mobile.node.network.presentation.connections
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,9 +15,12 @@ import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.i18n.i18nPlural
 import network.bisq.mobile.node.common.domain.service.network.NodePeerInfo
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
+import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.components.layout.BisqScaffold
 import network.bisq.mobile.presentation.common.ui.components.molecules.TopBar
 import network.bisq.mobile.presentation.common.ui.components.network.ConnectionCard
+import network.bisq.mobile.presentation.common.ui.components.network.ConnectionMetricsUiItem
+import network.bisq.mobile.presentation.common.ui.components.network.ConnectionsIdentityHeader
 import network.bisq.mobile.presentation.common.ui.components.network.NetworkConnectionUiItem
 import network.bisq.mobile.presentation.common.ui.components.network.NetworkConnectionsEmptyState
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
@@ -41,28 +45,37 @@ internal fun NodeNetworkConnectionsContent(
     topBar: @Composable () -> Unit,
 ) {
     BisqScaffold(topBar = topBar) { paddingValues ->
-        if (uiState.peers.isEmpty()) {
-            NetworkConnectionsEmptyState(modifier = Modifier.padding(paddingValues))
-        } else {
-            LazyColumn(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .padding(
-                            horizontal = BisqUIConstants.ScreenPadding,
-                            vertical = BisqUIConstants.ScreenPadding,
-                        ),
-                verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalf),
-            ) {
-                item {
-                    BisqText.SmallRegular(
-                        text = "mobile.networkInfo.connections.peers".i18nPlural(uiState.peerCount),
-                        color = BisqTheme.colors.mid_grey20,
-                    )
-                }
-                items(uiState.peers, key = { it.connectionId }) { peer ->
-                    ConnectionCard(peer = peer.toUiItem())
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(
+                        horizontal = BisqUIConstants.ScreenPadding,
+                        vertical = BisqUIConstants.ScreenPadding,
+                    ),
+        ) {
+            ConnectionsIdentityHeader(keyId = uiState.keyId, nodeTag = uiState.nodeTag)
+            if (uiState.keyId != null) {
+                BisqGap.VHalf()
+            }
+
+            if (uiState.peers.isEmpty()) {
+                NetworkConnectionsEmptyState(modifier = Modifier.weight(1f))
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalf),
+                ) {
+                    item {
+                        BisqText.SmallRegular(
+                            text = "mobile.networkInfo.connections.peers".i18nPlural(uiState.peerCount),
+                            color = BisqTheme.colors.mid_grey20,
+                        )
+                    }
+                    items(uiState.peers, key = { it.connectionId }) { peer ->
+                        ConnectionCard(peer = peer.toUiItem())
+                    }
                 }
             }
         }
@@ -76,6 +89,14 @@ private fun NodePeerInfo.toUiItem(): NetworkConnectionUiItem =
         isOutbound = isOutbound,
         isSeed = isSeed,
         establishedAtMillis = establishedAtMillis,
+        metrics =
+            ConnectionMetricsUiItem(
+                rttMillis = rttMillis,
+                sentBytes = sentBytes,
+                sentMessageCount = sentMessageCount,
+                receivedBytes = receivedBytes,
+                receivedMessageCount = receivedMessageCount,
+            ),
     )
 
 @ExcludeFromCoverage
@@ -86,7 +107,9 @@ private fun NodeNetworkConnectionsContentPopulatedPreview() {
         NodeNetworkConnectionsContent(
             uiState =
                 NodeNetworkConnectionsUiState(
-                    peerCount = 3,
+                    peerCount = 2,
+                    keyId = "02a1c98f4b7e29d3f18a",
+                    nodeTag = "default",
                     peers =
                         listOf(
                             NodePeerInfo(
@@ -95,6 +118,11 @@ private fun NodeNetworkConnectionsContentPopulatedPreview() {
                                 isOutbound = true,
                                 establishedAtMillis = 0L,
                                 isSeed = true,
+                                rttMillis = 184L,
+                                sentBytes = 12_400L,
+                                sentMessageCount = 340L,
+                                receivedBytes = 18_900L,
+                                receivedMessageCount = 512L,
                             ),
                             NodePeerInfo(
                                 connectionId = "2",
@@ -102,6 +130,11 @@ private fun NodeNetworkConnectionsContentPopulatedPreview() {
                                 isOutbound = false,
                                 establishedAtMillis = 0L,
                                 isSeed = false,
+                                rttMillis = null,
+                                sentBytes = 0L,
+                                sentMessageCount = 0L,
+                                receivedBytes = 128L,
+                                receivedMessageCount = 1L,
                             ),
                         ),
                 ),
