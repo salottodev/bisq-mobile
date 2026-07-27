@@ -14,7 +14,6 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import network.bisq.mobile.data.model.market.MarketPriceItem
-import network.bisq.mobile.data.model.offerbook.MarketListItem
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.currency.MarketVOFactory
 import network.bisq.mobile.data.replicated.common.monetary.MonetaryVO
@@ -35,7 +34,6 @@ import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.ForegroundDetector
-import network.bisq.mobile.data.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.data.service.trades.TakeOfferStatus
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
@@ -58,6 +56,7 @@ import network.bisq.mobile.presentation.common.notification.NotificationControll
 import network.bisq.mobile.presentation.common.notification.model.NotificationConfig
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
 import network.bisq.mobile.presentation.common.test_utils.FakeConfigServiceFacade
+import network.bisq.mobile.presentation.common.test_utils.FakeMarketPriceServiceFacade
 import network.bisq.mobile.presentation.common.test_utils.FakeTradeReadStateRepository
 import network.bisq.mobile.presentation.common.test_utils.TestApplicationLifecycleService
 import network.bisq.mobile.presentation.common.ui.platform.getScreenWidthDp
@@ -103,23 +102,6 @@ class TakeOfferAmountPresenterTest {
     fun tearDownMainDispatcher() {
         stopKoin()
         Dispatchers.resetMain()
-    }
-
-    private class FakeMarketPriceServiceFacade(
-        settingsRepository: SettingsRepository,
-        private val prices: Map<MarketVO, MarketPriceItem>,
-    ) : MarketPriceServiceFacade(settingsRepository) {
-        override fun findMarketPriceItem(marketVO: MarketVO): MarketPriceItem? =
-            prices.entries
-                .firstOrNull { (k, _) ->
-                    k.baseCurrencyCode == marketVO.baseCurrencyCode && k.quoteCurrencyCode == marketVO.quoteCurrencyCode
-                }?.value
-
-        override fun findUSDMarketPriceItem(): MarketPriceItem? = findMarketPriceItem(MarketVO("BTC", "USD"))
-
-        override fun refreshSelectedFormattedMarketPrice() {}
-
-        override fun selectMarket(marketListItem: MarketListItem): Result<Unit> = Result.success(Unit)
     }
 
     private class FakeTradesServiceFacade : TradesServiceFacade {

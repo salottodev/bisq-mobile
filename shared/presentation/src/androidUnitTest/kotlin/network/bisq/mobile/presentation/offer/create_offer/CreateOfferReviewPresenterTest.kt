@@ -25,7 +25,6 @@ import network.bisq.mobile.data.model.TradeReadStateMap
 import network.bisq.mobile.data.model.market.MarketFilter
 import network.bisq.mobile.data.model.market.MarketPriceItem
 import network.bisq.mobile.data.model.market.MarketSortBy
-import network.bisq.mobile.data.model.offerbook.MarketListItem
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.currency.MarketVOFactory
 import network.bisq.mobile.data.replicated.common.monetary.CoinVOFactory
@@ -69,6 +68,7 @@ import network.bisq.mobile.presentation.common.notification.ForegroundServiceCon
 import network.bisq.mobile.presentation.common.notification.NotificationController
 import network.bisq.mobile.presentation.common.notification.model.NotificationConfig
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
+import network.bisq.mobile.presentation.common.test_utils.FakeMarketPriceServiceFacade
 import network.bisq.mobile.presentation.common.test_utils.TestApplicationLifecycleService
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 import network.bisq.mobile.presentation.common.ui.navigation.manager.NavigationManager
@@ -157,31 +157,6 @@ class CreateOfferReviewPresenterTest {
         override suspend fun setAnalyticsBaselineSent(value: Boolean) {}
 
         override suspend fun setRememberOfferbookFilterPreferences(value: Boolean) {}
-    }
-
-    private class FakeMarketPriceServiceFacade(
-        settingsRepository: SettingsRepository,
-        private val prices: MutableMap<MarketVO, MarketPriceItem>,
-    ) : MarketPriceServiceFacade(settingsRepository) {
-        override fun findMarketPriceItem(marketVO: MarketVO): MarketPriceItem? =
-            prices.entries
-                .firstOrNull { (k, _) ->
-                    k.baseCurrencyCode == marketVO.baseCurrencyCode &&
-                        k.quoteCurrencyCode == marketVO.quoteCurrencyCode
-                }?.value
-
-        override fun findUSDMarketPriceItem(): MarketPriceItem? = findMarketPriceItem(MarketVO("BTC", "USD"))
-
-        override fun refreshSelectedFormattedMarketPrice() {}
-
-        override fun selectMarket(marketListItem: MarketListItem): Result<Unit> = Result.success(Unit)
-
-        fun updatePrice(
-            market: MarketVO,
-            item: MarketPriceItem,
-        ) {
-            prices[market] = item
-        }
     }
 
     private class FakeSettingsServiceFacade : SettingsServiceFacade {

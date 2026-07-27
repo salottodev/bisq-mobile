@@ -18,32 +18,17 @@ import network.bisq.mobile.data.model.TradeReadStateMap
 import network.bisq.mobile.data.model.market.MarketFilter
 import network.bisq.mobile.data.model.market.MarketPriceItem
 import network.bisq.mobile.data.model.market.MarketSortBy
-import network.bisq.mobile.data.model.offerbook.MarketListItem
-import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.currency.MarketVOFactory
 import network.bisq.mobile.data.replicated.common.monetary.MonetaryVO
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory
-import network.bisq.mobile.data.replicated.common.network.AddressByTransportTypeMapVO
-import network.bisq.mobile.data.replicated.network.identity.NetworkIdVO
-import network.bisq.mobile.data.replicated.offer.DirectionEnum
-import network.bisq.mobile.data.replicated.offer.amount.spec.AmountSpecVO
 import network.bisq.mobile.data.replicated.offer.amount.spec.QuoteSideFixedAmountSpecVO
 import network.bisq.mobile.data.replicated.offer.amount.spec.QuoteSideRangeAmountSpecVO
 import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO
-import network.bisq.mobile.data.replicated.offer.payment_method.BitcoinPaymentMethodSpecVO
-import network.bisq.mobile.data.replicated.offer.payment_method.FiatPaymentMethodSpecVO
-import network.bisq.mobile.data.replicated.offer.price.spec.FixPriceSpecVO
-import network.bisq.mobile.data.replicated.presentation.offerbook.OfferItemPresentationDto
 import network.bisq.mobile.data.replicated.presentation.offerbook.OfferItemPresentationModel
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
-import network.bisq.mobile.data.replicated.security.keys.PubKeyVO
-import network.bisq.mobile.data.replicated.security.keys.PublicKeyVO
 import network.bisq.mobile.data.replicated.settings.settingsVODemoObj
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
-import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
-import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.ForegroundDetector
-import network.bisq.mobile.data.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.data.service.trades.TakeOfferStatus
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
@@ -67,6 +52,8 @@ import network.bisq.mobile.presentation.common.notification.NotificationControll
 import network.bisq.mobile.presentation.common.notification.model.NotificationConfig
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
 import network.bisq.mobile.presentation.common.test_utils.FakeConfigServiceFacade
+import network.bisq.mobile.presentation.common.test_utils.FakeMarketPriceServiceFacade
+import network.bisq.mobile.presentation.common.test_utils.OfferTestFactory
 import network.bisq.mobile.presentation.common.test_utils.TestApplicationLifecycleService
 import network.bisq.mobile.presentation.common.ui.platform.getScreenWidthDp
 import network.bisq.mobile.presentation.main.MainPresenter
@@ -147,23 +134,6 @@ class TakeOfferCoordinatorTest {
         override suspend fun setRememberOfferbookFilterPreferences(value: Boolean) {}
     }
 
-    private class FakeMarketPriceServiceFacade(
-        settingsRepository: SettingsRepository,
-        private val prices: Map<MarketVO, MarketPriceItem>,
-    ) : MarketPriceServiceFacade(settingsRepository) {
-        override fun findMarketPriceItem(marketVO: MarketVO): MarketPriceItem? =
-            prices.entries
-                .firstOrNull { (k, _) ->
-                    k.baseCurrencyCode == marketVO.baseCurrencyCode && k.quoteCurrencyCode == marketVO.quoteCurrencyCode
-                }?.value
-
-        override fun findUSDMarketPriceItem(): MarketPriceItem? = findMarketPriceItem(MarketVO("BTC", "USD"))
-
-        override fun refreshSelectedFormattedMarketPrice() {}
-
-        override fun selectMarket(marketListItem: MarketListItem): Result<Unit> = Result.success(Unit)
-    }
-
     private class FakeTradesServiceFacade : TradesServiceFacade {
         override val selectedTrade: StateFlow<TradeItemPresentationModel?> = MutableStateFlow(null)
         override val openTradeItems: StateFlow<List<TradeItemPresentationModel>> = MutableStateFlow(emptyList())
@@ -212,48 +182,6 @@ class TakeOfferCoordinatorTest {
         override fun resetSelectedTradeToNull() {}
     }
 
-    private fun makeOfferDto(
-        amountSpec: AmountSpecVO = QuoteSideRangeAmountSpecVO(minAmount = 10_0000L, maxAmount = 100_0000L),
-        paymentMethods: List<String> = listOf("SEPA"),
-        btcMethods: List<String> = listOf("BTC"),
-    ): OfferItemPresentationDto {
-        val market = MarketVOFactory.USD
-        val priceSpec = FixPriceSpecVO(with(PriceQuoteVOFactory) { fromPrice(100_000_00L, market) })
-        val makerNetworkId = NetworkIdVO(AddressByTransportTypeMapVO(mapOf()), PubKeyVO(PublicKeyVO("pub"), keyId = "key", hash = "hash", id = "id"))
-        val quoteSideSpecs = paymentMethods.map { FiatPaymentMethodSpecVO(it, null) }
-        val baseSideSpecs = btcMethods.map { BitcoinPaymentMethodSpecVO(it, null) }
-        val offer =
-            BisqEasyOfferVO(
-                id = "offer-1",
-                date = 0L,
-                makerNetworkId = makerNetworkId,
-                direction = DirectionEnum.BUY,
-                market = market,
-                amountSpec = amountSpec,
-                priceSpec = priceSpec,
-                protocolTypes = emptyList(),
-                baseSidePaymentMethodSpecs = baseSideSpecs,
-                quoteSidePaymentMethodSpecs = quoteSideSpecs,
-                offerOptions = emptyList(),
-                supportedLanguageCodes = emptyList(),
-            )
-        val user = createMockUserProfile("Alice")
-        val reputation = ReputationScoreVO(0, 0.0, 0)
-        return OfferItemPresentationDto(
-            bisqEasyOffer = offer,
-            isMyOffer = false,
-            userProfile = user,
-            formattedDate = "",
-            formattedQuoteAmount = "",
-            formattedBaseAmount = "",
-            formattedPrice = "",
-            formattedPriceSpec = "",
-            quoteSidePaymentMethods = paymentMethods,
-            baseSidePaymentMethods = btcMethods,
-            reputationScore = reputation,
-        )
-    }
-
     @Test
     fun selectOfferToTake_fixedAmountSpec_noAmountRange() {
         // Arrange: USD market at $100,000/BTC
@@ -276,7 +204,7 @@ class TakeOfferCoordinatorTest {
 
         // Act: Select offer with fixed amount
         val fixedAmountSpec = QuoteSideFixedAmountSpecVO(amount = 500_000L)
-        val dto = makeOfferDto(amountSpec = fixedAmountSpec)
+        val dto = OfferTestFactory.makeOfferDto(amountSpec = fixedAmountSpec)
         val model = OfferItemPresentationModel(dto)
         presenter.selectOfferToTake(model)
 
@@ -312,7 +240,7 @@ class TakeOfferCoordinatorTest {
         // Trade limits: MIN $6 = 60_000, MAX $600 = 6_000_000
         // Effective range: 100_000 to 5_000_000
         val rangeSpec = QuoteSideRangeAmountSpecVO(minAmount = 100_000L, maxAmount = 5_000_000L)
-        val dto = makeOfferDto(amountSpec = rangeSpec)
+        val dto = OfferTestFactory.makeOfferDto(amountSpec = rangeSpec)
         val model = OfferItemPresentationModel(dto)
         presenter.selectOfferToTake(model)
 
@@ -347,7 +275,7 @@ class TakeOfferCoordinatorTest {
         // After clamping with trade limits (60_000 to 6_000_000), effective range is still 1_070_000 to 1_075_000
         // Since (1_075_000 - 1_070_000) = 5_000 < 10_000, range collapses
         val rangeSpec = QuoteSideRangeAmountSpecVO(minAmount = 1_070_000L, maxAmount = 1_075_000L)
-        val dto = makeOfferDto(amountSpec = rangeSpec)
+        val dto = OfferTestFactory.makeOfferDto(amountSpec = rangeSpec)
         val model = OfferItemPresentationModel(dto)
         presenter.selectOfferToTake(model)
 
@@ -374,7 +302,7 @@ class TakeOfferCoordinatorTest {
 
         // Act: Select offer with range spec
         val rangeSpec = QuoteSideRangeAmountSpecVO(minAmount = 100_000L, maxAmount = 5_000_000L)
-        val dto = makeOfferDto(amountSpec = rangeSpec)
+        val dto = OfferTestFactory.makeOfferDto(amountSpec = rangeSpec)
         val model = OfferItemPresentationModel(dto)
         presenter.selectOfferToTake(model)
 
@@ -409,7 +337,7 @@ class TakeOfferCoordinatorTest {
         // Offer min = 7_000_000 > trade limit max = 6_000_000
         // This creates an inverted range: effectiveMin > effectiveMax
         val rangeSpec = QuoteSideRangeAmountSpecVO(minAmount = 7_000_000L, maxAmount = 10_000_000L)
-        val dto = makeOfferDto(amountSpec = rangeSpec)
+        val dto = OfferTestFactory.makeOfferDto(amountSpec = rangeSpec)
         val model = OfferItemPresentationModel(dto)
         presenter.selectOfferToTake(model)
 
@@ -442,7 +370,7 @@ class TakeOfferCoordinatorTest {
         // Act: Select offer with wide range and 2 quote payment methods
         val rangeSpec = QuoteSideRangeAmountSpecVO(minAmount = 100_000L, maxAmount = 5_000_000L)
         val dto =
-            makeOfferDto(
+            OfferTestFactory.makeOfferDto(
                 amountSpec = rangeSpec,
                 paymentMethods = listOf("SEPA", "Wise"),
                 btcMethods = listOf("BTC"),
