@@ -27,6 +27,8 @@ import network.bisq.mobile.data.service.network.ConnectivityService
 import network.bisq.mobile.data.service.network.ConnectivityService.ConnectivityStatus
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.domain.analytics.AnalyticsService
+import network.bisq.mobile.domain.analytics.NoOpAnalyticsService
 import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.domain.utils.CoroutineExceptionHandlerSetup
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
@@ -117,6 +119,7 @@ class ClientSplashPresenterNavigationTest {
                     }
                     single<GlobalUiManager> { GlobalUiManager(testDispatcher) }
                     single<NavigationManager> { navigationManager }
+                    single<AnalyticsService> { NoOpAnalyticsService }
                 },
             )
         }

@@ -17,6 +17,8 @@ import network.bisq.mobile.data.replicated.settings.SettingsVO
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.domain.analytics.AnalyticsService
+import network.bisq.mobile.domain.analytics.NoOpAnalyticsService
 import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.domain.utils.CoroutineExceptionHandlerSetup
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
@@ -98,6 +100,7 @@ class SplashPresenterNavigationTest {
                     }
                     single<NavigationManager> { navigationManager }
                     single { GlobalUiManager(testDispatcher) }
+                    single<AnalyticsService> { NoOpAnalyticsService }
                 },
             )
         }

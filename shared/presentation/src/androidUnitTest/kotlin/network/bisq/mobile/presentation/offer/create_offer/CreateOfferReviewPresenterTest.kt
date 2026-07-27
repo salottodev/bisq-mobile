@@ -50,6 +50,8 @@ import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.data.utils.PlatformImage
 import network.bisq.mobile.data.utils.UrlLauncher
 import network.bisq.mobile.data.utils.createEmptyImage
+import network.bisq.mobile.domain.analytics.AnalyticsService
+import network.bisq.mobile.domain.analytics.NoOpAnalyticsService
 import network.bisq.mobile.domain.core.pagination.PaginatedResponse
 import network.bisq.mobile.domain.core.pagination.PaginationParams
 import network.bisq.mobile.domain.formatters.PriceQuoteFormatter
@@ -102,6 +104,7 @@ class CreateOfferReviewPresenterTest {
                     }
                     single<NavigationManager> { mockk(relaxed = true) }
                     single { GlobalUiManager() }
+                    single<AnalyticsService> { NoOpAnalyticsService }
                 },
             )
         }
