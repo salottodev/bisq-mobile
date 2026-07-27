@@ -244,7 +244,7 @@ open class SettingsPresenter(
         //    SDK isn't ready yet so the event gets buffered either way —
         //    ordering doesn't hurt the cold-start path.
         if (!enabled) {
-            analyticsService?.track(AnalyticsEvent.Settings.AnalyticsDisabled)
+            analyticsService.track(AnalyticsEvent.Settings.AnalyticsDisabled)
         }
         presenterScope.launch {
             // Persist via the repo. The DI module's hot StateFlow view of
@@ -269,7 +269,7 @@ open class SettingsPresenter(
                 )
             }
             if (enabled) {
-                analyticsService?.track(AnalyticsEvent.Settings.AnalyticsEnabled)
+                analyticsService.track(AnalyticsEvent.Settings.AnalyticsEnabled)
             }
         }
     }
@@ -284,7 +284,7 @@ open class SettingsPresenter(
             } else {
                 AnalyticsEvent.Settings.KeepConnectedDisabled
             }
-        analyticsService?.track(event)
+        analyticsService.track(event)
     }
 
     private fun onPushNotificationsToggle(enabled: Boolean) {
@@ -320,7 +320,7 @@ open class SettingsPresenter(
                         } else {
                             AnalyticsEvent.Settings.PushNotificationsDisabled
                         }
-                    analyticsService?.track(event)
+                    analyticsService.track(event)
                 }.onFailure { exception ->
                     handleError(exception)
                 }
