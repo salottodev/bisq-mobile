@@ -3,6 +3,8 @@ package network.bisq.mobile.presentation.common.test_utils
 import network.bisq.mobile.data.model.market.MarketPriceItem
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.currency.MarketVOFactory
+import network.bisq.mobile.data.replicated.common.monetary.CoinVOFactory
+import network.bisq.mobile.data.replicated.common.monetary.FiatVOFactory
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory
 import network.bisq.mobile.data.replicated.common.network.AddressByTransportTypeMapVO
 import network.bisq.mobile.data.replicated.network.identity.NetworkIdVO
@@ -18,6 +20,7 @@ import network.bisq.mobile.data.replicated.security.keys.PubKeyVO
 import network.bisq.mobile.data.replicated.security.keys.PublicKeyVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
+import network.bisq.mobile.presentation.offer.create_offer.CreateOfferCoordinator
 
 /**
  * Offer fixtures shared by the create-offer / take-offer / offerbook test suites.
@@ -44,6 +47,34 @@ object OfferTestFactory {
             with(PriceQuoteVOFactory) { fromPrice(priceValue, market) },
             formattedPrice = "${priceValue / 100} ${market.quoteCurrencyCode}",
         )
+
+    /**
+     * A fully populated [CreateOfferCoordinator.CreateOfferModel] with FIXED pricing.
+     *
+     * `CreateOfferReviewPresenter.onViewAttached()` reads most of these fields synchronously and
+     * formats them, so a partially populated model fails there rather than in the assertion. FIXED
+     * pricing keeps `calculateEffectivePrice` returning `priceQuote` verbatim, so callers don't have
+     * to reason about market-markup arithmetic.
+     */
+    fun makeCreateOfferModel(
+        market: MarketVO = MarketVOFactory.USD,
+        direction: DirectionEnum = DirectionEnum.BUY,
+    ): CreateOfferCoordinator.CreateOfferModel {
+        val priceQuote = with(PriceQuoteVOFactory) { fromPrice(USD_PRICE_VALUE, market) }
+        return CreateOfferCoordinator.CreateOfferModel().also { model ->
+            model.market = market
+            model.direction = direction
+            model.amountType = CreateOfferCoordinator.AmountType.FIXED_AMOUNT
+            model.quoteSideFixedAmount = with(FiatVOFactory) { fromFaceValue(5000.0, market.quoteCurrencyCode) }
+            model.baseSideFixedAmount = with(CoinVOFactory) { fromFaceValue(0.05, market.baseCurrencyCode) }
+            model.priceType = CreateOfferCoordinator.PriceType.FIXED
+            model.originalPriceQuote = priceQuote
+            model.priceQuote = priceQuote
+            model.availableQuoteSidePaymentMethods = listOf("REVOLUT")
+            model.selectedQuoteSidePaymentMethods = setOf("REVOLUT")
+            model.selectedBaseSidePaymentMethods = setOf("MAIN_CHAIN")
+        }
+    }
 
     fun makeOfferDto(
         amountSpec: AmountSpecVO = QuoteSideRangeAmountSpecVO(minAmount = 10_0000L, maxAmount = 100_0000L),

@@ -170,15 +170,12 @@ abstract class BasePresenter(
      * which is a no-op unless both the build-time AND runtime opt-in gates are
      * open.
      *
-     * Visibility is `internal` rather than `protected` so the screen-coverage
-     * contract test in this module can read it directly (asserting each
-     * presenter returns the event declared in [AnalyticsEvent.ScreenOpened.all]).
-     * Cross-module subclasses (clientApp/nodeApp) are concrete subclasses of
-     * abstract presenters that already live in this module, so they don't need
-     * to override this method themselves — the override lives on the abstract
-     * base in `:shared:presentation`.
+     * `protected`, so clientApp/nodeApp subclasses can opt in too. The coverage
+     * contract (`ScreenAnalyticsCoverageTest`) does not read this method: it
+     * attaches each presenter and verifies the event reached [analyticsService],
+     * which exercises the emit wiring rather than just the declaration.
      */
-    internal open fun analyticsScreenEvent(): AnalyticsEvent.ScreenOpened? = null
+    protected open fun analyticsScreenEvent(): AnalyticsEvent.ScreenOpened? = null
 
     // Add a flag to track if we've shown the exit warning
     private var exitWarningShown = false
