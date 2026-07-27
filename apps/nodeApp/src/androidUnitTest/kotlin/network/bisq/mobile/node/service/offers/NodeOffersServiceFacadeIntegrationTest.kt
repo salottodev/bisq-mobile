@@ -1,13 +1,6 @@
 package network.bisq.mobile.node.service.offers
 
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
-import network.bisq.mobile.data.model.BatteryOptimizationState
-import network.bisq.mobile.data.model.PermissionState
-import network.bisq.mobile.data.model.Settings
-import network.bisq.mobile.data.model.market.MarketFilter
 import network.bisq.mobile.data.model.market.MarketPriceItem
-import network.bisq.mobile.data.model.market.MarketSortBy
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.monetary.FiatVOFactory
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory
@@ -30,47 +23,11 @@ import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.offers.OfferFormattingUtil
 import network.bisq.mobile.domain.formatters.AmountFormatter
 import network.bisq.mobile.domain.formatters.PriceQuoteFormatter
-import network.bisq.mobile.domain.repository.SettingsRepository
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 
 class NodeOffersServiceFacadeIntegrationTest {
-    // Minimal fake SettingsRepository
-    private class FakeSettingsRepo : SettingsRepository {
-        override val data: Flow<Settings> = flowOf(Settings())
-
-        override suspend fun setFirstLaunch(value: Boolean) {}
-
-        override suspend fun setShowChatRulesWarnBox(value: Boolean) {}
-
-        override suspend fun setSelectedMarketCode(value: String) {}
-
-        override suspend fun setNotificationPermissionState(value: PermissionState) {}
-
-        override suspend fun setBatteryOptimizationPermissionState(value: BatteryOptimizationState) {}
-
-        override suspend fun update(transform: suspend (Settings) -> Settings) {}
-
-        override suspend fun clear() {}
-
-        override suspend fun setMarketSortBy(value: MarketSortBy) {}
-
-        override suspend fun setMarketFilter(value: MarketFilter) {}
-
-        override suspend fun setDontShowAgainHyperlinksOpenInBrowser(value: Boolean) {}
-
-        override suspend fun setPermitOpeningBrowser(value: Boolean) {}
-
-        override suspend fun setAnalyticsEnabled(value: Boolean) {}
-
-        override suspend fun setAnalyticsPromptSeen(value: Boolean) {}
-
-        override suspend fun setAnalyticsBaselineSent(value: Boolean) {}
-
-        override suspend fun setRememberOfferbookFilterPreferences(value: Boolean) {}
-    }
-
     private fun buildDto(
         id: String,
         market: MarketVO,
