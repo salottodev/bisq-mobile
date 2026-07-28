@@ -53,6 +53,11 @@ setters really mutate state, `initial` seeds it, `fetchException` makes `fetch()
 price table. Amount-limit math needs both — a relaxed mockk returns chained mocks that fail inside
 `toBaseSideMonetary`.
 
+Two private same-named fakes still exist for the offerbook market list, keyed on a
+`marketsWithPrice: Set<String>` instead of a price table: `OfferbookMarketPresenterTest` and
+`ComputeOfferbookMarketListUseCaseTest`. The latter is in `commonTest`, which cannot see an
+`androidUnitTest` helper at all — so prefer the shared fake, but do not assume it is the only one.
+
 ## Proof tests {#proof-tests}
 
 | Test | Base | Path |
@@ -71,4 +76,4 @@ price table. Amount-limit math needs both — a relaxed mockk returns chained mo
 | `:shared:presentation-test-utils` | Removed `2cb248bb`; helpers in `presentation/common/test_utils/` |
 | `OfferbookMarketPresenterTestFactory` | Consolidated into `OfferbookMarketPresenterTest` (#1573) |
 | `FakeSettingsRepository`, `TestSettingsRepository`, `FakeSettingsRepo` | Per-test copies; consolidated into `SettingsRepositoryMock` (#1488) |
-| Per-test `FakeMarketPriceServiceFacade` copies | Consolidated into `test_utils/FakeMarketPriceServiceFacade.kt` (#1488) |
+| `FakeMarketPriceServiceFacade` copies in the create-offer / take-offer tests | Consolidated into `test_utils/FakeMarketPriceServiceFacade.kt` (#1488) |

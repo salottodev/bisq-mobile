@@ -1,13 +1,11 @@
 package network.bisq.mobile.presentation.common.service
 
-import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
 import network.bisq.mobile.data.model.Settings
 import network.bisq.mobile.domain.analytics.AnalyticsBootstrapConfig
 import network.bisq.mobile.domain.analytics.AnalyticsEvent
@@ -461,12 +459,6 @@ class ApplicationLifecycleServiceBootstrapTest {
         assertEquals(0, analytics.initCalls, "no SettingsRepository → MUST NOT init Sentry")
     }
 
-    /**
-     * Minimal [SettingsRepository] stand-in that lets the test control when
-     * `data` emits. Used by the pre-warm contract test below. We don't reach
-     * for mockk here because the SettingsRepository interface has many
-     * methods and the test only cares about `data` emissions.
-     */
     @Test
     fun `init + onSentryReady fire only after the opt-in flip is observed in Settings`() {
         // Pins the ordering: under Option B, the lifecycle waits for the

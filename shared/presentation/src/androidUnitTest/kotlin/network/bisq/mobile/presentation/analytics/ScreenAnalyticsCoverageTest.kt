@@ -400,8 +400,11 @@ class ScreenAnalyticsCoverageTest {
     // ============== Helpers ==========================================
 
     /**
-     * Attaches [presenter] and asserts it emitted exactly [expected] — and only that event, so a
-     * presenter that fires a second screen event on attach fails here.
+     * Attaches [presenter] and asserts it emitted exactly [expected], and no other screen event —
+     * a presenter that fires a second [AnalyticsEvent.ScreenOpened] on attach fails here.
+     *
+     * `ofType` rather than `any`: MockK's `any<T>()` is type-erased and matches every argument, so
+     * it would also fail on a presenter that legitimately tracks a non-screen event on attach.
      */
     private fun assertEmitsOnAttach(
         presenter: BasePresenter,
@@ -409,7 +412,7 @@ class ScreenAnalyticsCoverageTest {
     ) {
         presenter.onViewAttached()
         verify(exactly = 1) { analyticsService.track(expected) }
-        verify(exactly = 1) { analyticsService.track(any<AnalyticsEvent.ScreenOpened>()) }
+        verify(exactly = 1) { analyticsService.track(ofType<AnalyticsEvent.ScreenOpened>()) }
     }
 
     private val marketPriceServiceFacade = FakeMarketPriceServiceFacade(SettingsRepositoryMock())

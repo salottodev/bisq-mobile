@@ -17,10 +17,8 @@ import network.bisq.mobile.domain.repository.SettingsRepository
  */
 class FakeMarketPriceServiceFacade(
     settingsRepository: SettingsRepository,
-    prices: Map<MarketVO, MarketPriceItem> = OfferTestFactory.usdPrices(),
+    private val prices: Map<MarketVO, MarketPriceItem> = OfferTestFactory.usdPrices(),
 ) : MarketPriceServiceFacade(settingsRepository) {
-    private val prices: MutableMap<MarketVO, MarketPriceItem> = prices.toMutableMap()
-
     override fun findMarketPriceItem(marketVO: MarketVO): MarketPriceItem? =
         prices.entries
             .firstOrNull { (market, _) ->
@@ -33,12 +31,4 @@ class FakeMarketPriceServiceFacade(
     override fun refreshSelectedFormattedMarketPrice() {}
 
     override fun selectMarket(marketListItem: MarketListItem): Result<Unit> = Result.success(Unit)
-
-    /** Replaces the price for [market], so a test can simulate a price change after construction. */
-    fun updatePrice(
-        market: MarketVO,
-        item: MarketPriceItem,
-    ) {
-        prices[market] = item
-    }
 }

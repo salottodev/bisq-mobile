@@ -1,7 +1,5 @@
 package network.bisq.mobile.domain.analytics
 
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import network.bisq.mobile.data.model.Settings
 import network.bisq.mobile.test.mocks.SettingsRepositoryMock
