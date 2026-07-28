@@ -7,22 +7,16 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import network.bisq.mobile.data.model.BatteryOptimizationState
-import network.bisq.mobile.data.model.PermissionState
 import network.bisq.mobile.data.model.Settings
-import network.bisq.mobile.data.model.market.MarketFilter
-import network.bisq.mobile.data.model.market.MarketSortBy
 import network.bisq.mobile.data.model.offerbook.OfferbookFilterConfig
 import network.bisq.mobile.data.model.offerbook.OfferbookFilterConfigs
-import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.test.coroutines.TestCoroutineJobsManager
+import network.bisq.mobile.test.mocks.SettingsRepositoryMock
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -75,80 +69,10 @@ class OfferbookFilterConfigRepositoryImplTest {
         fun fetch(): T = persistedValue
     }
 
-    private class FakeSettingsRepository(
-        initialSettings: Settings = Settings(),
-        private val fetchException: Throwable? = null,
-    ) : SettingsRepository {
-        private val state = MutableStateFlow(initialSettings)
-        override val data: StateFlow<Settings> = state.asStateFlow()
-
-        override suspend fun fetch(): Settings = fetchException?.let { throw it } ?: state.value
-
-        override suspend fun setFirstLaunch(value: Boolean) {
-            update { it.copy(firstLaunch = value) }
-        }
-
-        override suspend fun setShowChatRulesWarnBox(value: Boolean) {
-            update { it.copy(showChatRulesWarnBox = value) }
-        }
-
-        override suspend fun setSelectedMarketCode(value: String) {
-            update { it.copy(selectedMarketCode = value) }
-        }
-
-        override suspend fun setNotificationPermissionState(value: PermissionState) {
-            update { it.copy(notificationPermissionState = value) }
-        }
-
-        override suspend fun setBatteryOptimizationPermissionState(value: BatteryOptimizationState) {
-            update { it.copy(batteryOptimizationState = value) }
-        }
-
-        override suspend fun update(transform: suspend (t: Settings) -> Settings) {
-            state.value = transform(state.value)
-        }
-
-        override suspend fun clear() {
-            state.value = Settings()
-        }
-
-        override suspend fun setMarketSortBy(value: MarketSortBy) {
-            update { it.copy(marketSortBy = value) }
-        }
-
-        override suspend fun setMarketFilter(value: MarketFilter) {
-            update { it.copy(marketFilter = value) }
-        }
-
-        override suspend fun setDontShowAgainHyperlinksOpenInBrowser(value: Boolean) {
-            update { it.copy(dontShowAgainHyperlinksOpenInBrowser = value) }
-        }
-
-        override suspend fun setPermitOpeningBrowser(value: Boolean) {
-            update { it.copy(cookiePermitOpeningBrowser = value) }
-        }
-
-        override suspend fun setAnalyticsEnabled(value: Boolean) {
-            update { it.copy(analyticsEnabled = value) }
-        }
-
-        override suspend fun setAnalyticsPromptSeen(value: Boolean) {
-            update { it.copy(analyticsPromptSeen = value) }
-        }
-
-        override suspend fun setAnalyticsBaselineSent(value: Boolean) {
-            update { it.copy(analyticsBaselineSent = value) }
-        }
-
-        override suspend fun setRememberOfferbookFilterPreferences(value: Boolean) {
-            update { it.copy(rememberOfferbookFilterPreferences = value) }
-        }
-    }
-
     private data class Fixture(
         val repository: OfferbookFilterConfigRepositoryImpl,
         val store: InMemoryDataStore<OfferbookFilterConfigs>,
-        val settingsRepository: FakeSettingsRepository,
+        val settingsRepository: SettingsRepositoryMock,
         val jobsManager: TestCoroutineJobsManager,
     )
 
@@ -159,7 +83,7 @@ class OfferbookFilterConfigRepositoryImplTest {
     ): Fixture {
         val store = InMemoryDataStore(persistedConfigs)
         val settingsRepository =
-            FakeSettingsRepository(Settings(rememberOfferbookFilterPreferences = rememberFilters))
+            SettingsRepositoryMock(Settings(rememberOfferbookFilterPreferences = rememberFilters))
         val jobsManager = TestCoroutineJobsManager(dispatcher)
         val repository =
             OfferbookFilterConfigRepositoryImpl(
@@ -220,7 +144,7 @@ class OfferbookFilterConfigRepositoryImplTest {
     fun `initializes with empty configs when persisted DataStore read throws IOException`() =
         runTest {
             val store = ThrowingDataStore<OfferbookFilterConfigs>(IOException("read failed"))
-            val settingsRepository = FakeSettingsRepository(Settings(rememberOfferbookFilterPreferences = true))
+            val settingsRepository = SettingsRepositoryMock(Settings(rememberOfferbookFilterPreferences = true))
             val repository =
                 OfferbookFilterConfigRepositoryImpl(
                     offerbookFilterConfigsStore = store,
@@ -240,7 +164,7 @@ class OfferbookFilterConfigRepositoryImplTest {
             val repository =
                 OfferbookFilterConfigRepositoryImpl(
                     offerbookFilterConfigsStore = store,
-                    settingsRepository = FakeSettingsRepository(fetchException = IllegalStateException("settings unavailable")),
+                    settingsRepository = SettingsRepositoryMock(fetchException = IllegalStateException("settings unavailable")),
                     jobsManager = TestCoroutineJobsManager(StandardTestDispatcher(testScheduler)),
                 )
             advanceUntilIdle()
@@ -275,7 +199,7 @@ class OfferbookFilterConfigRepositoryImplTest {
             val repository =
                 OfferbookFilterConfigRepositoryImpl(
                     offerbookFilterConfigsStore = store,
-                    settingsRepository = FakeSettingsRepository(Settings(rememberOfferbookFilterPreferences = true)),
+                    settingsRepository = SettingsRepositoryMock(Settings(rememberOfferbookFilterPreferences = true)),
                     jobsManager = TestCoroutineJobsManager(StandardTestDispatcher(testScheduler)),
                 )
             advanceUntilIdle()
@@ -295,7 +219,7 @@ class OfferbookFilterConfigRepositoryImplTest {
             val repository =
                 OfferbookFilterConfigRepositoryImpl(
                     offerbookFilterConfigsStore = store,
-                    settingsRepository = FakeSettingsRepository(Settings(rememberOfferbookFilterPreferences = true)),
+                    settingsRepository = SettingsRepositoryMock(Settings(rememberOfferbookFilterPreferences = true)),
                     jobsManager = TestCoroutineJobsManager(StandardTestDispatcher(testScheduler)),
                 )
             advanceUntilIdle()
@@ -409,7 +333,7 @@ class OfferbookFilterConfigRepositoryImplTest {
             val repository =
                 OfferbookFilterConfigRepositoryImpl(
                     offerbookFilterConfigsStore = store,
-                    settingsRepository = FakeSettingsRepository(Settings(rememberOfferbookFilterPreferences = false)),
+                    settingsRepository = SettingsRepositoryMock(Settings(rememberOfferbookFilterPreferences = false)),
                     jobsManager = TestCoroutineJobsManager(StandardTestDispatcher(testScheduler)),
                 )
             advanceUntilIdle()

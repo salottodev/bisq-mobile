@@ -9,6 +9,8 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import network.bisq.mobile.domain.analytics.AnalyticsService
+import network.bisq.mobile.domain.analytics.NoOpAnalyticsService
 import network.bisq.mobile.domain.service.capabilities.BackendCapabilities
 import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesService
 import network.bisq.mobile.domain.service.capabilities.Feature
@@ -55,6 +57,7 @@ class MyTradesPresenterTest {
             }
             single<NavigationManager> { navigationManager }
             single<GlobalUiManager> { globalUiManager }
+            single<AnalyticsService> { NoOpAnalyticsService }
         }
 
     private lateinit var presenter: MyTradesPresenter

@@ -25,6 +25,7 @@ Do **not** extend `CoroutineTestBase` or `KoinIntegrationTestBase` directly.
 | --- | --- |
 | `BisqComposeTestSupport` | `.../test_utils/compose/BisqComposeTestSupport.kt` |
 | `presentationTestModule(...)` | `.../test_utils/di/PresentationTestModule.kt` |
+| `analyticsTestModule` | `shared/test-utils/src/androidMain/kotlin/.../test/koin/AnalyticsTestModule.kt` |
 | `clientTestModule` | `apps/clientApp/src/androidUnitTest/kotlin/.../client/common/di/TestModule.kt` |
 | `commonTestModule` | `apps/clientApp/src/commonTest/kotlin/.../client/common/di/CommonTestModule.kt` |
 | `testModule` | `shared/domain/src/commonTest/kotlin/.../data/di/TestModule.kt` |
@@ -37,10 +38,25 @@ Do **not** extend `CoroutineTestBase` or `KoinIntegrationTestBase` directly.
 | `NoopNavigationManager` | `.../test_utils/di/NoopNavigationManager.kt` |
 | `PlatformStaticMocks` | `.../test_utils/coroutines/PlatformStaticMocks.kt` |
 | `FakeConfigServiceFacade` | `shared/presentation/src/androidUnitTest/kotlin/.../test_utils/FakeConfigServiceFacade.kt` |
-| `SettingsRepositoryMock` | `shared/test-utils/src/commonMain/kotlin/.../mocks/SettingsRepositoryMock.kt` |
+| `FakeMarketPriceServiceFacade` | `shared/presentation/src/androidUnitTest/kotlin/.../test_utils/FakeMarketPriceServiceFacade.kt` |
+| `OfferTestFactory` | `shared/presentation/src/androidUnitTest/kotlin/.../test_utils/OfferTestFactory.kt` |
+| `SettingsRepositoryMock(initial, fetchException)` | `shared/test-utils/src/commonMain/kotlin/.../mocks/SettingsRepositoryMock.kt` |
 | `UserRepositoryMock` | `shared/test-utils/src/commonMain/kotlin/.../mocks/UserRepositoryMock.kt` |
 | `TradeStatePresenterTestSupport` | `shared/presentation/src/androidUnitTest/kotlin/.../trade/trade_detail/states/TradeStatePresenterTestSupport.kt` |
 | `WebLinkDialogTestSupport` | `shared/presentation/src/androidUnitTest/kotlin/.../dialog/WebLinkDialogTestSupport.kt` |
+
+`SettingsRepositoryMock` is the **only** `SettingsRepository` double — do not hand-roll another. Its
+setters really mutate state, `initial` seeds it, `fetchException` makes `fetch()` throw, and
+`mutableData` lets a non-suspend test body flip a value.
+
+`FakeMarketPriceServiceFacade` answers both `findMarketPriceItem` and `findUSDMarketPriceItem` from a
+price table. Amount-limit math needs both — a relaxed mockk returns chained mocks that fail inside
+`toBaseSideMonetary`.
+
+Two private same-named fakes still exist for the offerbook market list, keyed on a
+`marketsWithPrice: Set<String>` instead of a price table: `OfferbookMarketPresenterTest` and
+`ComputeOfferbookMarketListUseCaseTest`. The latter is in `commonTest`, which cannot see an
+`androidUnitTest` helper at all — so prefer the shared fake, but do not assume it is the only one.
 
 ## Proof tests {#proof-tests}
 
@@ -59,3 +75,5 @@ Do **not** extend `CoroutineTestBase` or `KoinIntegrationTestBase` directly.
 | --- | --- |
 | `:shared:presentation-test-utils` | Removed `2cb248bb`; helpers in `presentation/common/test_utils/` |
 | `OfferbookMarketPresenterTestFactory` | Consolidated into `OfferbookMarketPresenterTest` (#1573) |
+| `FakeSettingsRepository`, `TestSettingsRepository`, `FakeSettingsRepo` | Per-test copies; consolidated into `SettingsRepositoryMock` (#1488) |
+| `FakeMarketPriceServiceFacade` copies in the create-offer / take-offer tests | Consolidated into `test_utils/FakeMarketPriceServiceFacade.kt` (#1488) |

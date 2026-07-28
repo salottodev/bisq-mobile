@@ -3,6 +3,8 @@ package network.bisq.mobile.node.common.di
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import network.bisq.mobile.domain.analytics.AnalyticsService
+import network.bisq.mobile.domain.analytics.NoOpAnalyticsService
 import network.bisq.mobile.domain.utils.CoroutineExceptionHandlerSetup
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
 import network.bisq.mobile.domain.utils.DefaultCoroutineJobsManager
@@ -25,6 +27,10 @@ val testModule =
 
         // Test dispatcher-based GlobalUiManager
         single { GlobalUiManager(UnconfinedTestDispatcher()) }
+
+        // BasePresenter resolves AnalyticsService as a non-null dependency. Tests that assert on
+        // analytics load their own mock after this module, which overrides the no-op.
+        single<AnalyticsService> { NoOpAnalyticsService }
 
         // Default NavigationManager — lazy relaxed mock; presenter tests override it with their own
         // field mock (via additionalModules) when they need to verify navigation.

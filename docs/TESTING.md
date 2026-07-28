@@ -67,8 +67,13 @@ Test:       <module>/src/<testSourceSet>/kotlin/<same package>/<Name><Suffix>.kt
 | `@Config(application = TestApplication::class)` | Pair with `BisqComposeUiTestBase` (or plain UI without a Koin-starting base). Koin from `TestApplication.onCreate()` — **no** `startKoin` in `@Before` |
 | Client facade test | `ClientKoinIntegrationTestBase` — **no** `TestApplication` |
 | Presentation test | `PresentationKoinTestBase` + `presentationTestModule` — **not** `clientTestModule` |
+| Presenter that attaches a view | Needs `AnalyticsService` bound. The cataloged bases and modules already bind `NoOpAnalyticsService`; a hand-rolled `module { }` must add it or `onViewAttached()` throws `NoDefinitionFoundException` |
 
 Never combine `TestApplication` with a Koin-starting base. Load exactly one module owning `CoroutineJobsManager`, `GlobalUiManager`, and `NavigationManager`.
+
+`BasePresenter` resolves `AnalyticsService` as a non-null dependency, so presenters that opt into
+screen tracking need the binding present when `onViewAttached()` runs. To assert on tracking, load
+your mock *after* the shared module — later definitions win.
 
 ## Commands {#commands}
 

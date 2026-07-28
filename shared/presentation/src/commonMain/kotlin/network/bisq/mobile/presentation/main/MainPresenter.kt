@@ -195,9 +195,6 @@ open class MainPresenter(
      * are NOT emitted — `TRACKED_LANGUAGE_CODES` is the wire-format allowlist.
      * Defence against a backend that hands us an unexpected code AND
      * defence against typos in the code path.
-     *
-     * `analyticsService?` is null in tests that don't bind it — silent no-op
-     * by design (see [analyticsService] kdoc on [BasePresenter]).
      */
     private fun startLanguageAnalyticsObserverOnce() {
         if (languageAnalyticsObserverStarted) return
@@ -207,7 +204,7 @@ open class MainPresenter(
             .mapNotNull { AnalyticsEvent.Settings.normalizeLanguageCode(it) }
             .distinctUntilChanged()
             .onEach { code ->
-                analyticsService?.track(AnalyticsEvent.Settings.LanguageChanged(code))
+                analyticsService.track(AnalyticsEvent.Settings.LanguageChanged(code))
             }.launchIn(presenterScope)
     }
 

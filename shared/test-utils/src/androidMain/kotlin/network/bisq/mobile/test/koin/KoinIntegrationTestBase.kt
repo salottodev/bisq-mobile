@@ -39,6 +39,8 @@ abstract class KoinIntegrationTestBase :
         setUpCoroutines()
         beforeStartKoin()
         startKoin {
+            // Loaded first so a test that binds its own AnalyticsService mock still wins.
+            modules(analyticsTestModule)
             modules(baseModules())
             modules(additionalModules())
         }

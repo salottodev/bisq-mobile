@@ -18,14 +18,8 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import network.bisq.mobile.data.model.BatteryOptimizationState
-import network.bisq.mobile.data.model.PermissionState
-import network.bisq.mobile.data.model.Settings
 import network.bisq.mobile.data.model.TradeReadStateMap
-import network.bisq.mobile.data.model.market.MarketFilter
 import network.bisq.mobile.data.model.market.MarketPriceItem
-import network.bisq.mobile.data.model.market.MarketSortBy
-import network.bisq.mobile.data.model.offerbook.MarketListItem
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.currency.MarketVOFactory
 import network.bisq.mobile.data.replicated.common.monetary.CoinVOFactory
@@ -50,6 +44,8 @@ import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.data.utils.PlatformImage
 import network.bisq.mobile.data.utils.UrlLauncher
 import network.bisq.mobile.data.utils.createEmptyImage
+import network.bisq.mobile.domain.analytics.AnalyticsService
+import network.bisq.mobile.domain.analytics.NoOpAnalyticsService
 import network.bisq.mobile.domain.core.pagination.PaginatedResponse
 import network.bisq.mobile.domain.core.pagination.PaginationParams
 import network.bisq.mobile.domain.formatters.PriceQuoteFormatter
@@ -57,7 +53,6 @@ import network.bisq.mobile.domain.model.trade.ClosedTradeListItem
 import network.bisq.mobile.domain.model.trade.TradeOutcomeFilter
 import network.bisq.mobile.domain.model.trade.TradeRoleFilter
 import network.bisq.mobile.domain.model.trade.TradeSort
-import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.domain.repository.TradeReadStateRepository
 import network.bisq.mobile.domain.utils.CoroutineExceptionHandlerSetup
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
@@ -67,12 +62,14 @@ import network.bisq.mobile.presentation.common.notification.ForegroundServiceCon
 import network.bisq.mobile.presentation.common.notification.NotificationController
 import network.bisq.mobile.presentation.common.notification.model.NotificationConfig
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
+import network.bisq.mobile.presentation.common.test_utils.FakeMarketPriceServiceFacade
 import network.bisq.mobile.presentation.common.test_utils.TestApplicationLifecycleService
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 import network.bisq.mobile.presentation.common.ui.navigation.manager.NavigationManager
 import network.bisq.mobile.presentation.common.ui.platform.getScreenWidthDp
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.presentation.offer.create_offer.review.CreateOfferReviewPresenter
+import network.bisq.mobile.test.mocks.SettingsRepositoryMock
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
@@ -102,6 +99,7 @@ class CreateOfferReviewPresenterTest {
                     }
                     single<NavigationManager> { mockk(relaxed = true) }
                     single { GlobalUiManager() }
+                    single<AnalyticsService> { NoOpAnalyticsService }
                 },
             )
         }
@@ -117,70 +115,6 @@ class CreateOfferReviewPresenterTest {
     }
 
     // --- Fakes (reused from CreateOfferPricePresenterTest) ---
-    private class FakeSettingsRepository : SettingsRepository {
-        private val _data = MutableStateFlow(Settings())
-        override val data: StateFlow<Settings> = _data
-
-        override suspend fun setFirstLaunch(value: Boolean) {}
-
-        override suspend fun setShowChatRulesWarnBox(value: Boolean) {}
-
-        override suspend fun setSelectedMarketCode(value: String) {}
-
-        override suspend fun setNotificationPermissionState(value: PermissionState) {}
-
-        override suspend fun setBatteryOptimizationPermissionState(value: BatteryOptimizationState) {}
-
-        override suspend fun update(transform: suspend (t: Settings) -> Settings) {
-            _data.value = transform(_data.value)
-        }
-
-        override suspend fun clear() {
-            _data.value = Settings()
-        }
-
-        override suspend fun setMarketSortBy(value: MarketSortBy) {}
-
-        override suspend fun setMarketFilter(value: MarketFilter) {}
-
-        override suspend fun setDontShowAgainHyperlinksOpenInBrowser(value: Boolean) {}
-
-        override suspend fun setPermitOpeningBrowser(value: Boolean) {}
-
-        override suspend fun setAnalyticsEnabled(value: Boolean) {}
-
-        override suspend fun setAnalyticsPromptSeen(value: Boolean) {}
-
-        override suspend fun setAnalyticsBaselineSent(value: Boolean) {}
-
-        override suspend fun setRememberOfferbookFilterPreferences(value: Boolean) {}
-    }
-
-    private class FakeMarketPriceServiceFacade(
-        settingsRepository: SettingsRepository,
-        private val prices: MutableMap<MarketVO, MarketPriceItem>,
-    ) : MarketPriceServiceFacade(settingsRepository) {
-        override fun findMarketPriceItem(marketVO: MarketVO): MarketPriceItem? =
-            prices.entries
-                .firstOrNull { (k, _) ->
-                    k.baseCurrencyCode == marketVO.baseCurrencyCode &&
-                        k.quoteCurrencyCode == marketVO.quoteCurrencyCode
-                }?.value
-
-        override fun findUSDMarketPriceItem(): MarketPriceItem? = findMarketPriceItem(MarketVO("BTC", "USD"))
-
-        override fun refreshSelectedFormattedMarketPrice() {}
-
-        override fun selectMarket(marketListItem: MarketListItem): Result<Unit> = Result.success(Unit)
-
-        fun updatePrice(
-            market: MarketVO,
-            item: MarketPriceItem,
-        ) {
-            prices[market] = item
-        }
-    }
-
     private class FakeSettingsServiceFacade : SettingsServiceFacade {
         override suspend fun getSettings() = Result.success(settingsVODemoObj)
 
@@ -512,7 +446,7 @@ class CreateOfferReviewPresenterTest {
         // Current market price has moved to $105,000
         val currentMarketItem = makeMarketPriceItem(marketUSD, 105000.0)
         val prices = mutableMapOf(marketUSD to currentMarketItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic(
@@ -559,7 +493,7 @@ class CreateOfferReviewPresenterTest {
         // Market has moved to $105,000 but fixed price should stay at $110,000
         val currentMarketItem = makeMarketPriceItem(marketUSD, 105000.0)
         val prices = mutableMapOf(marketUSD to currentMarketItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic(
@@ -592,7 +526,7 @@ class CreateOfferReviewPresenterTest {
         val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
         val currentMarketItem = makeMarketPriceItem(marketUSD, 105000.0)
         val prices = mutableMapOf(marketUSD to currentMarketItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic(
@@ -630,7 +564,7 @@ class CreateOfferReviewPresenterTest {
         val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
         val currentMarketItem = makeMarketPriceItem(marketUSD, 105000.0)
         val prices = mutableMapOf(marketUSD to currentMarketItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic(
@@ -672,7 +606,7 @@ class CreateOfferReviewPresenterTest {
         val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
         val currentMarketItem = makeMarketPriceItem(marketUSD, 105000.0)
         val prices = mutableMapOf(marketUSD to currentMarketItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic(
@@ -706,7 +640,7 @@ class CreateOfferReviewPresenterTest {
         val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
         val currentMarketItem = makeMarketPriceItem(marketUSD, 105000.0)
         val prices = mutableMapOf(marketUSD to currentMarketItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic(
@@ -744,7 +678,7 @@ class CreateOfferReviewPresenterTest {
         val fixedPrice = with(PriceQuoteVOFactory) { fromPrice(currentPrice, marketUSD) }
         val currentMarketItem = makeMarketPriceItem(marketUSD, currentPrice)
         val prices = mutableMapOf(marketUSD to currentMarketItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic(
@@ -783,7 +717,7 @@ class CreateOfferReviewPresenterTest {
         val fixedPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
         val currentMarketItem = makeMarketPriceItem(marketUSD, 105000.0)
         val prices = mutableMapOf(marketUSD to currentMarketItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic(
@@ -815,7 +749,7 @@ class CreateOfferReviewPresenterTest {
         val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
         // Empty prices map → findMarketPriceItem returns null → getMostRecentPriceQuote throws
         val prices = mutableMapOf<MarketVO, MarketPriceItem>()
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic(
@@ -850,7 +784,7 @@ class CreateOfferReviewPresenterTest {
         val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
         val fixedPrice = with(PriceQuoteVOFactory) { fromPrice(110000.0, marketUSD) }
         val prices = mutableMapOf<MarketVO, MarketPriceItem>()
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic(
@@ -888,7 +822,7 @@ class CreateOfferReviewPresenterTest {
             val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
             val currentMarketItem = makeMarketPriceItem(marketUSD, 105000.0)
             val prices = mutableMapOf(marketUSD to currentMarketItem)
-            val settingsRepo = FakeSettingsRepository()
+            val settingsRepo = SettingsRepositoryMock()
             val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
             mockkStatic(
@@ -924,7 +858,7 @@ class CreateOfferReviewPresenterTest {
         val staleMarketPrice = with(PriceQuoteVOFactory) { fromPrice(100000.0, marketUSD) }
         val currentMarketItem = makeMarketPriceItem(marketUSD, 105000.0)
         val prices = mutableMapOf(marketUSD to currentMarketItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic(

@@ -12,15 +12,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
-import network.bisq.mobile.data.model.BatteryOptimizationState
-import network.bisq.mobile.data.model.PermissionState
-import network.bisq.mobile.data.model.Settings
 import network.bisq.mobile.data.model.TradeReadStateMap
-import network.bisq.mobile.data.model.market.MarketFilter
 import network.bisq.mobile.data.model.market.MarketPriceItem
-import network.bisq.mobile.data.model.market.MarketSortBy
-import network.bisq.mobile.data.model.offerbook.MarketListItem
-import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.currency.MarketVOFactory
 import network.bisq.mobile.data.replicated.common.monetary.MonetaryVO
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory
@@ -48,7 +41,6 @@ import network.bisq.mobile.domain.model.trade.ClosedTradeListItem
 import network.bisq.mobile.domain.model.trade.TradeOutcomeFilter
 import network.bisq.mobile.domain.model.trade.TradeRoleFilter
 import network.bisq.mobile.domain.model.trade.TradeSort
-import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.domain.repository.TradeReadStateRepository
 import network.bisq.mobile.domain.utils.CoroutineExceptionHandlerSetup
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
@@ -57,10 +49,12 @@ import network.bisq.mobile.presentation.common.notification.ForegroundServiceCon
 import network.bisq.mobile.presentation.common.notification.NotificationController
 import network.bisq.mobile.presentation.common.notification.model.NotificationConfig
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
+import network.bisq.mobile.presentation.common.test_utils.FakeMarketPriceServiceFacade
 import network.bisq.mobile.presentation.common.test_utils.TestApplicationLifecycleService
 import network.bisq.mobile.presentation.common.ui.platform.getScreenWidthDp
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.presentation.offer.create_offer.price.CreateOfferPricePresenter
+import network.bisq.mobile.test.mocks.SettingsRepositoryMock
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
@@ -101,62 +95,6 @@ class CreateOfferPricePresenterTest {
     }
 
     // --- Fakes ---
-    private class FakeSettingsRepository : SettingsRepository {
-        private val _data = MutableStateFlow(Settings())
-        override val data: StateFlow<Settings> = _data
-
-        override suspend fun setFirstLaunch(value: Boolean) {}
-
-        override suspend fun setShowChatRulesWarnBox(value: Boolean) {}
-
-        override suspend fun setSelectedMarketCode(value: String) {}
-
-        override suspend fun setNotificationPermissionState(value: PermissionState) {}
-
-        override suspend fun setBatteryOptimizationPermissionState(value: BatteryOptimizationState) {}
-
-        override suspend fun update(transform: suspend (t: Settings) -> Settings) {
-            _data.value = transform(_data.value)
-        }
-
-        override suspend fun clear() {
-            _data.value = Settings()
-        }
-
-        override suspend fun setMarketSortBy(value: MarketSortBy) {}
-
-        override suspend fun setMarketFilter(value: MarketFilter) {}
-
-        override suspend fun setDontShowAgainHyperlinksOpenInBrowser(value: Boolean) {}
-
-        override suspend fun setPermitOpeningBrowser(value: Boolean) {}
-
-        override suspend fun setAnalyticsEnabled(value: Boolean) {}
-
-        override suspend fun setAnalyticsPromptSeen(value: Boolean) {}
-
-        override suspend fun setAnalyticsBaselineSent(value: Boolean) {}
-
-        override suspend fun setRememberOfferbookFilterPreferences(value: Boolean) {}
-    }
-
-    private class FakeMarketPriceServiceFacade(
-        settingsRepository: SettingsRepository,
-        private val prices: Map<MarketVO, MarketPriceItem>,
-    ) : MarketPriceServiceFacade(settingsRepository) {
-        override fun findMarketPriceItem(marketVO: MarketVO): MarketPriceItem? =
-            prices.entries
-                .firstOrNull { (k, _) ->
-                    k.baseCurrencyCode == marketVO.baseCurrencyCode && k.quoteCurrencyCode == marketVO.quoteCurrencyCode
-                }?.value
-
-        override fun findUSDMarketPriceItem(): MarketPriceItem? = findMarketPriceItem(MarketVO("BTC", "USD"))
-
-        override fun refreshSelectedFormattedMarketPrice() {}
-
-        override fun selectMarket(marketListItem: MarketListItem): Result<Unit> = Result.success(Unit)
-    }
-
     private class FakeSettingsServiceFacade : SettingsServiceFacade {
         override suspend fun getSettings() = Result.success(settingsVODemoObj)
 
@@ -417,7 +355,7 @@ class CreateOfferPricePresenterTest {
         val marketPriceQuote = with(PriceQuoteVOFactory) { fromPrice(100_000_00L, marketUSD) }
         val marketUSDItem = MarketPriceItem(marketUSD, marketPriceQuote, formattedPrice = "100,000 USD")
         val prices = mapOf(marketUSD to marketUSDItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic("network.bisq.mobile.presentation.common.ui.platform.PlatformPresentationAbstractions_androidKt")
@@ -456,7 +394,7 @@ class CreateOfferPricePresenterTest {
         val marketPriceQuote = with(PriceQuoteVOFactory) { fromPrice(100_000_00L, marketUSD) }
         val marketUSDItem = MarketPriceItem(marketUSD, marketPriceQuote, formattedPrice = "100,000 USD")
         val prices = mapOf(marketUSD to marketUSDItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic("network.bisq.mobile.presentation.common.ui.platform.PlatformPresentationAbstractions_androidKt")
@@ -491,7 +429,7 @@ class CreateOfferPricePresenterTest {
         val marketPriceQuote = with(PriceQuoteVOFactory) { fromPrice(100_000_00L, marketUSD) }
         val marketUSDItem = MarketPriceItem(marketUSD, marketPriceQuote, formattedPrice = "100,000 USD")
         val prices = mapOf(marketUSD to marketUSDItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic("network.bisq.mobile.presentation.common.ui.platform.PlatformPresentationAbstractions_androidKt")
@@ -526,7 +464,7 @@ class CreateOfferPricePresenterTest {
         val marketPriceQuote = with(PriceQuoteVOFactory) { fromPrice(100_000_00L, marketUSD) }
         val marketUSDItem = MarketPriceItem(marketUSD, marketPriceQuote, formattedPrice = "100,000 USD")
         val prices = mapOf(marketUSD to marketUSDItem)
-        val settingsRepo = FakeSettingsRepository()
+        val settingsRepo = SettingsRepositoryMock()
         val marketPriceServiceFacade = FakeMarketPriceServiceFacade(settingsRepo, prices)
 
         mockkStatic("network.bisq.mobile.presentation.common.ui.platform.PlatformPresentationAbstractions_androidKt")

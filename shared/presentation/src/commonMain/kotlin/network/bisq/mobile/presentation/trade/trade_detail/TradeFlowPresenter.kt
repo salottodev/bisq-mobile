@@ -113,7 +113,7 @@ class TradeFlowPresenter(
             tradePhaseState
                 .map { it.toTradePhase() }
                 .distinctUntilChanged()
-                .collect { phase -> phase?.let { analyticsService?.track(AnalyticsEvent.Trade.PhaseOpened(it)) } }
+                .collect { phase -> phase?.let { analyticsService.track(AnalyticsEvent.Trade.PhaseOpened(it)) } }
         }
     }
 

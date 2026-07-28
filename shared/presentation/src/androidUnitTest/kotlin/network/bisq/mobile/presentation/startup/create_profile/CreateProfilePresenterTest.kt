@@ -15,6 +15,8 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.domain.analytics.AnalyticsService
+import network.bisq.mobile.domain.analytics.NoOpAnalyticsService
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 import network.bisq.mobile.presentation.common.ui.navigation.manager.NavigationManager
@@ -47,6 +49,7 @@ class CreateProfilePresenterTest {
                     factory<CoroutineJobsManager> { TestCoroutineJobsManager(testDispatcher) }
                     single<NavigationManager> { mockk(relaxed = true) }
                     single { GlobalUiManager(testDispatcher) }
+                    single<AnalyticsService> { NoOpAnalyticsService }
                 },
             )
         }

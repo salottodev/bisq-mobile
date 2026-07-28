@@ -1,13 +1,11 @@
 package network.bisq.mobile.presentation.common.service
 
-import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
 import network.bisq.mobile.data.model.Settings
 import network.bisq.mobile.domain.analytics.AnalyticsBootstrapConfig
 import network.bisq.mobile.domain.analytics.AnalyticsEvent
@@ -17,6 +15,7 @@ import network.bisq.mobile.domain.analytics.BufferedAnalyticsService
 import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
 import network.bisq.mobile.presentation.common.test_utils.TestApplicationLifecycleService
+import network.bisq.mobile.test.mocks.SettingsRepositoryMock
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -164,7 +163,7 @@ class ApplicationLifecycleServiceBootstrapTest {
     fun `initialize forwards every AnalyticsBootstrapConfig value to AnalyticsService_init when opted-in AND SOCKS port is up`() {
         val analytics = RecordingAnalyticsService()
         val provider = FakeSocksPortProvider(CompletableDeferred(9050))
-        val settingsRepo = TestSettingsRepository(MutableStateFlow(Settings(analyticsEnabled = true)))
+        val settingsRepo = SettingsRepositoryMock(Settings(analyticsEnabled = true))
         val config =
             AnalyticsBootstrapConfig(
                 dsn = "http://abc@onion-host/3",
@@ -201,7 +200,7 @@ class ApplicationLifecycleServiceBootstrapTest {
         // leaking the user's IP to whatever clearnet exit it hit.
         val analytics = RecordingAnalyticsService()
         val provider = FakeSocksPortProvider(CompletableDeferred()) // never completes
-        val settingsRepo = TestSettingsRepository(MutableStateFlow(Settings(analyticsEnabled = true)))
+        val settingsRepo = SettingsRepositoryMock(Settings(analyticsEnabled = true))
         val service =
             TestApplicationLifecycleService(
                 analyticsService = analytics,
@@ -260,7 +259,7 @@ class ApplicationLifecycleServiceBootstrapTest {
         val boom = RuntimeException("Sentry-KMP refused to dial")
         val analytics = RecordingAnalyticsService(throwOnInit = boom)
         val provider = FakeSocksPortProvider(CompletableDeferred(9050))
-        val settingsRepo = TestSettingsRepository(MutableStateFlow(Settings(analyticsEnabled = true)))
+        val settingsRepo = SettingsRepositoryMock(Settings(analyticsEnabled = true))
         val service =
             TestApplicationLifecycleService(
                 analyticsService = analytics,
@@ -303,7 +302,7 @@ class ApplicationLifecycleServiceBootstrapTest {
                 flushIntervalMs = 0L,
             )
         val provider = FakeSocksPortProvider(CompletableDeferred(9050))
-        val settingsRepo = TestSettingsRepository(MutableStateFlow(Settings(analyticsEnabled = true)))
+        val settingsRepo = SettingsRepositoryMock(Settings(analyticsEnabled = true))
         val service =
             TestApplicationLifecycleService(
                 analyticsService = buffered,
@@ -343,7 +342,7 @@ class ApplicationLifecycleServiceBootstrapTest {
                 flushIntervalMs = 0L,
             )
         val provider = FakeSocksPortProvider(CompletableDeferred()) // never completes
-        val settingsRepo = TestSettingsRepository(MutableStateFlow(Settings(analyticsEnabled = true)))
+        val settingsRepo = SettingsRepositoryMock(Settings(analyticsEnabled = true))
         val service =
             TestApplicationLifecycleService(
                 analyticsService = buffered,
@@ -378,7 +377,7 @@ class ApplicationLifecycleServiceBootstrapTest {
         // opted-out users.
         val analytics = RecordingAnalyticsService()
         val provider = FakeSocksPortProvider(CompletableDeferred(9050))
-        val settingsRepo = TestSettingsRepository(MutableStateFlow(Settings(analyticsEnabled = false)))
+        val settingsRepo = SettingsRepositoryMock(Settings(analyticsEnabled = false))
         val service =
             TestApplicationLifecycleService(
                 analyticsService = analytics,
@@ -408,8 +407,7 @@ class ApplicationLifecycleServiceBootstrapTest {
         // unless they restart the app.
         val analytics = RecordingAnalyticsService()
         val provider = FakeSocksPortProvider(CompletableDeferred(9050))
-        val settingsFlow = MutableStateFlow(Settings(analyticsEnabled = false))
-        val settingsRepo = TestSettingsRepository(settingsFlow)
+        val settingsRepo = SettingsRepositoryMock(Settings(analyticsEnabled = false))
         val service =
             TestApplicationLifecycleService(
                 analyticsService = analytics,
@@ -428,7 +426,7 @@ class ApplicationLifecycleServiceBootstrapTest {
         assertEquals(0, analytics.initCalls, "pre-condition: opted-out → no init")
 
         // User flips toggle ON in Settings.
-        settingsFlow.value = settingsFlow.value.copy(analyticsEnabled = true)
+        settingsRepo.mutableData.value = settingsRepo.mutableData.value.copy(analyticsEnabled = true)
 
         assertEquals(1, analytics.initCalls, "opt-in flip must trigger Sentry init")
     }
@@ -461,62 +459,6 @@ class ApplicationLifecycleServiceBootstrapTest {
         assertEquals(0, analytics.initCalls, "no SettingsRepository → MUST NOT init Sentry")
     }
 
-    /**
-     * Minimal [SettingsRepository] stand-in that lets the test control when
-     * `data` emits. Used by the pre-warm contract test below. We don't reach
-     * for mockk here because the SettingsRepository interface has many
-     * methods and the test only cares about `data` emissions.
-     */
-    private class TestSettingsRepository(
-        private val flow: MutableStateFlow<Settings> = MutableStateFlow(Settings()),
-    ) : SettingsRepository {
-        override val data = flow
-
-        override suspend fun setFirstLaunch(value: Boolean) {}
-
-        override suspend fun setShowChatRulesWarnBox(value: Boolean) {}
-
-        override suspend fun setSelectedMarketCode(value: String) {}
-
-        override suspend fun setNotificationPermissionState(
-            value: network.bisq.mobile.data.model.PermissionState,
-        ) {}
-
-        override suspend fun setBatteryOptimizationPermissionState(
-            value: network.bisq.mobile.data.model.BatteryOptimizationState,
-        ) {}
-
-        override suspend fun update(transform: suspend (t: Settings) -> Settings) {
-            flow.value = transform(flow.value)
-        }
-
-        override suspend fun clear() {}
-
-        override suspend fun setMarketSortBy(value: network.bisq.mobile.data.model.market.MarketSortBy) {}
-
-        override suspend fun setMarketFilter(value: network.bisq.mobile.data.model.market.MarketFilter) {}
-
-        override suspend fun setDontShowAgainHyperlinksOpenInBrowser(value: Boolean) {}
-
-        override suspend fun setPermitOpeningBrowser(value: Boolean) {}
-
-        override suspend fun setAnalyticsEnabled(value: Boolean) {
-            flow.value = flow.value.copy(analyticsEnabled = value)
-        }
-
-        override suspend fun setAnalyticsPromptSeen(value: Boolean) {
-            flow.value = flow.value.copy(analyticsPromptSeen = value)
-        }
-
-        override suspend fun setAnalyticsBaselineSent(value: Boolean) {
-            flow.value = flow.value.copy(analyticsBaselineSent = value)
-        }
-
-        override suspend fun setRememberOfferbookFilterPreferences(value: Boolean) {
-            flow.value = flow.value.copy(rememberOfferbookFilterPreferences = value)
-        }
-    }
-
     @Test
     fun `init + onSentryReady fire only after the opt-in flip is observed in Settings`() {
         // Pins the ordering: under Option B, the lifecycle waits for the
@@ -537,7 +479,7 @@ class ApplicationLifecycleServiceBootstrapTest {
                 flushIntervalMs = 0L,
             )
         val provider = FakeSocksPortProvider(CompletableDeferred(9050))
-        val settingsRepo = TestSettingsRepository(MutableStateFlow(Settings(analyticsEnabled = true)))
+        val settingsRepo = SettingsRepositoryMock(Settings(analyticsEnabled = true))
         val service =
             TestApplicationLifecycleService(
                 analyticsService = buffered,
