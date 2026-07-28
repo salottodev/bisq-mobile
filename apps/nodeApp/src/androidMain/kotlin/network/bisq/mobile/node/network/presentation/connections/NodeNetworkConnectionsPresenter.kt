@@ -9,12 +9,12 @@ import network.bisq.mobile.node.common.domain.service.network.NodePeerInfo
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.main.MainPresenter
 
-class NetworkConnectionsPresenter(
+class NodeNetworkConnectionsPresenter(
     private val networkServiceFacade: NodeNetworkServiceFacade,
     mainPresenter: MainPresenter,
 ) : BasePresenter(mainPresenter) {
-    private val _uiState = MutableStateFlow(NetworkConnectionsUiState())
-    val uiState: StateFlow<NetworkConnectionsUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(NodeNetworkConnectionsUiState())
+    val uiState: StateFlow<NodeNetworkConnectionsUiState> = _uiState.asStateFlow()
 
     override fun onViewAttached() {
         super.onViewAttached()
@@ -26,7 +26,7 @@ class NetworkConnectionsPresenter(
                         compareByDescending<NodePeerInfo> { it.establishedAtMillis }.thenBy { it.connectionId },
                     )
                 _uiState.value =
-                    NetworkConnectionsUiState(
+                    NodeNetworkConnectionsUiState(
                         peerCount = sorted.size,
                         peers = sorted,
                     )

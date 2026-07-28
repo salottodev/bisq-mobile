@@ -26,7 +26,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class NetworkConnectionsPresenterTest {
+class NodeNetworkConnectionsPresenterTest {
     private val testDispatcher = StandardTestDispatcher()
 
     private lateinit var networkServiceFacade: NodeNetworkServiceFacade
@@ -36,7 +36,7 @@ class NetworkConnectionsPresenterTest {
 
     private lateinit var connectedPeers: MutableStateFlow<List<NodePeerInfo>>
 
-    private lateinit var presenter: NetworkConnectionsPresenter
+    private lateinit var presenter: NodeNetworkConnectionsPresenter
 
     @BeforeTest
     fun setUp() {
@@ -70,8 +70,8 @@ class NetworkConnectionsPresenterTest {
         }
     }
 
-    private fun createPresenter(): NetworkConnectionsPresenter =
-        NetworkConnectionsPresenter(
+    private fun createPresenter(): NodeNetworkConnectionsPresenter =
+        NodeNetworkConnectionsPresenter(
             networkServiceFacade = networkServiceFacade,
             mainPresenter = mainPresenter,
         )

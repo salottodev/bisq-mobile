@@ -19,9 +19,6 @@ interface ClientNavRoute : NavRoute {
     data object NetworkConnections : ClientNavRoute
 
     @Serializable
-    data object NetworkMyConnection : ClientNavRoute
-
-    @Serializable
     data object PaymentAccountsMusig : ClientNavRoute
 
     @Serializable

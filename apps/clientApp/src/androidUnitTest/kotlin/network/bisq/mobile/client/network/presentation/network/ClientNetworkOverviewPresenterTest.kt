@@ -63,33 +63,12 @@ class ClientNetworkOverviewPresenterTest : ClientKoinIntegrationTestBase() {
             mainPresenter = mainPresenter,
         )
 
-    // The peer count is derived from connections.size, so build a list of the desired size.
-    private fun networkInfoWith(
-        connectionCount: Int,
-        allDataReceived: Boolean = true,
-        torRunning: Boolean = true,
-    ): NetworkInfoDto =
-        NetworkInfoDto(
-            allDataReceived = allDataReceived,
-            torRunning = torRunning,
-            connections =
-                List(connectionCount) { i ->
-                    ConnectionDto(
-                        connectionId = "c$i",
-                        address = "peer$i.onion",
-                        outbound = true,
-                        seed = false,
-                        establishedAtMillis = 0L,
-                    )
-                },
-        )
-
     @Test
     fun `when connected and data received then uiState is healthy with peer count and host`() =
         runTest {
             // Given
             status.value = ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED
-            networkInfo.value = networkInfoWith(connectionCount = 12)
+            networkInfo.value = networkInfoWithPeers(12)
             every { connectivityService.currentAverageRoundTripTimeMs() } returns 340L
 
             // When
@@ -112,7 +91,7 @@ class ClientNetworkOverviewPresenterTest : ClientKoinIntegrationTestBase() {
         runTest {
             // Given the node is reachable and synced but reports no peers (no mesh connectivity)
             status.value = ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED
-            networkInfo.value = networkInfoWith(connectionCount = 0, allDataReceived = true)
+            networkInfo.value = networkInfoWithPeers(0)
 
             // When
             presenter = createPresenter()
@@ -189,7 +168,7 @@ class ClientNetworkOverviewPresenterTest : ClientKoinIntegrationTestBase() {
 
             // When the link comes up and the node pushes data
             status.value = ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED
-            networkInfo.value = networkInfoWith(connectionCount = 8)
+            networkInfo.value = networkInfoWithPeers(8)
             advanceUntilIdle()
 
             // Then
@@ -203,7 +182,7 @@ class ClientNetworkOverviewPresenterTest : ClientKoinIntegrationTestBase() {
         runTest {
             // Given a reachable link with a pushed snapshot
             status.value = ConnectivityStatus.CONNECTED_AND_DATA_RECEIVED
-            networkInfo.value = networkInfoWith(connectionCount = 8)
+            networkInfo.value = networkInfoWithPeers(8)
             presenter = createPresenter()
             presenter.onViewAttached()
             advanceUntilIdle()
@@ -231,17 +210,6 @@ class ClientNetworkOverviewPresenterTest : ClientKoinIntegrationTestBase() {
         }
 
     @Test
-    fun `when my connection action then navigates to my connection`() =
-        runTest {
-            presenter = createPresenter()
-
-            presenter.onAction(ClientNetworkOverviewUiAction.OnMyConnectionClick)
-            advanceUntilIdle()
-
-            verify { navigationManager.navigate(ClientNavRoute.NetworkMyConnection, any(), any()) }
-        }
-
-    @Test
     fun `when check settings action then navigates to trusted node setup settings`() =
         runTest {
             presenter = createPresenter()
@@ -251,4 +219,22 @@ class ClientNetworkOverviewPresenterTest : ClientKoinIntegrationTestBase() {
 
             verify { navigationManager.navigate(ClientNavRoute.TrustedNodeSetupSettings, any(), any()) }
         }
+
+    // The overview peer count is derived from connections.size (same source the Connections sub-page lists),
+    // so build a snapshot carrying that many connections.
+    private fun networkInfoWithPeers(count: Int): NetworkInfoDto =
+        NetworkInfoDto(
+            allDataReceived = true,
+            torRunning = true,
+            connections =
+                List(count) { i ->
+                    ConnectionDto(
+                        connectionId = "$i",
+                        address = "peer$i.onion:1234",
+                        outbound = true,
+                        seed = false,
+                        establishedAtMillis = 0L,
+                    )
+                },
+        )
 }

@@ -148,19 +148,6 @@ internal fun ClientNetworkOverviewContent(
                     )
                 }
             }
-
-            BisqGap.VHalf()
-
-            SubPageEntryCard(onClick = { onAction(ClientNetworkOverviewUiAction.OnMyConnectionClick) }) {
-                Column {
-                    BisqText.BaseRegular(text = "mobile.networkInfo.connect.myConnection.title".i18n(), color = BisqTheme.colors.white)
-                    BisqGap.VQuarter()
-                    BisqText.SmallLight(
-                        text = "mobile.networkInfo.connect.myConnection.subtitle".i18n(),
-                        color = BisqTheme.colors.mid_grey20,
-                    )
-                }
-            }
         }
     }
 }
