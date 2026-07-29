@@ -3,7 +3,7 @@ package network.bisq.mobile.client.payment_accounts.presentation.create_payment_
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -55,10 +55,10 @@ import kotlin.test.assertNotNull
 @RunWith(AndroidJUnit4::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class BankAccountFormContentTest {
-    @get:Rule
-    val composeTestRule = createComposeRule()
-
     private val testDispatcher = StandardTestDispatcher()
+
+    @get:Rule
+    val composeTestRule = createComposeRule(effectContext = testDispatcher)
     private lateinit var paymentAccountsServiceFacade: PaymentAccountsServiceFacade
     private lateinit var mainPresenter: MainPresenter
 
@@ -268,7 +268,6 @@ class BankAccountFormContentTest {
     private fun selectUnitedStates() {
         composeTestRule.onNodeWithText("paymentAccounts.createAccount.accountData.country.prompt".i18n()).performClick()
         composeTestRule.onNodeWithText("United States").performClick()
-        testDispatcher.scheduler.advanceUntilIdle()
         composeTestRule.waitForIdle()
     }
 
