@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
 import network.bisq.mobile.domain.utils.DefaultCoroutineJobsManager
+import network.bisq.mobile.node.common.domain.service.network.NodeInfo
 import network.bisq.mobile.node.common.domain.service.network.NodeNetworkServiceFacade
 import network.bisq.mobile.node.common.domain.service.network.NodePeerInfo
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
@@ -35,6 +36,7 @@ class NodeNetworkConnectionsPresenterTest {
     private lateinit var navigationManager: NavigationManager
 
     private lateinit var connectedPeers: MutableStateFlow<List<NodePeerInfo>>
+    private lateinit var myNodeInfo: MutableStateFlow<NodeInfo>
 
     private lateinit var presenter: NodeNetworkConnectionsPresenter
 
@@ -49,6 +51,9 @@ class NodeNetworkConnectionsPresenterTest {
 
         connectedPeers = MutableStateFlow(emptyList())
         every { networkServiceFacade.connectedPeers } returns connectedPeers
+
+        myNodeInfo = MutableStateFlow(NodeInfo())
+        every { networkServiceFacade.myNodeInfo } returns myNodeInfo
 
         startKoin {
             modules(
@@ -154,6 +159,23 @@ class NodeNetworkConnectionsPresenterTest {
             assertEquals(1, presenter.uiState.value.peerCount)
         }
 
+    @Test
+    fun `when node identity resolves then uiState exposes keyId and nodeTag`() =
+        runTest(testDispatcher) {
+            // Given
+            myNodeInfo.value = NodeInfo(keyId = "key-123", nodeTag = "default")
+
+            // When
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            // Then
+            val state = presenter.uiState.value
+            assertEquals("key-123", state.keyId)
+            assertEquals("default", state.nodeTag)
+        }
+
     private fun samplePeer(
         connectionId: String = "id",
         address: String = "abcd.onion:1234",
@@ -167,5 +189,10 @@ class NodeNetworkConnectionsPresenterTest {
             isOutbound = isOutbound,
             establishedAtMillis = establishedAtMillis,
             isSeed = isSeed,
+            rttMillis = null,
+            sentBytes = 0L,
+            sentMessageCount = 0L,
+            receivedBytes = 0L,
+            receivedMessageCount = 0L,
         )
 }

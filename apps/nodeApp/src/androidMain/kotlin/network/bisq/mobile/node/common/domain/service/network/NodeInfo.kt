@@ -11,4 +11,5 @@ package network.bisq.mobile.node.common.domain.service.network
 data class NodeInfo(
     val onionAddress: String? = null,
     val keyId: String? = null,
+    val nodeTag: String? = null,
 )

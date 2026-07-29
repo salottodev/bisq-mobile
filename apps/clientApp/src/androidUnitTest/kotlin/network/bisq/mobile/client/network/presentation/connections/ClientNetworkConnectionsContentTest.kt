@@ -1,7 +1,9 @@
 package network.bisq.mobile.client.network.presentation.connections
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import network.bisq.mobile.client.common.test_utils.TestApplication
 import network.bisq.mobile.i18n.i18n
@@ -48,6 +50,38 @@ class ClientNetworkConnectionsContentTest : BisqComposeUiTestBase() {
         composeTestRule.onNodeWithText("mobile.networkInfo.connections.outbound".i18n()).performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("mobile.networkInfo.connections.inbound".i18n()).performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("mobile.networkInfo.connections.seed".i18n()).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `when a trusted-node key id is present then the identity header shows it without a node tag`() {
+        setTestContent {
+            ClientNetworkConnectionsContent(
+                uiState = sampleState().copy(keyId = "02a1c98f4b7e29d3f18a"),
+                topBar = {},
+            )
+        }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("mobile.networkInfo.connections.identity.keyId".i18n()).assertIsDisplayed()
+        // Connect has no nodeTag over the websocket yet, so that portion must not render.
+        composeTestRule.onNodeWithText("mobile.networkInfo.connections.identity.nodeTag".i18n()).assertDoesNotExist()
+    }
+
+    @Test
+    fun `when a peer carries no metrics then tapping its card reveals nothing`() {
+        // Given peers from a trusted node that doesn't send per-peer metrics (metrics defaults to null)
+        setTestContent {
+            ClientNetworkConnectionsContent(uiState = sampleState(), topBar = {})
+        }
+        composeTestRule.waitForIdle()
+
+        // When the card is tapped
+        composeTestRule.onNodeWithTag("connection_card_1").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then it stays collapsed — the pre-metrics behaviour older trusted nodes rely on
+        composeTestRule.onNodeWithText("mobile.networkInfo.connections.sent".i18n()).assertDoesNotExist()
+        composeTestRule.onNodeWithText("mobile.networkInfo.connections.received".i18n()).assertDoesNotExist()
     }
 
     private fun sampleState(): ClientNetworkConnectionsUiState =

@@ -3,6 +3,7 @@ package network.bisq.mobile.node.network.presentation.connections
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import network.bisq.mobile.node.common.domain.service.network.NodeNetworkServiceFacade
 import network.bisq.mobile.node.common.domain.service.network.NodePeerInfo
@@ -19,18 +20,22 @@ class NodeNetworkConnectionsPresenter(
     override fun onViewAttached() {
         super.onViewAttached()
         presenterScope.launch {
-            networkServiceFacade.connectedPeers.collect { peers ->
+            combine(
+                networkServiceFacade.connectedPeers,
+                networkServiceFacade.myNodeInfo,
+            ) { peers, nodeInfo ->
                 // Newest peers first; stable tie-break so the LazyColumn keys don't reshuffle across rebuilds.
                 val sorted =
                     peers.sortedWith(
                         compareByDescending<NodePeerInfo> { it.establishedAtMillis }.thenBy { it.connectionId },
                     )
-                _uiState.value =
-                    NodeNetworkConnectionsUiState(
-                        peerCount = sorted.size,
-                        peers = sorted,
-                    )
-            }
+                NodeNetworkConnectionsUiState(
+                    peerCount = sorted.size,
+                    peers = sorted,
+                    keyId = nodeInfo.keyId,
+                    nodeTag = nodeInfo.nodeTag,
+                )
+            }.collect { _uiState.value = it }
         }
     }
 }

@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import network.bisq.mobile.client.common.domain.service.network.ClientConnectivityService
 import network.bisq.mobile.client.common.domain.service.network.ClientNetworkServiceFacade
 import network.bisq.mobile.client.common.domain.service.network.ConnectionDto
+import network.bisq.mobile.client.common.domain.service.network.ConnectionMetricsDto
 import network.bisq.mobile.client.common.domain.service.network.NetworkInfoDto
 import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
 import network.bisq.mobile.data.service.network.ConnectivityService.ConnectivityStatus
@@ -138,6 +139,107 @@ class ClientNetworkConnectionsPresenterTest : ClientKoinIntegrationTestBase() {
             assertEquals(emptyList(), state.peers)
         }
 
+    @Test
+    fun `when the snapshot carries a keyId then uiState exposes it`() =
+        runTest {
+            // Given a reachable snapshot with the trusted node's key id
+            networkInfo.value =
+                NetworkInfoDto(
+                    allDataReceived = true,
+                    torRunning = true,
+                    keyId = "trusted-key-123",
+                    connections = listOf(samplePeer(connectionId = "a")),
+                )
+
+            // When
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            // Then
+            assertEquals("trusted-key-123", presenter.uiState.value.keyId)
+        }
+
+    @Test
+    fun `when the link drops then the keyId is cleared`() =
+        runTest {
+            // Given a reachable snapshot carrying a key id
+            networkInfo.value =
+                NetworkInfoDto(
+                    allDataReceived = true,
+                    torRunning = true,
+                    keyId = "trusted-key-123",
+                    connections = emptyList(),
+                )
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+            assertEquals("trusted-key-123", presenter.uiState.value.keyId)
+
+            // When connectivity drops
+            status.value = ConnectivityStatus.DISCONNECTED
+            advanceUntilIdle()
+
+            // Then the stale identity is not shown
+            assertEquals(null, presenter.uiState.value.keyId)
+        }
+
+    @Test
+    fun `when a peer carries metrics then they are mapped onto the ui item`() =
+        runTest {
+            // Given a peer with per-connection metrics (as a newer trusted node would send)
+            networkInfo.value =
+                networkInfoWith(
+                    samplePeer(
+                        connectionId = "a",
+                        metrics =
+                            ConnectionMetricsDto(
+                                rttMillis = 184L,
+                                sentBytes = 12_400L,
+                                sentMessageCount = 340L,
+                                receivedBytes = 18_900L,
+                                receivedMessageCount = 512L,
+                            ),
+                    ),
+                )
+
+            // When
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            // Then the shared ui item exposes the same metrics (making the card expandable)
+            val metrics =
+                presenter.uiState.value.peers
+                    .single()
+                    .metrics
+            assertEquals(184L, metrics?.rttMillis)
+            assertEquals(12_400L, metrics?.sentBytes)
+            assertEquals(340L, metrics?.sentMessageCount)
+            assertEquals(18_900L, metrics?.receivedBytes)
+            assertEquals(512L, metrics?.receivedMessageCount)
+        }
+
+    @Test
+    fun `when a peer has no metrics then the ui item metrics stay null`() =
+        runTest {
+            // Given a peer from an older trusted node that doesn't send metrics
+            networkInfo.value = networkInfoWith(samplePeer(connectionId = "a", metrics = null))
+
+            // When
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            // Then the card stays non-expandable (metrics == null), preserving pre-metrics behavior
+            assertEquals(
+                null,
+                presenter.uiState.value.peers
+                    .single()
+                    .metrics,
+            )
+        }
+
     private fun networkInfoWith(vararg peers: ConnectionDto): NetworkInfoDto =
         NetworkInfoDto(
             allDataReceived = true,
@@ -151,6 +253,7 @@ class ClientNetworkConnectionsPresenterTest : ClientKoinIntegrationTestBase() {
         outbound: Boolean = true,
         seed: Boolean = false,
         establishedAtMillis: Long = 0L,
+        metrics: ConnectionMetricsDto? = null,
     ): ConnectionDto =
         ConnectionDto(
             connectionId = connectionId,
@@ -158,5 +261,6 @@ class ClientNetworkConnectionsPresenterTest : ClientKoinIntegrationTestBase() {
             outbound = outbound,
             seed = seed,
             establishedAtMillis = establishedAtMillis,
+            metrics = metrics,
         )
 }
