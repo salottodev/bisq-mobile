@@ -1,5 +1,6 @@
 package network.bisq.mobile.presentation.common.ui.components.network
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,7 +23,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -35,7 +39,6 @@ import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.button.CopyIconButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ArrowDownIcon
-import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ArrowRightIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqHDivider
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
@@ -103,6 +106,13 @@ fun ConnectionCard(
     // rememberSaveable (not remember) so the expanded state survives the card being scrolled out of the
     // LazyColumn and disposed; the stable connectionId item key lets it be restored on scroll-back.
     var isExpanded by rememberSaveable(peer.connectionId) { mutableStateOf(initiallyExpanded) }
+
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        label = "connectionCardChevronRotation",
+    )
+    val chevronDescription =
+        if (isExpanded) "mobile.action.hide".i18n() else "mobile.action.show".i18n()
 
     val directionColor = if (peer.isOutbound) BisqTheme.colors.primary else BisqTheme.colors.mid_grey30
     val directionLabel =
@@ -172,11 +182,19 @@ fun ConnectionCard(
             BisqText.XSmallLight(text = directionLabel, color = BisqTheme.colors.mid_grey20)
             if (expandable) {
                 BisqGap.HHalf()
-                if (isExpanded) {
-                    ArrowDownIcon(modifier = Modifier.size(12.dp))
-                } else {
-                    ArrowRightIcon(modifier = Modifier.size(12.dp))
-                }
+                // Down = "there is more below", rotated to up = "tap to close". Rotating one asset
+                // rather than swapping in a second keeps both states pixel-identical; there is no
+                // matching 12dp up-chevron drawable to swap to.
+                ArrowDownIcon(
+                    modifier =
+                        Modifier
+                            .size(12.dp)
+                            .rotate(chevronRotation)
+                            // The asset's own "Down arrow icon" description is meaningless once
+                            // rotated, and rotation is invisible to accessibility services; replace
+                            // it with the localized affordance, as AdvancedOptionsDrawer does.
+                            .clearAndSetSemantics { contentDescription = chevronDescription },
+                )
             }
         }
 

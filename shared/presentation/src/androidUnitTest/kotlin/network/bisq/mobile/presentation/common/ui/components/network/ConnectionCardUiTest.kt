@@ -61,19 +61,20 @@ class ConnectionCardUiTest : BisqComposeUiTestBase() {
     fun `when a card is tapped twice then it expands and collapses again`() {
         setTestContent { ConnectionCard(peer = peer(metrics = metrics())) }
 
-        // Collapsed: chevron points right. Asserting it here is what makes the "no chevron when a peer
-        // has no metrics" test below meaningful rather than vacuously green.
-        composeTestRule.onNodeWithContentDescription("Right arrow icon").assertIsDisplayed()
+        // The chevron is one rotated asset, so its direction is not observable in a unit test — the
+        // localized affordance description is. Asserting it here is also what makes the "no chevron
+        // when a peer has no metrics" test below meaningful rather than vacuously green.
+        composeTestRule.onNodeWithContentDescription(showLabel).assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("connection_card_1").performClick()
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText(sentLabel).assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Down arrow icon").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription(hideLabel).assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("connection_card_1").performClick()
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText(sentLabel).assertDoesNotExist()
-        composeTestRule.onNodeWithContentDescription("Right arrow icon").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription(showLabel).assertIsDisplayed()
     }
 
     @Test
@@ -103,7 +104,7 @@ class ConnectionCardUiTest : BisqComposeUiTestBase() {
         setTestContent { ConnectionCard(peer = peer(metrics = null)) }
 
         composeTestRule.onNodeWithText("–").assertDoesNotExist()
-        composeTestRule.onNodeWithContentDescription("Right arrow icon").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription(showLabel).assertDoesNotExist()
     }
 
     @Test
@@ -115,6 +116,8 @@ class ConnectionCardUiTest : BisqComposeUiTestBase() {
 
     private val sentLabel get() = "mobile.networkInfo.connections.sent".i18n()
     private val receivedLabel get() = "mobile.networkInfo.connections.received".i18n()
+    private val showLabel get() = "mobile.action.show".i18n()
+    private val hideLabel get() = "mobile.action.hide".i18n()
 
     private fun peer(
         address: String = shortAddress,

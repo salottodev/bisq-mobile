@@ -60,9 +60,13 @@
  *     scanning a long list (e.g. spotting the peer stuck at "–").
  *   - Sent/received bytes are debugging-tier ("is data actually flowing") — useful when
  *     investigating ONE peer, noise across forty.
- * Sent/received live behind a tap-to-expand chevron, reusing the exact accordion
- * affordance `FaqScreenDesign.kt` already uses (`ArrowRightIcon`/`ArrowDownIcon` swap,
- * 12dp) — no new interaction pattern for users to learn.
+ * Sent/received live behind a tap-to-expand chevron: a single 12dp `ArrowDownIcon` rotated
+ * 0f -> 180f, so it points down when collapsed ("there is more below") and up when expanded
+ * ("tap to close"). This deliberately differs from the `FaqScreenDesign.kt` accordion's
+ * right/down icon swap — review feedback on #1650 was that a right-pointing chevron reads as
+ * "navigates elsewhere" rather than "expands here". Rotating one asset rather than swapping
+ * in a second keeps both states pixel-identical (there is no matching 12dp up-chevron
+ * drawable). The FAQ accordion was intentionally left unchanged, so the two now diverge.
  *
  * RTT color-coding (green/amber/red) was considered and REJECTED for v1: Tor circuit
  * latency normally runs 300-800ms+, and there's no vetted threshold — a red badge would
@@ -216,6 +220,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -226,7 +231,6 @@ import bisqapps.shared.presentation.generated.resources.no_connections
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.button.CopyIconButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ArrowDownIcon
-import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ArrowRightIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqHDivider
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
@@ -538,11 +542,12 @@ internal fun ConnectionCard(
             }
             BisqText.XSmallLight(text = directionLabel, color = BisqTheme.colors.mid_grey20)
             BisqGap.HHalf()
-            if (isExpanded) {
-                ArrowDownIcon(modifier = Modifier.size(12.dp))
-            } else {
-                ArrowRightIcon(modifier = Modifier.size(12.dp))
-            }
+            ArrowDownIcon(
+                modifier =
+                    Modifier
+                        .size(12.dp)
+                        .rotate(if (isExpanded) 180f else 0f),
+            )
         }
 
         if (isExpanded) {
