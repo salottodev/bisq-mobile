@@ -1,5 +1,6 @@
 package network.bisq.mobile.domain.utils
 
+import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.io.PrintStream
 
@@ -177,6 +178,77 @@ class SystemOutFilter(
             }
         } else {
             originalStream.println(x)
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Raw-byte writes. PrintStream inherits these from FilterOutputStream, which would drain them into
+    // the NullOutputStream this class is constructed with - a silent black hole. That is not a
+    // theoretical path: logback's ConsoleAppender (the bisq2 jars bundle a logback.xml using it) emits
+    // exclusively via OutputStream.write(byte[], off, len), never print/println, so every bisq2 core
+    // log line was discarded wholesale - debug and release alike (issue #767). Buffer bytes into lines
+    // and route each completed line through the same filter logic as println().
+    // ------------------------------------------------------------------------------------------------
+
+    // Bytes are buffered raw and decoded only once a full line is available, so a multi-byte
+    // UTF-8 character split across write() calls survives intact. UTF-8 matches logback's
+    // effective console encoding here (no explicit charset configured -> platform default,
+    // which is UTF-8 on Android).
+    private val lineBuffer = ByteArrayOutputStream()
+
+    @Synchronized
+    override fun write(b: Int) {
+        appendBytes(byteArrayOf(b.toByte()), 0, 1)
+    }
+
+    @Synchronized
+    override fun write(
+        buf: ByteArray,
+        off: Int,
+        len: Int,
+    ) {
+        appendBytes(buf, off, len)
+    }
+
+    @Synchronized
+    override fun flush() {
+        // Emit any buffered partial line so content is not held back indefinitely (writers like
+        // logback flush after each event).
+        if (lineBuffer.size() > 0) {
+            val partial = String(lineBuffer.toByteArray(), Charsets.UTF_8)
+            lineBuffer.reset()
+            emitLine(partial)
+        }
+        originalStream.flush()
+    }
+
+    private fun appendBytes(
+        buf: ByteArray,
+        off: Int,
+        len: Int,
+    ) {
+        for (i in off until off + len) {
+            val byte = buf[i]
+            if (byte == '\n'.code.toByte()) {
+                val bytes = lineBuffer.toByteArray()
+                lineBuffer.reset()
+                // Drop a trailing CR so CRLF lines emit clean; emitLine prints with println.
+                val endExclusive =
+                    if (bytes.isNotEmpty() && bytes[bytes.size - 1] == '\r'.code.toByte()) bytes.size - 1 else bytes.size
+                emitLine(String(bytes, 0, endExclusive, Charsets.UTF_8))
+            } else {
+                lineBuffer.write(byte.toInt())
+            }
+        }
+    }
+
+    private fun emitLine(line: String) {
+        if (shouldFilter(line)) {
+            if (isDebugBuild) {
+                originalStream.println("[$tag][FILTERED] $line")
+            }
+        } else {
+            originalStream.println(line)
         }
     }
 
