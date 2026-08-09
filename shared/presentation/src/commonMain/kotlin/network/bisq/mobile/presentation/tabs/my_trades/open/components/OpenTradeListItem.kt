@@ -12,7 +12,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelDto
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory.fromPrice
@@ -26,14 +25,12 @@ import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO
 import network.bisq.mobile.data.replicated.offer.payment_method.BitcoinPaymentMethodSpecVO
 import network.bisq.mobile.data.replicated.offer.payment_method.FiatPaymentMethodSpecVO
 import network.bisq.mobile.data.replicated.offer.price.spec.FixPriceSpecVO
-import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationDto
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.replicated.trade.TradeRoleEnum
 import network.bisq.mobile.data.replicated.trade.bisq_easy.BisqEasyTradeDto
 import network.bisq.mobile.data.replicated.trade.bisq_easy.BisqEasyTradeModel
 import network.bisq.mobile.data.replicated.trade.bisq_easy.BisqEasyTradePartyVO
 import network.bisq.mobile.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
-import network.bisq.mobile.data.replicated.user.identity.UserIdentityVO
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
@@ -141,9 +138,9 @@ private val previewUserProfileIconProvider: suspend (UserProfileVO) -> PlatformI
 
 /**
  * Builds a real [TradeItemPresentationModel] for the previews below and for `OpenTradeListItemUiTest`,
- * mirroring `createMockOfferItem` in `OfferCard.kt`. The model reads through to a DTO and a
- * [BisqEasyTradeModel], so there is no shorter way to get one — but every type in the chain is a
- * plain data class. `internal` rather than private only so the test can share this one fixture.
+ * mirroring `createMockOfferItem` in `OfferCard.kt`. The model wraps a [BisqEasyTradeModel], so there
+ * is no shorter way to get one — but every type in the chain is a plain data class. `internal` rather
+ * than private only so the test can share this one fixture.
  *
  * `channelModel` is null on purpose: this item only ever reads `bisqEasyOffer`, which falls back to
  * the contract's offer. Touching `bisqEasyOpenTradeChannelModel` would throw.
@@ -216,49 +213,32 @@ internal fun createMockTradeItem(
             peersErrorStackTrace = null,
         )
 
-    val dto =
-        TradeItemPresentationDto(
-            channel =
-                BisqEasyOpenTradeChannelDto(
-                    id = "preview-channel-1",
-                    tradeId = trade.id,
-                    bisqEasyOffer = offer,
-                    myUserIdentity = UserIdentityVO(trade.myIdentity, myProfile),
-                    traders = setOf(makerProfile, takerProfile),
-                    mediator = null,
-                ),
-            trade = trade,
-            makerUserProfile = makerProfile,
-            takerUserProfile = takerProfile,
-            mediatorUserProfile = null,
-            directionalTitle = "",
-            formattedDate = "15 Jan 2024",
-            formattedTime = "14:32",
-            market = "BTC/$quoteCurrencyCode",
-            price = 50_000L,
-            formattedPrice = formattedPrice,
-            baseAmount = 1_000_000L,
-            formattedBaseAmount = "0.01000000",
-            quoteAmount = 500_00L,
-            formattedQuoteAmount = formattedQuoteAmount,
-            bitcoinSettlementMethod = "MAIN_CHAIN",
-            bitcoinSettlementMethodDisplayString = "Bitcoin",
-            fiatPaymentMethod = "SEPA",
-            fiatPaymentMethodDisplayString = "SEPA",
-            isFiatPaymentMethodCustom = false,
-            formattedMyRole = "",
-            peersReputationScore =
-                ReputationScoreVO(
-                    totalScore = reputationScore,
-                    fiveSystemScore = 5.0,
-                    ranking = 42,
-                ),
-        )
-
     return TradeItemPresentationModel(
-        tradeItemPresentationDto = dto,
         channelModel = null,
         bisqEasyTradeModel = BisqEasyTradeModel(trade),
+        makerUserProfile = makerProfile,
+        takerUserProfile = takerProfile,
+        formattedDate = "15 Jan 2024",
+        formattedTime = "14:32",
+        market = "BTC/$quoteCurrencyCode",
+        price = 50_000L,
+        formattedPrice = formattedPrice,
+        baseAmount = 1_000_000L,
+        formattedBaseAmount = "0.01000000",
+        quoteAmount = 500_00L,
+        formattedQuoteAmount = formattedQuoteAmount,
+        bitcoinSettlementMethod = "MAIN_CHAIN",
+        bitcoinSettlementMethodDisplayString = "Bitcoin",
+        fiatPaymentMethod = "SEPA",
+        fiatPaymentMethodDisplayString = "SEPA",
+        isFiatPaymentMethodCustom = false,
+        formattedMyRole = "",
+        peersReputationScore =
+            ReputationScoreVO(
+                totalScore = reputationScore,
+                fiveSystemScore = 5.0,
+                ranking = 42,
+            ),
     )
 }
 

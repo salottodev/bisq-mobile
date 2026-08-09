@@ -47,7 +47,7 @@
  * REPORT — RESOLVED, WIREABLE (was an open question; investigation closed it)
  * ======================================================================================
  * Previously flagged here as an open engineering question because
- * `ReportUserPresenter.initialize(chatMessage: BisqEasyOpenTradeMessageModel, ...)`
+ * `ReportUserPresenter.initialize(chatMessage: BisqEasyOpenTradeMessage, ...)`
  * requires a specific chat message. Investigation (rodvar) found this is NOT a backend
  * blocker:
  *   - Backend: `POST /user-profiles/report/{profileId}` + core

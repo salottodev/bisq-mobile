@@ -13,9 +13,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.CitationVO
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
+import network.bisq.mobile.data.replicated.chat.Citation
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
@@ -48,13 +48,13 @@ class TradeChatPresenter(
     private val _selectedTrade = MutableStateFlow<TradeItemPresentationModel?>(null)
     val selectedTrade: StateFlow<TradeItemPresentationModel?> = _selectedTrade.asStateFlow()
 
-    private val _sortedChatMessages: MutableStateFlow<List<BisqEasyOpenTradeMessageModel>> =
+    private val _sortedChatMessages: MutableStateFlow<List<BisqEasyOpenTradeMessage>> =
         MutableStateFlow(listOf())
-    val sortedChatMessages: StateFlow<List<BisqEasyOpenTradeMessageModel>> = _sortedChatMessages.asStateFlow()
+    val sortedChatMessages: StateFlow<List<BisqEasyOpenTradeMessage>> = _sortedChatMessages.asStateFlow()
 
-    private val _quotedMessage: MutableStateFlow<BisqEasyOpenTradeMessageModel?> =
+    private val _quotedMessage: MutableStateFlow<BisqEasyOpenTradeMessage?> =
         MutableStateFlow(null)
-    val quotedMessage: StateFlow<BisqEasyOpenTradeMessageModel?> = _quotedMessage.asStateFlow()
+    val quotedMessage: StateFlow<BisqEasyOpenTradeMessage?> = _quotedMessage.asStateFlow()
     val showChatRulesWarnBox: StateFlow<Boolean> =
         settingsRepository.data.map { it.showChatRulesWarnBox }.stateIn(
             presenterScope,
@@ -82,8 +82,8 @@ class TradeChatPresenter(
     private val _showReportUserDialog = MutableStateFlow(false)
     val showReportUserDialog: StateFlow<Boolean> = _showReportUserDialog.asStateFlow()
 
-    private val _reportUserTradeMessage = MutableStateFlow<BisqEasyOpenTradeMessageModel?>(null)
-    val reportUserTradeMessage: StateFlow<BisqEasyOpenTradeMessageModel?> = _reportUserTradeMessage.asStateFlow()
+    private val _reportUserTradeMessage = MutableStateFlow<BisqEasyOpenTradeMessage?>(null)
+    val reportUserTradeMessage: StateFlow<BisqEasyOpenTradeMessage?> = _reportUserTradeMessage.asStateFlow()
 
     private val _reportUserMessage = MutableStateFlow<String?>(null)
     val reportUserMessage: StateFlow<String?> = _reportUserMessage.asStateFlow()
@@ -112,7 +112,7 @@ class TradeChatPresenter(
             )
 
     private val observedChatMessages =
-        MutableStateFlow<Set<BisqEasyOpenTradeMessageModel>>(emptySet())
+        MutableStateFlow<Set<BisqEasyOpenTradeMessage>>(emptySet())
 
     fun initialize(tradeId: String) {
         tradesServiceFacade.selectOpenTrade(tradeId)
@@ -192,7 +192,7 @@ class TradeChatPresenter(
         val citation =
             quotedMessage.value?.let { quotedMessage ->
                 quotedMessage.text?.let { text ->
-                    CitationVO(
+                    Citation(
                         quotedMessage.senderUserProfileId,
                         text,
                         quotedMessage.id,
@@ -215,7 +215,7 @@ class TradeChatPresenter(
     suspend fun getUserName(peerProfileId: String): String = userProfileServiceFacade.findUserProfile(peerProfileId)?.userName ?: "data.na".i18n()
 
     fun onAddReaction(
-        message: BisqEasyOpenTradeMessageModel,
+        message: BisqEasyOpenTradeMessage,
         reaction: ReactionEnum,
     ) {
         presenterScope.launch {
@@ -224,15 +224,15 @@ class TradeChatPresenter(
     }
 
     fun onRemoveReaction(
-        message: BisqEasyOpenTradeMessageModel,
-        reaction: BisqEasyOpenTradeMessageReactionVO,
+        message: BisqEasyOpenTradeMessage,
+        reaction: BisqEasyOpenTradeMessageReaction,
     ) {
         presenterScope.launch {
             tradeChatMessagesServiceFacade.removeChatMessageReaction(message.id, reaction)
         }
     }
 
-    fun onReply(quotedMessage: BisqEasyOpenTradeMessageModel?) {
+    fun onReply(quotedMessage: BisqEasyOpenTradeMessage?) {
         _quotedMessage.value = quotedMessage
     }
 
@@ -286,7 +286,7 @@ class TradeChatPresenter(
         navigateTo(NavRoute.PeerProfile(profileId))
     }
 
-    fun onReportUser(tradeMessage: BisqEasyOpenTradeMessageModel) {
+    fun onReportUser(tradeMessage: BisqEasyOpenTradeMessage) {
         _reportUserTradeMessage.value = tradeMessage
         _showReportUserDialog.value = true
     }

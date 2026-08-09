@@ -19,8 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
+import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
+import network.bisq.mobile.data.replicated.chat.reactions.ChatMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.DynamicImage
@@ -28,20 +28,24 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 
 @Composable
-fun ReactionDisplay(
-    message: BisqEasyOpenTradeMessageModel,
+fun <R : ChatMessageReaction> ReactionDisplay(
+    message: PrivateChatMessage<R>,
     onAddReaction: (ReactionEnum) -> Unit,
-    onRemoveReaction: (BisqEasyOpenTradeMessageReactionVO) -> Unit,
+    onRemoveReaction: (R) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val reactions by message.chatReactions.collectAsState()
+    // Grouped by the resolved enum, not the raw id: a reaction Bisq 2 knows and this build does not
+    // has no icon to draw and no ReactionEnum to send back on tap, so it is dropped rather than
+    // crashing the row on an out-of-range index.
     val groupedReactions =
         remember(reactions) {
             reactions
-                .groupBy { it.reactionId }
+                .mapNotNull { reaction -> ReactionEnum.entries.getOrNull(reaction.reactionId)?.let { it to reaction } }
+                .groupBy({ it.first }, { it.second })
                 .entries
-                .sortedBy { it.key }
-                .toList()
+                .sortedBy { it.key.ordinal }
+                .map { it.key to it.value }
         }
 
     LazyRow(
@@ -49,8 +53,7 @@ fun ReactionDisplay(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier,
     ) {
-        items(groupedReactions, key = { it.key }) { (reactionId, group) ->
-            val firstReaction = group.first()
+        items(groupedReactions, key = { it.first.ordinal }) { (reaction, group) ->
             val myReaction = group.firstOrNull { message.isMyChatReaction(it) }
             val count = group.size
             Box(
@@ -59,7 +62,7 @@ fun ReactionDisplay(
                         if (myReaction != null) {
                             onRemoveReaction(myReaction)
                         } else {
-                            onAddReaction(ReactionEnum.entries[reactionId])
+                            onAddReaction(reaction)
                         }
                     },
             ) {
@@ -77,7 +80,7 @@ fun ReactionDisplay(
                             ).padding(all = BisqUIConstants.ScreenPaddingHalfQuarter),
                 ) {
                     DynamicImage(
-                        firstReaction.imagePath(),
+                        reaction.imagePath(),
                         modifier = Modifier.size(24.dp),
                     )
                     if (count > 1) {

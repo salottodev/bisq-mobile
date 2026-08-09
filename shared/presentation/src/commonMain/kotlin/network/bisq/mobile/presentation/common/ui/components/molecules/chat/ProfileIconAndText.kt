@@ -11,7 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
+import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.utils.PlatformImage
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
@@ -27,7 +27,7 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ProfileIconAndText(
-    message: BisqEasyOpenTradeMessageModel,
+    message: PrivateChatMessage<*>,
     userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage,
     onPeerProfileClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,

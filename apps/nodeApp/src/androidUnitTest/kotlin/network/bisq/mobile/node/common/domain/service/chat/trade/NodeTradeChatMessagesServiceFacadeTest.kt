@@ -2,10 +2,7 @@ package network.bisq.mobile.node.common.domain.service.chat.trade
 
 import bisq.chat.ChatMessageType
 import bisq.chat.ChatService
-import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
 import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelService
-import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
-import bisq.chat.reactions.BisqEasyOpenTradeMessageReaction
 import bisq.common.observable.Pin
 import bisq.common.observable.collection.CollectionObserver
 import bisq.common.observable.collection.ObservableSet
@@ -18,7 +15,6 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.slot
-import io.mockk.unmockkObject
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
@@ -32,9 +28,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import network.bisq.mobile.data.replicated.account.protocol_type.TradeProtocolTypeEnum
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelDto
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelModel
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory
 import network.bisq.mobile.data.replicated.identity.IdentityVO
@@ -57,6 +52,7 @@ import network.bisq.mobile.data.service.message_delivery.MessageDeliveryServiceF
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
 import network.bisq.mobile.domain.utils.CoroutineJobsManager
 import network.bisq.mobile.node.common.domain.mapping.Mappings
+import network.bisq.mobile.node.common.domain.mapping.chat.toDomain
 import network.bisq.mobile.node.common.domain.service.AndroidApplicationService
 import network.bisq.mobile.test.coroutines.TestCoroutineJobsManager
 import org.junit.After
@@ -68,6 +64,9 @@ import org.koin.dsl.module
 import java.util.Optional
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel as Bisq2BisqEasyOpenTradeChannel
+import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage as Bisq2BisqEasyOpenTradeMessage
+import bisq.chat.reactions.BisqEasyOpenTradeMessageReaction as Bisq2BisqEasyOpenTradeMessageReaction
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NodeTradeChatMessagesServiceFacadeTest {
@@ -78,9 +77,9 @@ class NodeTradeChatMessagesServiceFacadeTest {
     private lateinit var userProfileService: UserProfileService
     private lateinit var tradesServiceFacade: TradesServiceFacade
     private lateinit var openTradeItemsFlow: MutableStateFlow<List<TradeItemPresentationModel>>
-    private lateinit var channelModel: BisqEasyOpenTradeChannelModel
+    private lateinit var channelModel: BisqEasyOpenTradeChannel
     private lateinit var facade: NodeTradeChatMessagesServiceFacade
-    private lateinit var messageObserver: CollectionObserver<BisqEasyOpenTradeMessage>
+    private lateinit var messageObserver: CollectionObserver<Bisq2BisqEasyOpenTradeMessage>
 
     private val myUserProfile = createMockUserProfile("me")
     private val peerUserProfile = createMockUserProfile("peer")
@@ -104,7 +103,7 @@ class NodeTradeChatMessagesServiceFacadeTest {
         userProfileService = mockk(relaxed = true)
         tradesServiceFacade = mockk(relaxed = true)
 
-        channelModel = BisqEasyOpenTradeChannelModel(createChannelDto())
+        channelModel = createChannel()
         val tradeItem =
             mockk<TradeItemPresentationModel> {
                 every { tradeId } returns TRADE_ID
@@ -116,11 +115,14 @@ class NodeTradeChatMessagesServiceFacadeTest {
         val userIdentity = mockk<UserIdentity>(relaxed = true)
         every { userIdentityService.selectedUserIdentity } returns userIdentity
 
-        mockkObject(Mappings.BisqEasyOpenTradeMessageModelMapping)
+        // Extension functions compile to statics on the file class, so mockkStatic on that class
+        // is the equivalent of the mockkObject this used before the mappings moved out of Mappings.
+        mockkStatic(BISQ_EASY_OPEN_TRADE_MESSAGE_MAPPING_CLASS)
         every {
-            Mappings.BisqEasyOpenTradeMessageModelMapping.fromBisq2Model(any(), any(), any())
+            any<Bisq2BisqEasyOpenTradeMessage>().toDomain(any(), any())
         } answers {
-            val message = args[0] as BisqEasyOpenTradeMessage
+            // args[0] is the extension receiver, i.e. the message.
+            val message = args[0] as Bisq2BisqEasyOpenTradeMessage
             modelForMessageId(message.id)
         }
 
@@ -151,7 +153,7 @@ class NodeTradeChatMessagesServiceFacadeTest {
 
     @After
     fun tearDown() {
-        unmockkObject(Mappings.BisqEasyOpenTradeMessageModelMapping)
+        unmockkStatic(BISQ_EASY_OPEN_TRADE_MESSAGE_MAPPING_CLASS)
         unmockkStatic(Dispatchers::class)
         Dispatchers.resetMain()
         stopKoin()
@@ -232,14 +234,14 @@ class NodeTradeChatMessagesServiceFacadeTest {
             verify(exactly = 2) { channelService.persist() }
         }
 
-    private fun bindChannelObserver(channel: BisqEasyOpenTradeChannel) {
-        val observerSlot = slot<CollectionObserver<BisqEasyOpenTradeMessage>>()
+    private fun bindChannelObserver(channel: Bisq2BisqEasyOpenTradeChannel) {
+        val observerSlot = slot<CollectionObserver<Bisq2BisqEasyOpenTradeMessage>>()
         every { channel.chatMessages.addObserver(capture(observerSlot)) } returns mockk<Pin>(relaxed = true)
 
         val method =
             NodeTradeChatMessagesServiceFacade::class.java.getDeclaredMethod(
                 "handleChannelAdded",
-                BisqEasyOpenTradeChannel::class.java,
+                Bisq2BisqEasyOpenTradeChannel::class.java,
             )
         method.isAccessible = true
         method.invoke(facade, channel)
@@ -247,15 +249,15 @@ class NodeTradeChatMessagesServiceFacadeTest {
         messageObserver = observerSlot.captured
     }
 
-    private fun mockChannel(): BisqEasyOpenTradeChannel {
-        val chatMessages = mockk<ObservableSet<BisqEasyOpenTradeMessage>>()
+    private fun mockChannel(): Bisq2BisqEasyOpenTradeChannel {
+        val chatMessages = mockk<ObservableSet<Bisq2BisqEasyOpenTradeMessage>>()
         return mockk {
             every { tradeId } returns TRADE_ID
             every { this@mockk.chatMessages } returns chatMessages
         }
     }
 
-    private fun createChannelDto(): BisqEasyOpenTradeChannelDto {
+    private fun createChannel(): BisqEasyOpenTradeChannel {
         val market = MarketVO("BTC", "USD", "Bitcoin", "US Dollar")
         val offer =
             BisqEasyOfferVO(
@@ -272,7 +274,7 @@ class NodeTradeChatMessagesServiceFacadeTest {
                 offerOptions = emptyList(),
                 supportedLanguageCodes = emptyList(),
             )
-        return BisqEasyOpenTradeChannelDto(
+        return BisqEasyOpenTradeChannel(
             id = CHANNEL_ID,
             tradeId = TRADE_ID,
             bisqEasyOffer = offer,
@@ -312,33 +314,27 @@ class NodeTradeChatMessagesServiceFacadeTest {
             userProfile = userProfile,
         )
 
-    private fun modelForMessageId(messageId: String): BisqEasyOpenTradeMessageModel =
-        BisqEasyOpenTradeMessageModel(
-            network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageDto(
-                tradeId = TRADE_ID,
-                messageId = messageId,
-                channelId = CHANNEL_ID,
-                senderUserProfile = peerUserProfile,
-                receiverUserProfileId = myUserProfile.id,
-                receiverNetworkId = myUserProfile.networkId,
-                text = "hello",
-                citation = null,
-                date = 1L,
-                mediator = null,
-                chatMessageType = ChatMessageTypeEnum.TEXT,
-                bisqEasyOffer = null,
-                chatMessageReactions = emptySet(),
-                citationAuthorUserProfile = null,
-            ),
-            myUserProfile,
-            emptyList(),
+    private fun modelForMessageId(messageId: String): BisqEasyOpenTradeMessage =
+        BisqEasyOpenTradeMessage(
+            id = messageId,
+            chatMessageType = ChatMessageTypeEnum.TEXT,
+            text = "hello",
+            citation = null,
+            citationAuthorUserProfile = null,
+            date = 1L,
+            senderUserProfile = peerUserProfile,
+            myUserProfile = myUserProfile,
+            chatReactions = emptyList(),
+            tradeId = TRADE_ID,
+            mediator = null,
+            bisqEasyOffer = null,
         )
 
     private fun createBisq2Message(
         messageId: String,
         type: ChatMessageTypeEnum,
-    ): BisqEasyOpenTradeMessage {
-        val reactions = mockk<ObservableSet<BisqEasyOpenTradeMessageReaction>>(relaxed = true)
+    ): Bisq2BisqEasyOpenTradeMessage {
+        val reactions = mockk<ObservableSet<Bisq2BisqEasyOpenTradeMessageReaction>>(relaxed = true)
 
         return mockk {
             every { id } returns messageId
@@ -361,5 +357,9 @@ class NodeTradeChatMessagesServiceFacadeTest {
     companion object {
         private const val TRADE_ID = "trade-1"
         private const val CHANNEL_ID = "channel-1"
+
+        /** JVM file class holding the `Bisq2BisqEasyOpenTradeMessage.toDomain` extension. */
+        private const val BISQ_EASY_OPEN_TRADE_MESSAGE_MAPPING_CLASS =
+            "network.bisq.mobile.node.common.domain.mapping.chat.BisqEasyOpenTradeMessageMappingKt"
     }
 }

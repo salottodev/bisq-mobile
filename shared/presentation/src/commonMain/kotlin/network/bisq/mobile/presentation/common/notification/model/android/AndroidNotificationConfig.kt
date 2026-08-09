@@ -64,11 +64,13 @@ class AndroidNotificationConfig {
     var group: String? = null
 
     /**
-     * Sphere of visibility of this notification, which affects how and when the SystemUI reveals the notification's presence and contents in untrusted situations (namely, on the secure lockscreen and during screen sharing).
+     * What the SystemUI may reveal about this notification in untrusted situations (namely, on the
+     * secure lockscreen and during screen sharing). Set it to [AndroidLockScreenPolicy.Redact]
+     * whenever the copy names another user.
      *
-     * @see <a href="https://developer.android.com/reference/android/app/Notification#visibility">Notification#visibility</a>
+     * @see AndroidLockScreenPolicy for what the protection does and does not cover
      */
-    var visibility: AndroidNotificationVisibility = AndroidNotificationVisibility.VISIBILITY_PUBLIC
+    var lockScreen: AndroidLockScreenPolicy = AndroidLockScreenPolicy.ShowContent
 
     /**
      * Make this notification automatically dismissed when the user touches it.

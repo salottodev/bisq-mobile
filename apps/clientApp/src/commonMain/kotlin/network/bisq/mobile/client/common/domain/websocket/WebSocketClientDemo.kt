@@ -5,7 +5,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
+import network.bisq.mobile.client.common.domain.service.chat.trade.BisqEasyOpenTradeMessageDto
 import network.bisq.mobile.client.common.domain.service.config.ApiCapabilitiesDto
+import network.bisq.mobile.client.common.domain.service.trades.BisqEasyOpenTradeChannelDto
+import network.bisq.mobile.client.common.domain.service.trades.TradeItemPresentationDto
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEvent
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketRequest
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketResponse
@@ -21,8 +24,6 @@ import network.bisq.mobile.client.payment_accounts.data.model.fiat.zelle.ZelleAc
 import network.bisq.mobile.client.payment_accounts.data.model.fiat.zelle.ZelleAccountPayloadDto
 import network.bisq.mobile.data.model.trade.ClosedTradeListItemDto
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelDto
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageDto
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.currency.marketListDemoObj
 import network.bisq.mobile.data.replicated.common.monetary.CoinVO
@@ -43,7 +44,6 @@ import network.bisq.mobile.data.replicated.offer.payment_method.BitcoinPaymentMe
 import network.bisq.mobile.data.replicated.offer.payment_method.FiatPaymentMethodSpecVO
 import network.bisq.mobile.data.replicated.offer.price.spec.FixPriceSpecVO
 import network.bisq.mobile.data.replicated.presentation.offerbook.OfferItemPresentationDto
-import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationDto
 import network.bisq.mobile.data.replicated.security.keys.I2pKeyPairVO
 import network.bisq.mobile.data.replicated.security.keys.KeyBundleVO
 import network.bisq.mobile.data.replicated.security.keys.KeyPairVO

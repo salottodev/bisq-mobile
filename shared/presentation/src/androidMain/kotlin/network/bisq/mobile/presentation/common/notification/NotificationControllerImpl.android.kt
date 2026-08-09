@@ -13,7 +13,9 @@ import network.bisq.mobile.data.utils.ResourceUtils
 import network.bisq.mobile.domain.utils.Logging
 import network.bisq.mobile.presentation.common.notification.model.NotificationConfig
 import network.bisq.mobile.presentation.common.notification.model.NotificationPressAction
+import network.bisq.mobile.presentation.common.notification.model.android.AndroidLockScreenPolicy
 import network.bisq.mobile.presentation.common.notification.model.toNotificationCompat
+import network.bisq.mobile.presentation.common.notification.model.toPublicNotification
 import network.bisq.mobile.presentation.common.ui.navigation.DeepLinkableRoute
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 
@@ -43,7 +45,8 @@ class NotificationControllerImpl(
     @SuppressLint("MissingPermission")
     override // incorrect lint, as we already check for permission
     fun notify(config: NotificationConfig) {
-        log.i { "android pushNotification called - title: '${config.title}', body: '${config.body}', isAppInForeground: ${isAppInForeground()}" }
+        // Privacy: never log title or body — a chat notification names the counterparty in both.
+        log.i { "android pushNotification called - id: '${config.id}', channel: '${config.android?.channelId}', isAppInForeground: ${isAppInForeground()}" }
 
         if (config.skipInForeground && isAppInForeground()) {
             log.w { "Skipping notification since app is in the foreground and skipInForeground is true" }
@@ -85,7 +88,11 @@ class NotificationControllerImpl(
         builder.setShowWhen(config.android.showTimestamp)
         config.android.timestamp?.let { builder.setWhen(it) }
         builder.setGroup(config.android.group)
-        builder.setVisibility(config.android.visibility.toNotificationCompat())
+        val lockScreen = config.android.lockScreen
+        builder.setVisibility(lockScreen.toNotificationCompat())
+        if (lockScreen is AndroidLockScreenPolicy.Redact) {
+            builder.setPublicVersion(lockScreen.toPublicNotification(context, channelId))
+        }
         builder.setAutoCancel(config.android.autoCancel)
         config.android.sortKey?.let { builder.setSortKey(it) }
 

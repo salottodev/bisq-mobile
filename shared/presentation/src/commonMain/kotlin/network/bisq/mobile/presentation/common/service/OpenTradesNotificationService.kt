@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
 import network.bisq.mobile.data.service.ForegroundDetector
@@ -29,6 +29,7 @@ import network.bisq.mobile.presentation.common.notification.ForegroundServiceCon
 import network.bisq.mobile.presentation.common.notification.NotificationChannels
 import network.bisq.mobile.presentation.common.notification.NotificationController
 import network.bisq.mobile.presentation.common.notification.NotificationIds
+import network.bisq.mobile.presentation.common.notification.NotificationRedactions
 import network.bisq.mobile.presentation.common.notification.model.NotificationPressAction
 import network.bisq.mobile.presentation.common.notification.model.android.AndroidNotificationCategory
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
@@ -485,7 +486,7 @@ class OpenTradesNotificationService(
         }
     }
 
-    private fun getUnignoredMessageCount(chatMessages: Set<BisqEasyOpenTradeMessageModel>): Int {
+    private fun getUnignoredMessageCount(chatMessages: Set<BisqEasyOpenTradeMessage>): Int {
         val ignoredIds = getIgnoredProfileIds()
         return chatMessages
             .filter {
@@ -695,12 +696,17 @@ class OpenTradesNotificationService(
                     } else {
                         NotificationChannels.TRADE_UPDATES
                     }
+                if (isChatNotif) {
+                    category = AndroidNotificationCategory.CATEGORY_MESSAGE
+                    // Only the chat copy names the peer; a trade update is already a bare summary.
+                    lockScreen = NotificationRedactions.chatMessage()
+                } else {
+                    category = AndroidNotificationCategory.CATEGORY_PROGRESS
+                }
                 pressAction =
                     if (isChatNotif) {
-                        category = AndroidNotificationCategory.CATEGORY_MESSAGE
                         NotificationPressAction.Route(NavRoute.TradeChat(trade.tradeId))
                     } else {
-                        category = AndroidNotificationCategory.CATEGORY_PROGRESS
                         NotificationPressAction.Route(NavRoute.OpenTrade(trade.tradeId))
                     }
                 group = trade.shortTradeId

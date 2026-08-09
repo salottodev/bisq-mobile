@@ -21,8 +21,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageDto
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.network.confidential.ack.MessageDeliveryInfoVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
@@ -39,7 +39,7 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun UsernameMessageDeliveryAndDate(
-    message: BisqEasyOpenTradeMessageModel,
+    message: PrivateChatMessage<*>,
     onResendMessage: (String) -> Unit,
     userNameProvider: suspend (String) -> String,
     messageDeliveryInfoByPeersProfileId: StateFlow<Map<String, MessageDeliveryInfoVO>>,
@@ -121,29 +121,20 @@ private fun UsernameMessageDeliveryAndDate_MyMessagePreview() {
         val peerUserProfile =
             createMockUserProfile("Alice [Marvelously-Extraneous-Elephant-234345435]")
 
-        val dto =
-            BisqEasyOpenTradeMessageDto(
-                tradeId = "trade123",
-                messageId = "msg123",
-                channelId = "channel123",
-                senderUserProfile = myUserProfile,
-                receiverUserProfileId = peerUserProfile.networkId.pubKey.id,
-                receiverNetworkId = peerUserProfile.networkId,
+        val message =
+            BisqEasyOpenTradeMessage(
+                id = "msg123",
+                chatMessageType = ChatMessageTypeEnum.TEXT,
                 text = "Hello!",
                 citation = null,
-                date = 1234567890000L,
-                mediator = null,
-                chatMessageType = ChatMessageTypeEnum.TEXT,
-                bisqEasyOffer = null,
-                chatMessageReactions = emptySet(),
                 citationAuthorUserProfile = null,
-            )
-
-        val message =
-            BisqEasyOpenTradeMessageModel(
-                dto,
-                myUserProfile,
-                emptyList(),
+                date = 1234567890000L,
+                senderUserProfile = myUserProfile,
+                myUserProfile = myUserProfile,
+                chatReactions = emptyList(),
+                tradeId = "trade123",
+                mediator = null,
+                bisqEasyOffer = null,
             )
 
         UsernameMessageDeliveryAndDate(
@@ -164,29 +155,20 @@ private fun UsernameMessageDeliveryAndDate_PeerMessagePreview() {
         val peerUserProfile =
             createMockUserProfile("Alice")
 
-        val dto =
-            BisqEasyOpenTradeMessageDto(
-                tradeId = "trade123",
-                messageId = "msg456",
-                channelId = "channel123",
-                senderUserProfile = peerUserProfile,
-                receiverUserProfileId = myUserProfile.networkId.pubKey.id,
-                receiverNetworkId = myUserProfile.networkId,
+        val message =
+            BisqEasyOpenTradeMessage(
+                id = "msg456",
+                chatMessageType = ChatMessageTypeEnum.TEXT,
                 text = "Hi there!",
                 citation = null,
-                date = 1234567890000L,
-                mediator = null,
-                chatMessageType = ChatMessageTypeEnum.TEXT,
-                bisqEasyOffer = null,
-                chatMessageReactions = emptySet(),
                 citationAuthorUserProfile = null,
-            )
-
-        val message =
-            BisqEasyOpenTradeMessageModel(
-                dto,
-                myUserProfile,
-                emptyList(),
+                date = 1234567890000L,
+                senderUserProfile = peerUserProfile,
+                myUserProfile = myUserProfile,
+                chatReactions = emptyList(),
+                tradeId = "trade123",
+                mediator = null,
+                bisqEasyOffer = null,
             )
 
         UsernameMessageDeliveryAndDate(

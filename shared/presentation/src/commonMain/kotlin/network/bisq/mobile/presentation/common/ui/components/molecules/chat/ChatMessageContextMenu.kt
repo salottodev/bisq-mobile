@@ -8,9 +8,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageDto
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.i18n.i18n
@@ -24,11 +23,10 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 
 @Composable
 fun ChatMessageContextMenu(
-    message: BisqEasyOpenTradeMessageModel,
+    message: PrivateChatMessage<*>,
     isIgnored: Boolean,
     onSetShowMenu: (Boolean) -> Unit,
     onAddReaction: (ReactionEnum) -> Unit,
-    onRemoveReaction: (BisqEasyOpenTradeMessageReactionVO) -> Unit,
     showMenu: Boolean = false,
     onReply: () -> Unit = {},
     onCopy: () -> Unit = {},
@@ -46,10 +44,6 @@ fun ChatMessageContextMenu(
             ChatReactionInput(
                 onAddReaction = { reaction ->
                     onAddReaction(reaction)
-                    onSetShowMenu(false)
-                },
-                onRemoveReaction = { reaction ->
-                    onRemoveReaction(reaction)
                     onSetShowMenu(false)
                 },
             )
@@ -119,7 +113,6 @@ private fun ChatMessageContextMenuPreview() {
             showMenu = true,
             onSetShowMenu = {},
             onAddReaction = {},
-            onRemoveReaction = {},
             isIgnored = false,
         )
     }
@@ -134,7 +127,6 @@ private fun ChatMessageContextMenuIgnoredPreview() {
             showMenu = true,
             onSetShowMenu = {},
             onAddReaction = {},
-            onRemoveReaction = {},
             isIgnored = true,
         )
     }
@@ -144,27 +136,18 @@ private val mockMessage by lazy {
     val myUserProfile = createMockUserProfile("Bob")
     val peerUserProfile = createMockUserProfile("Alice")
 
-    val dto =
-        BisqEasyOpenTradeMessageDto(
-            tradeId = "trade123",
-            messageId = "msg456",
-            channelId = "channel123",
-            senderUserProfile = peerUserProfile,
-            receiverUserProfileId = myUserProfile.networkId.pubKey.id,
-            receiverNetworkId = myUserProfile.networkId,
-            text = "Sure! Let's proceed with the payment.",
-            citation = null,
-            date = 1234567890000L,
-            mediator = null,
-            chatMessageType = ChatMessageTypeEnum.TEXT,
-            bisqEasyOffer = null,
-            chatMessageReactions = emptySet(),
-            citationAuthorUserProfile = null,
-        )
-
-    BisqEasyOpenTradeMessageModel(
-        dto,
-        myUserProfile,
-        emptyList(),
+    BisqEasyOpenTradeMessage(
+        id = "msg456",
+        chatMessageType = ChatMessageTypeEnum.TEXT,
+        text = "Sure! Let's proceed with the payment.",
+        citation = null,
+        citationAuthorUserProfile = null,
+        date = 1234567890000L,
+        senderUserProfile = peerUserProfile,
+        myUserProfile = myUserProfile,
+        chatReactions = emptyList(),
+        tradeId = "trade123",
+        mediator = null,
+        bisqEasyOffer = null,
     )
 }

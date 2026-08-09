@@ -49,11 +49,13 @@ val androidClientPresentationModule =
 
         single<ApplicationLifecycleService> {
             ClientApplicationLifecycleService(
+                get(), // openTradesNotificationService
+                get(), // privateChatNotificationService
                 get(),
                 get(),
                 get(),
                 get(),
-                get(),
+                get(), // privateChatServiceFacade
                 get(),
                 get(),
                 get(),

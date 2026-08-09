@@ -3,7 +3,7 @@ package network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades
 import network.bisq.mobile.data.replicated.account.protocol_type.TradeProtocolTypeEnum
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
+import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory.fromPrice
@@ -25,12 +25,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
 
-class BisqEasyOpenTradeChannelModelTest {
+class BisqEasyOpenTradeChannelTest {
     @Test
     fun addChatMessages_replacesExistingMessageWithSameId() {
         val myUserProfile = createMockUserProfile("me")
         val sender = createMockUserProfile("sender")
-        val channelModel = BisqEasyOpenTradeChannelModel(createChannelDto(myUserProfile, sender))
+        val channelModel = createChannel(myUserProfile, sender)
 
         val original =
             createMessageModel(
@@ -61,11 +61,11 @@ class BisqEasyOpenTradeChannelModelTest {
         )
     }
 
-    private fun createChannelDto(
+    private fun createChannel(
         myUserProfile: UserProfileVO,
         peer: UserProfileVO,
-    ): BisqEasyOpenTradeChannelDto =
-        BisqEasyOpenTradeChannelDto(
+    ): BisqEasyOpenTradeChannel =
+        BisqEasyOpenTradeChannel(
             id = "channel-1",
             tradeId = "trade-1",
             bisqEasyOffer = createOffer(myUserProfile),
@@ -127,29 +127,22 @@ class BisqEasyOpenTradeChannelModelTest {
         sender: UserProfileVO,
         messageId: String,
         reactionId: Int,
-    ): BisqEasyOpenTradeMessageModel =
-        BisqEasyOpenTradeMessageModel(
-            bisqEasyOpenTradeMessage =
-                BisqEasyOpenTradeMessageDto(
-                    tradeId = "trade-1",
-                    messageId = messageId,
-                    channelId = "channel-1",
-                    senderUserProfile = sender,
-                    receiverUserProfileId = "receiver-1",
-                    receiverNetworkId = myUserProfile.networkId,
-                    text = "hello",
-                    citation = null,
-                    date = 1234L,
-                    mediator = null,
-                    chatMessageType = ChatMessageTypeEnum.TEXT,
-                    bisqEasyOffer = null,
-                    chatMessageReactions = emptySet(),
-                    citationAuthorUserProfile = null,
-                ),
+    ): BisqEasyOpenTradeMessage =
+        BisqEasyOpenTradeMessage(
+            id = messageId,
+            chatMessageType = ChatMessageTypeEnum.TEXT,
+            text = "hello",
+            citation = null,
+            citationAuthorUserProfile = null,
+            date = 1234L,
+            senderUserProfile = sender,
             myUserProfile = myUserProfile,
+            tradeId = "trade-1",
+            mediator = null,
+            bisqEasyOffer = null,
             chatReactions =
                 listOf(
-                    BisqEasyOpenTradeMessageReactionVO(
+                    BisqEasyOpenTradeMessageReaction(
                         id = "reaction-$reactionId",
                         senderUserProfile = sender,
                         receiverUserProfileId = "receiver-1",

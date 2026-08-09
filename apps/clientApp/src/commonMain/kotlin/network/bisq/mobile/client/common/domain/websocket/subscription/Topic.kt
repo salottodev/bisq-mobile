@@ -2,14 +2,17 @@ package network.bisq.mobile.client.common.domain.websocket.subscription
 
 import kotlinx.serialization.Serializable
 import network.bisq.mobile.client.common.data.model.alert.AuthorizedAlertDataDto
+import network.bisq.mobile.client.common.domain.service.chat.private_chat.TwoPartyPrivateChatChannelDto
+import network.bisq.mobile.client.common.domain.service.chat.private_chat.TwoPartyPrivateChatMessageDto
+import network.bisq.mobile.client.common.domain.service.chat.private_chat.TwoPartyPrivateChatMessageReactionDto
+import network.bisq.mobile.client.common.domain.service.chat.trade.BisqEasyOpenTradeMessageDto
 import network.bisq.mobile.client.common.domain.service.network.NetworkInfoDto
+import network.bisq.mobile.client.common.domain.service.trades.TradeItemPresentationDto
 import network.bisq.mobile.client.common.domain.service.trades.TradePropertiesDto
 import network.bisq.mobile.data.model.trade.ClosedTradeListItemDto
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageDto
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
+import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVO
 import network.bisq.mobile.data.replicated.presentation.offerbook.OfferItemPresentationDto
-import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationDto
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.i18n.i18n
 import kotlin.reflect.KType
@@ -71,7 +74,7 @@ enum class Topic(
         "mobile.client.topic.trade_chat_messages.desc",
     ),
     CHAT_REACTIONS(
-        typeOf<List<BisqEasyOpenTradeMessageReactionVO>>(),
+        typeOf<List<BisqEasyOpenTradeMessageReaction>>(),
         TopicImportance.COSMETIC,
         "mobile.client.topic.chat_reactions.title",
         "mobile.client.topic.chat_reactions.desc",
@@ -99,6 +102,24 @@ enum class Topic(
         TopicImportance.COSMETIC,
         "mobile.client.topic.network_info.title",
         "mobile.client.topic.network_info.desc",
+    ),
+    PRIVATE_CHAT_CHANNELS(
+        typeOf<List<TwoPartyPrivateChatChannelDto>>(),
+        TopicImportance.CRITICAL,
+        "mobile.client.topic.private_chat_channels.title",
+        "mobile.client.topic.private_chat_channels.desc",
+    ),
+    PRIVATE_CHAT_MESSAGES(
+        typeOf<List<TwoPartyPrivateChatMessageDto>>(),
+        TopicImportance.CRITICAL,
+        "mobile.client.topic.private_chat_messages.title",
+        "mobile.client.topic.private_chat_messages.desc",
+    ),
+    PRIVATE_CHAT_REACTIONS(
+        typeOf<List<TwoPartyPrivateChatMessageReactionDto>>(),
+        TopicImportance.COSMETIC,
+        "mobile.client.topic.private_chat_reactions.title",
+        "mobile.client.topic.private_chat_reactions.desc",
     ),
     ;
 

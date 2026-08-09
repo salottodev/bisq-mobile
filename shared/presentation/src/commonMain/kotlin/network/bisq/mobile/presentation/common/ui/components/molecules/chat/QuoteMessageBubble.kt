@@ -13,15 +13,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
+import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
+import network.bisq.mobile.data.replicated.chat.Citation
+import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
+import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatMessage
+import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 
 @Composable
 fun QuoteMessageBubble(
-    message: BisqEasyOpenTradeMessageModel,
+    message: PrivateChatMessage<*>,
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -65,5 +71,71 @@ fun QuoteMessageBubble(
         }
 
         content()
+    }
+}
+
+/**
+ * The two previews differ only in who sent the reply, which is what picks the background shade.
+ *
+ * `content` is filled with the reply body so the citation-to-reply relation is visible; the only
+ * production call site ([ChatTextMessageBox]) leaves the slot empty and places the reply next to the
+ * bubble instead.
+ */
+private fun previewMessage(isMyMessage: Boolean): TwoPartyPrivateChatMessage {
+    val alice = createMockUserProfile("Alice")
+    val bob = createMockUserProfile("Bob")
+    return TwoPartyPrivateChatMessage(
+        id = "msg-1",
+        chatMessageType = ChatMessageTypeEnum.TEXT,
+        text = "Yes, that works for me.",
+        citation =
+            Citation(
+                authorUserProfileId = "Alice",
+                text = "Can we settle tomorrow morning?",
+                chatMessageId = "msg-0",
+            ),
+        citationAuthorUserProfile = alice,
+        date = 1234567890000L,
+        senderUserProfile = if (isMyMessage) bob else alice,
+        myUserProfile = bob,
+        chatReactions = emptyList(),
+    )
+}
+
+@ExcludeFromCoverage
+@Preview
+@Composable
+private fun QuoteMessageBubbleMyMessagePreview() {
+    BisqTheme.Preview {
+        val message = previewMessage(isMyMessage = true)
+        QuoteMessageBubble(message = message, onClick = {}) {
+            BisqText.BaseRegular(
+                text = message.textString,
+                modifier =
+                    Modifier.padding(
+                        vertical = BisqUIConstants.ScreenPaddingHalf,
+                        horizontal = BisqUIConstants.ScreenPadding,
+                    ),
+            )
+        }
+    }
+}
+
+@ExcludeFromCoverage
+@Preview
+@Composable
+private fun QuoteMessageBubblePeerMessagePreview() {
+    BisqTheme.Preview {
+        val message = previewMessage(isMyMessage = false)
+        QuoteMessageBubble(message = message, onClick = {}) {
+            BisqText.BaseRegular(
+                text = message.textString,
+                modifier =
+                    Modifier.padding(
+                        vertical = BisqUIConstants.ScreenPaddingHalf,
+                        horizontal = BisqUIConstants.ScreenPadding,
+                    ),
+            )
+        }
     }
 }

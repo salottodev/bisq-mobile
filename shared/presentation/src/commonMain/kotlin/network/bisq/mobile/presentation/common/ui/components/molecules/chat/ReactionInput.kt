@@ -11,16 +11,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.presentation.common.ui.components.atoms.DynamicImage
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 
 @Composable
-fun ChatReactionInput(
-    onAddReaction: (ReactionEnum) -> Unit,
-    onRemoveReaction: (BisqEasyOpenTradeMessageReactionVO) -> Unit,
-) {
+fun ChatReactionInput(onAddReaction: (ReactionEnum) -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding),
@@ -34,7 +30,7 @@ fun ChatReactionInput(
                 ),
     ) {
         ReactionEnum.entries.forEach { reaction ->
-            // todo make a toggle button with calling onRemoveReaction if it was selected
+            // todo make a toggle button that removes the reaction if it was already selected
             DynamicImage(
                 path = reaction.imagePath(),
                 modifier =
@@ -57,18 +53,3 @@ fun ReactionEnum.imagePath(): String =
         ReactionEnum.HEART -> "drawable/icon_reaction_heart.png"
         ReactionEnum.PARTY -> "drawable/icon_reaction_party.png"
     }
-
-fun BisqEasyOpenTradeMessageReactionVO.imagePath(): String =
-    when (ReactionEnum.entries[this.reactionId]) {
-        ReactionEnum.THUMBS_UP -> "drawable/icon_reaction_thumbs_up.png"
-        ReactionEnum.THUMBS_DOWN -> "drawable/icon_reaction_thumbs_down.png"
-        ReactionEnum.HAPPY -> "drawable/icon_reaction_happy.png"
-        ReactionEnum.LAUGH -> "drawable/icon_reaction_laugh.png"
-        ReactionEnum.HEART -> "drawable/icon_reaction_heart.png"
-        ReactionEnum.PARTY -> "drawable/icon_reaction_party.png"
-    }
-
-private fun mapReactions(chatMessageReactions: List<BisqEasyOpenTradeMessageReactionVO>) =
-    chatMessageReactions
-        .filter { !it.isRemoved }
-        .map { ReactionEnum.entries[it.reactionId] }

@@ -4,8 +4,8 @@ import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
 import network.bisq.mobile.client.common.domain.websocket.api_proxy.WebSocketApiClient
 import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
 import network.bisq.mobile.client.common.domain.websocket.subscription.WebSocketEventObserver
-import network.bisq.mobile.data.replicated.chat.CitationVO
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
+import network.bisq.mobile.data.replicated.chat.Citation
+import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.domain.utils.Logging
@@ -20,9 +20,9 @@ class TradeChatMessagesApiGateway(
     suspend fun sendTextMessage(
         channelId: String,
         text: String,
-        citationVO: CitationVO?,
+        citation: Citation?,
     ): Result<Unit> {
-        val request = SendChatMessageRequest(text, citationVO)
+        val request = SendChatMessageRequest(text, citation)
         // ChannelId does not contain characters which require url path encoding according to RFC 3986
         val path = "$basePath/$channelId/messages"
         return webSocketApiClient.post<Unit, SendChatMessageRequest>(path, request)
@@ -42,7 +42,7 @@ class TradeChatMessagesApiGateway(
     suspend fun removeChatMessageReaction(
         channelId: String,
         messageId: String,
-        bisqEasyOpenTradeMessageReaction: BisqEasyOpenTradeMessageReactionVO,
+        bisqEasyOpenTradeMessageReaction: BisqEasyOpenTradeMessageReaction,
     ): Result<Unit> {
         // ChannelId and messageId do not contain characters which require url path encoding according to RFC 3986
         val path = "$basePath/$channelId/$messageId/reactions"

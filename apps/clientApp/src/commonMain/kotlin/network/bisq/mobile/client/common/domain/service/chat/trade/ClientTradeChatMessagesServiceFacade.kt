@@ -9,10 +9,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.util.notifyIfDemoModeRestricted
 import network.bisq.mobile.client.common.domain.websocket.subscription.WebSocketEventPayload
-import network.bisq.mobile.data.replicated.chat.CitationVO
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageDto
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
+import network.bisq.mobile.data.replicated.chat.Citation
+import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
@@ -38,7 +36,7 @@ class ClientTradeChatMessagesServiceFacade(
     private val allBisqEasyOpenTradeMessages: MutableStateFlow<Set<BisqEasyOpenTradeMessageDto>> =
         MutableStateFlow(emptySet())
 
-    private val allChatReactions: MutableStateFlow<Set<BisqEasyOpenTradeMessageReactionVO>> =
+    private val allChatReactions: MutableStateFlow<Set<BisqEasyOpenTradeMessageReaction>> =
         MutableStateFlow(emptySet())
 
     // Misc
@@ -100,7 +98,7 @@ class ClientTradeChatMessagesServiceFacade(
             if (webSocketEvent?.deferredPayload == null) {
                 return@collect
             }
-            val webSocketEventPayload: WebSocketEventPayload<List<BisqEasyOpenTradeMessageReactionVO>> =
+            val webSocketEventPayload: WebSocketEventPayload<List<BisqEasyOpenTradeMessageReaction>> =
                 WebSocketEventPayload.from(json, webSocketEvent)
             val payload = webSocketEventPayload.payload
             payload.forEach { reaction ->
@@ -150,19 +148,19 @@ class ClientTradeChatMessagesServiceFacade(
                 .map { message ->
                     val chatReactions =
                         allChatReactions.value.filter { it.chatMessageId == message.messageId && !it.isRemoved }
-                    BisqEasyOpenTradeMessageModel(message, myUserProfile, chatReactions)
+                    message.toDomain(myUserProfile, chatReactions)
                 }.toSet()
         bisqEasyOpenTradeChannelModel.setAllChatMessages(messages)
     }
 
     override suspend fun sendChatMessage(
         text: String,
-        citationVO: CitationVO?,
+        citation: Citation?,
     ): Result<Unit> {
         if (globalUiManager.notifyIfDemoModeRestricted()) return Result.success(Unit)
         require(selectedTrade.value != null)
         selectedTrade.value!!.bisqEasyOpenTradeChannelModel.id.let { channelId ->
-            val apiResult = apiGateway.sendTextMessage(channelId, text, citationVO)
+            val apiResult = apiGateway.sendTextMessage(channelId, text, citation)
             if (apiResult.isSuccess) {
                 return Result.success(Unit)
             } else {
@@ -190,7 +188,7 @@ class ClientTradeChatMessagesServiceFacade(
     // Returns true if we could remove the reaction (if it was created by ourself)
     override suspend fun removeChatMessageReaction(
         messageId: String,
-        reactionVO: BisqEasyOpenTradeMessageReactionVO,
+        reactionVO: BisqEasyOpenTradeMessageReaction,
     ): Result<Boolean> {
         // Demo mode never actually removes anything → honour the contract by reporting false.
         if (globalUiManager.notifyIfDemoModeRestricted()) return Result.success(false)
