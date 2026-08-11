@@ -27,6 +27,7 @@ import network.bisq.mobile.data.replicated.presentation.offerbook.OfferItemPrese
 import network.bisq.mobile.data.replicated.security.keys.PubKeyVO
 import network.bisq.mobile.data.replicated.security.keys.PublicKeyVO
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
+import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.network.ConnectivityService
@@ -45,6 +46,7 @@ import org.junit.Test
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /**
  * Compose UI tests for the stateless [OfferbookContent] (the body of [OfferbookScreen]).
@@ -398,6 +400,56 @@ class OfferbookContentUiTest : PresentationKoinComposeTestBase() {
         composeTestRule.waitForIdle()
 
         assertEquals(offer.offerId, selected?.offerId)
+    }
+
+    @Test
+    fun `when the maker avatar is tapped then onPeerProfileClick is dispatched`() {
+        val offer = sampleOffer()
+        var selected: OfferItemPresentationModel? = null
+        var peerProfileId: String? = null
+        setTestContent {
+            RenderOfferbookContent(
+                sortedFilteredOffers = listOf(offer),
+                userProfileIconProvider = { createEmptyImage() },
+                onOfferSelect = { selected = it },
+                onPeerProfileClick = { peerProfileId = it },
+            )
+        }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithContentDescription("mobile.createProfile.iconGenerated".i18n()).performClick()
+        composeTestRule.waitForIdle()
+
+        assertEquals(offer.makersUserProfile.id, peerProfileId)
+        assertNull(selected)
+    }
+
+    /**
+     * The card is the take-offer target, and has been since long before the peer profile screen
+     * existed. Only the avatar may divert a tap — a profile link spanning the maker's whole column
+     * would silently eat taps users make to take an offer.
+     */
+    @Test
+    fun `when the maker column is tapped outside the avatar then the offer is selected`() {
+        val offer = sampleOffer()
+        var selected: OfferItemPresentationModel? = null
+        var peerProfileId: String? = null
+        setTestContent {
+            RenderOfferbookContent(
+                sortedFilteredOffers = listOf(offer),
+                userProfileIconProvider = { createEmptyImage() },
+                onOfferSelect = { selected = it },
+                onPeerProfileClick = { peerProfileId = it },
+            )
+        }
+        composeTestRule.waitForIdle()
+
+        // The supported-languages row, directly under the avatar and well inside the old tap target.
+        composeTestRule.onNodeWithText("EN").performClick()
+        composeTestRule.waitForIdle()
+
+        assertEquals(offer.offerId, selected?.offerId)
+        assertNull(peerProfileId)
     }
 
     // -------------------------------------------------------------------------

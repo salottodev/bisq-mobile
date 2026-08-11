@@ -9,6 +9,7 @@ import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
+import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
 import network.bisq.mobile.presentation.main.MainPresenter
 
 const val REPORT_USER_MAX_MESSAGE_LENGTH = 1000
@@ -50,6 +51,12 @@ class ReportUserPresenter(
         }
     }
 
+    /**
+     * Both snackbars are raised here rather than by the hosting screen, so reporting reads the same
+     * whether it was started from the trade chat or the peer profile. It also keeps the confirmation
+     * off the dismiss path: `ReportUserDialog` wires its Cancel button to the same callback as
+     * [ReportUserEffect.ReportSuccess], and only this side can tell the two apart.
+     */
     fun onReportClick() {
         if (!_uiState.value.isReportMessageValid) return
         guardedSuspendAction(_isReportActionEnabled, "onReportClick", showLoadingOverlay = false) {
@@ -59,31 +66,27 @@ class ReportUserPresenter(
                 val accused = accusedUserProfile
                 if (accused == null) {
                     log.w { "ReportUserPresenter.onReportClick called before initialize" }
-                    _effect.emit(
-                        ReportUserEffect.ReportError(
-                            "mobile.chat.reportToModerator.error".i18n(),
-                            message,
-                        ),
-                    )
+                    onReportFailed(message)
                 } else {
                     userProfileServiceFacade
                         .reportUserProfile(
                             accused,
                             message,
                         ).onSuccess {
+                            showSnackbar("mobile.chat.reportToModerator.success".i18n(), type = SnackbarType.SUCCESS)
                             _effect.emit(ReportUserEffect.ReportSuccess)
                         }.onFailure {
-                            _effect.emit(
-                                ReportUserEffect.ReportError(
-                                    "mobile.chat.reportToModerator.error".i18n(),
-                                    message,
-                                ),
-                            )
+                            onReportFailed(message)
                         }
                 }
             } finally {
                 _uiState.update { it.copy(isLoading = false) }
             }
         }
+    }
+
+    private suspend fun onReportFailed(message: String) {
+        showSnackbar("mobile.chat.reportToModerator.error".i18n(), type = SnackbarType.ERROR)
+        _effect.emit(ReportUserEffect.ReportError(message))
     }
 }

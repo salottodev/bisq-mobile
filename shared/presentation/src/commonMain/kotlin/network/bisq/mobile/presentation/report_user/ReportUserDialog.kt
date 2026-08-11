@@ -26,24 +26,20 @@ import org.koin.compose.koinInject
 fun ReportUserDialog(
     accusedUserProfile: UserProfileVO,
     reportMessage: String? = null,
-    onReportFailure: (String, String) -> Unit = { _, _ -> },
-    onDismiss: () -> Unit = {},
+    onReportFailure: (String) -> Unit = {},
+    onReportSuccess: () -> Unit = {},
 ) {
     val presenter: ReportUserPresenter = koinInject()
     val state by presenter.uiState.collectAsState()
     val isReportActionEnabled by presenter.isReportActionEnabled.collectAsState()
     RememberPresenterLifecycle(presenter)
 
-    LaunchedEffect(Unit, onDismiss, onReportFailure) {
+    LaunchedEffect(Unit, onReportSuccess, onReportFailure) {
         presenter.initialize(accusedUserProfile, reportMessage)
         presenter.effect.collect { event ->
             when (event) {
-                ReportUserEffect.ReportSuccess -> onDismiss()
-                is ReportUserEffect.ReportError ->
-                    onReportFailure(
-                        event.message,
-                        event.reportMessage,
-                    )
+                ReportUserEffect.ReportSuccess -> onReportSuccess()
+                is ReportUserEffect.ReportError -> onReportFailure(event.reportMessage)
             }
         }
     }
@@ -53,7 +49,7 @@ fun ReportUserDialog(
         isReportActionEnabled = isReportActionEnabled,
         onMessageChange = presenter::onMessageChange,
         onReportClick = presenter::onReportClick,
-        onDismiss = onDismiss,
+        onDismiss = onReportSuccess,
     )
 }
 

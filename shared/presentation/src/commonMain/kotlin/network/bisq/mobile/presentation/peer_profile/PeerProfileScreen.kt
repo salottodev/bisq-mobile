@@ -83,10 +83,10 @@ fun PeerProfileScreen(profileId: String) {
                 ReportUserDialog(
                     accusedUserProfile = userProfile,
                     reportMessage = uiState.reportDraft,
-                    onReportFailure = { message, reportMessage ->
-                        presenter.onAction(PeerProfileUiAction.OnReportFailure(message, reportMessage))
+                    onReportFailure = { reportMessage ->
+                        presenter.onAction(PeerProfileUiAction.OnReportFailure(reportMessage))
                     },
-                    onDismiss = { presenter.onAction(PeerProfileUiAction.OnDismissReportDialog) },
+                    onReportSuccess = { presenter.onAction(PeerProfileUiAction.OnReportSuccess) },
                 )
             }
         },

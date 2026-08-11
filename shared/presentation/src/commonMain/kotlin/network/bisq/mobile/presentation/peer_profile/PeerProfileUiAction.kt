@@ -13,14 +13,13 @@ sealed interface PeerProfileUiAction {
 
     data object OnReportClick : PeerProfileUiAction
 
-    data object OnDismissReportDialog : PeerProfileUiAction
+    data object OnReportSuccess : PeerProfileUiAction
 
     /**
-     * @param message the error to surface.
      * @param reportMessage what the user had typed, kept so the dialog can be reopened with it.
+     *   `ReportUserPresenter` has already surfaced the error itself.
      */
     data class OnReportFailure(
-        val message: String,
         val reportMessage: String,
     ) : PeerProfileUiAction
 }

@@ -31,6 +31,7 @@ import bisqapps.shared.presentation.generated.resources.thumbs_up
 import kotlinx.coroutines.flow.first
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
+import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.data.utils.PlatformImage
 import network.bisq.mobile.domain.model.trade.TradeOutcomeFilter
 import network.bisq.mobile.i18n.i18n
@@ -231,6 +232,9 @@ private fun OpenTradeListBody(
                 unreadCount = tradesWithUnreadMessages.getOrElse(trade.tradeId) { 0 },
                 userProfileIconProvider = userProfileIconProvider,
                 onSelect = { onAction(OpenTradeListUiAction.OnSelectTrade(trade)) },
+                onPeerProfileClick = {
+                    onAction(OpenTradeListUiAction.OnPeerProfileClick(trade.peersUserProfile.id))
+                },
             )
         }
     }

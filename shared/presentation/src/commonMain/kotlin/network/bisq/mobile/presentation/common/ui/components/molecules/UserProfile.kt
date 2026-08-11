@@ -1,5 +1,6 @@
 package network.bisq.mobile.presentation.common.ui.components.molecules
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
@@ -7,6 +8,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +18,7 @@ import network.bisq.mobile.data.utils.PlatformImage
 import network.bisq.mobile.presentation.common.ui.components.atoms.AutoResizeText
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.StarRating
+import network.bisq.mobile.presentation.common.ui.components.atoms.debouncedClickable
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.LanguageIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
@@ -28,13 +31,24 @@ fun UserProfile(
     supportedLanguageCodes: List<String>,
     modifier: Modifier = Modifier,
     showUserName: Boolean = true,
+    onIconClick: (() -> Unit)? = null,
 ) {
     val reputationScore by reputation.collectAsState()
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier,
     ) {
-        UserProfileIcon(userProfile, userProfileIconProvider)
+        // The avatar alone carries the click, as in the chat bubble's `ProfileIconAndText` — the
+        // rating and languages below belong to whatever surface hosts this column.
+        val iconModifier =
+            if (onIconClick == null) {
+                Modifier
+            } else {
+                Modifier.debouncedClickable(role = Role.Button, onClick = onIconClick)
+            }
+        Box(modifier = iconModifier) {
+            UserProfileIcon(userProfile, userProfileIconProvider)
+        }
 
         BisqGap.V1()
         Column {

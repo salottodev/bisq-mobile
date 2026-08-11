@@ -34,4 +34,8 @@ sealed interface OpenTradeListUiAction {
     data class OnSelectTrade(
         val item: TradeItemPresentationModel,
     ) : OpenTradeListUiAction
+
+    data class OnPeerProfileClick(
+        val profileId: String,
+    ) : OpenTradeListUiAction
 }

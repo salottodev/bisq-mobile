@@ -378,16 +378,15 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
             presenter.onAction(PeerProfileUiAction.OnReportClick)
 
             presenter.onAction(
-                PeerProfileUiAction.OnReportFailure(
-                    message = "Could not reach the moderator",
-                    reportMessage = "This user violated chat rules",
-                ),
+                PeerProfileUiAction.OnReportFailure(reportMessage = "This user violated chat rules"),
             )
             advanceUntilIdle()
 
             val state = presenter.uiState.value
             assertFalse(state.showReportDialog)
             assertEquals("This user violated chat rules", state.reportDraft)
+            // ReportUserPresenter already raised the error snackbar; a second one here would double it.
+            verify(exactly = 0) { globalUiManager.showSnackbar(any(), any(), any(), any()) }
         }
 
     @Test
@@ -395,10 +394,10 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
         runTest {
             presenter.initialize(PEER_ID)
             advanceUntilIdle()
-            presenter.onAction(PeerProfileUiAction.OnReportFailure("error", "a half-written report"))
+            presenter.onAction(PeerProfileUiAction.OnReportFailure("a half-written report"))
             advanceUntilIdle()
 
-            presenter.onAction(PeerProfileUiAction.OnDismissReportDialog)
+            presenter.onAction(PeerProfileUiAction.OnReportSuccess)
 
             assertNull(presenter.uiState.value.reportDraft)
             assertFalse(presenter.uiState.value.showReportDialog)

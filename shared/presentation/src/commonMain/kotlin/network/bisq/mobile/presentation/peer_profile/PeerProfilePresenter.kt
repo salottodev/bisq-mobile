@@ -14,7 +14,6 @@ import network.bisq.mobile.data.service.reputation.ReputationServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.data.utils.PlatformImage
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
-import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
 import network.bisq.mobile.presentation.main.MainPresenter
 
 class PeerProfilePresenter(
@@ -78,10 +77,11 @@ class PeerProfilePresenter(
             PeerProfileUiAction.OnReportClick ->
                 _uiState.update { it.copy(showReportDialog = true) }
 
-            PeerProfileUiAction.OnDismissReportDialog ->
+            PeerProfileUiAction.OnReportSuccess -> {
                 _uiState.update { it.copy(showReportDialog = false, reportDraft = null) }
+            }
 
-            is PeerProfileUiAction.OnReportFailure -> onReportFailure(action.message, action.reportMessage)
+            is PeerProfileUiAction.OnReportFailure -> onReportFailure(action.reportMessage)
         }
     }
 
@@ -263,13 +263,10 @@ class PeerProfilePresenter(
 
     /**
      * Closes the dialog but holds on to [reportMessage]: reporting can fail on a dropped connection,
-     * and losing the text the user just wrote would make them compose it a second time.
+     * and losing the text the user just wrote would make them compose it a second time. The error
+     * snackbar is `ReportUserPresenter`'s — raising a second one here would double it.
      */
-    private fun onReportFailure(
-        message: String,
-        reportMessage: String,
-    ) {
+    private fun onReportFailure(reportMessage: String) {
         _uiState.update { it.copy(showReportDialog = false, reportDraft = reportMessage) }
-        showSnackbar(message, type = SnackbarType.ERROR)
     }
 }

@@ -44,7 +44,7 @@ fun ProfileIconAndText(
         val openPeerProfile = rememberDebouncedClick { onPeerProfileClick() }
 
         val icon = @Composable {
-            // Own avatar is never a link — the peer profile screen is not for yourself.
+            // Own avatar is never a link — the peer profile screen is not for user's own profile.
             val iconModifier =
                 if (!message.isMyMessage) {
                     Modifier.combinedClickable(

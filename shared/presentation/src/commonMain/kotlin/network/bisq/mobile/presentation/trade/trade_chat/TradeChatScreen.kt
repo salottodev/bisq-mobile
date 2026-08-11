@@ -110,7 +110,7 @@ fun TradeChatScreen(tradeId: String) {
                     accusedUserProfile = message.senderUserProfile,
                     reportMessage = reportUserMessage,
                     onReportFailure = presenter::onReportUserError,
-                    onDismiss = presenter::onDismissReportUserDialog,
+                    onReportSuccess = presenter::onDismissReportUserDialog,
                 )
             }
         }

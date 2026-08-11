@@ -19,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -122,22 +121,24 @@ fun OfferCard(
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.Start,
     ) {
-        // The maker's identity column is its own tap target into their profile. The surrounding
-        // card stays clickable for take-offer — an inner clickable consumes the tap, so the two
-        // don't both fire. Own offers stay inert: the peer profile is never for yourself.
-        val peerProfileModifier =
-            if (!isMyOffer) {
-                Modifier.debouncedClickable(role = Role.Button) { onPeerProfileClick(item.makersUserProfile.id) }
-            } else {
-                Modifier
-            }
         UserProfile(
             userProfile = item.makersUserProfile,
             userProfileIconProvider = userProfileIconProvider,
             reputation = item.makersReputationScore,
             supportedLanguageCodes = item.bisqEasyOffer.supportedLanguageCodes,
             showUserName = false,
-            modifier = Modifier.weight(1.0F).then(peerProfileModifier),
+            modifier = Modifier.weight(1.0F),
+            // Only the avatar opens the maker's profile, as in the chat bubble. The rating and
+            // languages below it stay part of the card's take-offer surface — tapping anywhere on a
+            // card is how offers have always been taken, and a column-wide profile link would
+            // swallow those taps. Null for own offers, which have no peer profile, and while the
+            // card is disabled, so an in-flight take-offer cannot be interrupted by navigating away.
+            onIconClick =
+                if (isMyOffer || !enabled) {
+                    null
+                } else {
+                    { onPeerProfileClick(item.makersUserProfile.id) }
+                },
         )
 
         BisqGap.H1()
