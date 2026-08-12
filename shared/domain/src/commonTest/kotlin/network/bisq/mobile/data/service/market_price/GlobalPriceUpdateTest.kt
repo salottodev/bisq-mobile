@@ -11,7 +11,6 @@ import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.test.mocks.SettingsRepositoryMock
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
-import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -129,7 +128,6 @@ class GlobalPriceUpdateTest {
             assertTrue(updates[2] > updates[1], "Second update should be later")
         }
 
-    @Ignore // "Flaky test needs more work"
     @Test
     fun `multiple services should have independent global update flows`() =
         runTest {
@@ -152,7 +150,11 @@ class GlobalPriceUpdateTest {
             assertEquals(0L, timestamp2Before, "Service2 should still have initial value before its own update")
             assertTrue(timestamp1 > 0L, "Service1 should have updated timestamp")
             assertTrue(timestamp2After > 0L, "Service2 should have updated timestamp")
-            assertNotEquals(timestamp1, timestamp2After, "Services should have independent timestamps")
+            assertEquals(
+                timestamp1,
+                service1.globalPriceUpdate.value,
+                "Service1 should be unchanged after Service2 updates",
+            )
         }
 
     @Test
