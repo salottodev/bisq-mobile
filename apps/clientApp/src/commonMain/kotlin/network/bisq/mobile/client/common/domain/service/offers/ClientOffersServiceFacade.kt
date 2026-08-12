@@ -332,9 +332,9 @@ class ClientOffersServiceFacade(
                 // Cached raw, as the node reported it: the count-aware loading check asks whether
                 // the *node* considers the market empty, not whether it is empty for this device.
                 cachedNumOffersByMarketCode = numOffersByMarketCode
-                val ignoredByMarket = countIgnoredOffersByMarket()
+                val talliesByMarket = tallyOffersByMarket()
                 _offerbookMarketItems.update { list ->
-                    applyNumOffersToMarketList(list, numOffersByMarketCode, ignoredByMarket)
+                    applyNumOffersToMarketList(list, numOffersByMarketCode, talliesByMarket)
                 }
             } catch (e: Exception) {
                 log.e(e) { "Error processing numOffers WebSocket event" }
@@ -487,16 +487,17 @@ class ClientOffersServiceFacade(
      * it — a mismatch strands the offerbook behind [isSyncingSelectedMarketOffers] forever.
      */
     private suspend fun applyOffersToSelectedMarket() {
-        // Offers and ignored tallies come from a single lock acquisition: taking them separately
-        // lets an inbound offers event land in between, publishing a list and a count that describe
-        // different snapshots.
-        val (selectedCurrency, availableMarkets, list, ignoredByMarket) =
+        // Offers, ignore set and cache tallies come from a single lock acquisition: taking them
+        // separately lets an inbound offers event — or an ignore toggled from another screen — land
+        // in between, publishing a list and a count that describe different snapshots.
+        val (selectedCurrency, availableMarkets, list, ignoredProfileIds, talliesByMarket) =
             offersMutex.withLock {
                 val sc = selectedOfferbookMarket.value.market.quoteCurrencyCode
                 val am = offerbookListItemsByMarket.keys.toList()
                 val ofm = offerbookListItemsByMarket[sc]
                 val l = ofm?.values?.toList()
-                SelectedMarketSnapshot(sc, am, l, countIgnoredOffersByMarketLocked())
+                val ignored = userProfileServiceFacade.ignoredProfileIds.value
+                SelectedMarketSnapshot(sc, am, l, ignored, tallyOffersByMarketLocked(ignored))
             }
 
         log.d { "Applying offers to selected market - Selected: $selectedCurrency" }
@@ -514,7 +515,7 @@ class ClientOffersServiceFacade(
         // a list that is briefly too long, which renders as the very spinner this ordering avoids.
         cachedNumOffersByMarketCode?.let { numOffersByMarketCode ->
             _offerbookMarketItems.update { marketItems ->
-                applyNumOffersToMarketList(marketItems, numOffersByMarketCode, ignoredByMarket)
+                applyNumOffersToMarketList(marketItems, numOffersByMarketCode, talliesByMarket)
             }
         }
 
@@ -522,7 +523,6 @@ class ClientOffersServiceFacade(
         // `isValidOfferbookMessage`, mirroring Bisq's `bisqEasyOfferbookMessageService.isValid`.
         // Applied on publish rather than on the way into `offerbookListItemsByMarket` so the cache
         // stays complete and un-ignoring restores the offers without waiting for a refetch.
-        val ignoredProfileIds = userProfileServiceFacade.ignoredProfileIds.value
         _offerbookListItems.value =
             list.orEmpty().filter { it.bisqEasyOffer.makerNetworkId.pubKey.id !in ignoredProfileIds }
 
@@ -599,32 +599,50 @@ class ClientOffersServiceFacade(
 
     private suspend fun fillMarketListItems(markets: List<network.bisq.mobile.data.replicated.common.currency.MarketVO>) {
         val numOffersByMarketCode = cachedNumOffersByMarketCode
-        val ignoredByMarket = countIgnoredOffersByMarket()
+        val talliesByMarket = tallyOffersByMarket()
         val marketListItems =
             markets.map { marketVO ->
                 val advertised = numOffersByMarketCode?.get(marketVO.quoteCurrencyCode) ?: 0
-                MarketListItem.from(marketVO, visibleNumOffers(marketVO.quoteCurrencyCode, advertised, ignoredByMarket))
+                MarketListItem.from(marketVO, visibleNumOffers(marketVO.quoteCurrencyCode, advertised, talliesByMarket))
             }
 
         _offerbookMarketItems.value = marketListItems
     }
 
-    private suspend fun countIgnoredOffersByMarket(): Map<String, Int> = offersMutex.withLock { countIgnoredOffersByMarketLocked() }
+    private suspend fun tallyOffersByMarket(): Map<String, MarketOfferTally> =
+        offersMutex.withLock {
+            tallyOffersByMarketLocked(userProfileServiceFacade.ignoredProfileIds.value)
+        }
 
-    /** Caller must hold [offersMutex]; the mutex is not reentrant. */
-    private fun countIgnoredOffersByMarketLocked(): Map<String, Int> {
-        val ignoredProfileIds = userProfileServiceFacade.ignoredProfileIds.value
+    /**
+     * Both tallies come from one walk of the cache, and only when something is ignored — with an
+     * empty ignore set there is nothing to correct and every market keeps the node's raw count.
+     *
+     * Takes the ignore set rather than reading it: [applyOffersToSelectedMarket] filters its list
+     * with the same value, and a second read there could see a different one.
+     *
+     * Caller must hold [offersMutex]; the mutex is not reentrant.
+     */
+    private fun tallyOffersByMarketLocked(ignoredProfileIds: Set<String>): Map<String, MarketOfferTally> {
         if (ignoredProfileIds.isEmpty()) return emptyMap()
         return offerbookListItemsByMarket.mapValues { (_, offersById) ->
-            offersById.values.count { it.bisqEasyOffer.makerNetworkId.pubKey.id in ignoredProfileIds }
+            val ignored = offersById.values.count { it.bisqEasyOffer.makerNetworkId.pubKey.id in ignoredProfileIds }
+            MarketOfferTally(ignored = ignored, visible = offersById.size - ignored)
         }
     }
+
+    /** What one market's cached offers amount to for this device: hidden by an ignore, or shown. */
+    private data class MarketOfferTally(
+        val ignored: Int,
+        val visible: Int,
+    )
 
     private data class SelectedMarketSnapshot(
         val selectedCurrency: String,
         val availableMarkets: List<String>,
         val offers: List<OfferItemPresentationModel>?,
-        val ignoredByMarket: Map<String, Int>,
+        val ignoredProfileIds: Set<String>,
+        val talliesByMarket: Map<String, MarketOfferTally>,
     )
 
     /**
@@ -633,24 +651,32 @@ class ClientOffersServiceFacade(
      * the very predicate that filters the node's list — leaving the two out of step here would make
      * [isSyncingSelectedMarketOffers] (`advertised > offers.size`) permanently true and spin forever.
      *
+     * The floor is the other half of that: NUM_OFFERS and OFFERS are separate topics, so a maker's
+     * offer being taken down can reach us as a lower node count *before* the delta drops it from the
+     * cache. Subtracting a still-cached ignored offer from an already-reduced count would publish
+     * fewer offers than the list on screen is showing.
+     *
      * Markets whose offers have not been cached yet keep the raw count: there is nothing to subtract
      * and no way to know better until the snapshot lands.
      */
     private fun visibleNumOffers(
         marketCode: String,
         advertised: Int,
-        ignoredByMarket: Map<String, Int>,
-    ): Int = (advertised - (ignoredByMarket[marketCode] ?: 0)).coerceAtLeast(0)
+        talliesByMarket: Map<String, MarketOfferTally>,
+    ): Int {
+        val tally = talliesByMarket[marketCode] ?: return advertised
+        return (advertised - tally.ignored).coerceAtLeast(tally.visible)
+    }
 
     private fun applyNumOffersToMarketList(
         list: List<MarketListItem>,
         numOffersByMarketCode: Map<String, Int>,
-        ignoredByMarket: Map<String, Int>,
+        talliesByMarket: Map<String, MarketOfferTally>,
     ): List<MarketListItem> =
         list.map { marketListItem ->
             val marketCode = marketListItem.market.quoteCurrencyCode
             numOffersByMarketCode[marketCode]
-                ?.let { marketListItem.copy(numOffers = visibleNumOffers(marketCode, it, ignoredByMarket)) }
+                ?.let { marketListItem.copy(numOffers = visibleNumOffers(marketCode, it, talliesByMarket)) }
                 ?: marketListItem
         }
 }

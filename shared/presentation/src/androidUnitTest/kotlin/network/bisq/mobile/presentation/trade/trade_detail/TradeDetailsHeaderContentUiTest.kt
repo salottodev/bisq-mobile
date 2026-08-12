@@ -318,6 +318,29 @@ class TradeDetailsHeaderContentUiTest : BisqComposeUiTestBase() {
             .assertDoesNotExist()
     }
 
+    /**
+     * The peer profile is reachable from the avatar and nothing else, the same split the offer card
+     * and the open-trade row use — the peer's name and rating sit inside a header whose other taps
+     * belong to the trade.
+     */
+    @Test
+    fun `when the peer avatar is tapped then triggers OpenPeerProfile`() {
+        renderHeader(baseTradeUiState(), baseSessionUiState())
+
+        composeTestRule.onNodeWithContentDescription("mobile.createProfile.iconGenerated".i18n()).performClick()
+
+        verify { mockOnAction(TradeDetailsHeaderUiAction.OpenPeerProfile) }
+    }
+
+    @Test
+    fun `when the peer name is tapped then no profile navigation happens`() {
+        renderHeader(baseTradeUiState(), baseSessionUiState())
+
+        composeTestRule.onNodeWithText(DEFAULT_PEER_USER_NAME).performClick()
+
+        verify(exactly = 0) { mockOnAction(TradeDetailsHeaderUiAction.OpenPeerProfile) }
+    }
+
     @Test
     fun `when toggle clicked then triggers ToggleHeader action`() {
         val trade = baseTradeUiState()

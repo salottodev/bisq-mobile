@@ -1,6 +1,7 @@
 package network.bisq.mobile.presentation.report_user
 
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextReplacement
@@ -62,6 +63,33 @@ class ReportUserDialogTest : PresentationKoinComposeTestBase() {
         composeTestRule.waitForIdle()
 
         tick.intValue++
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText(EDITED_DRAFT).assertIsDisplayed()
+    }
+
+    /**
+     * `UserProfileVO` is a data class, so a peer republishing their profile mid-report arrives as an
+     * unequal value for the same peer. Keying the effect on the whole VO would restart it there and
+     * re-seed the stale draft; keying on the id — which is what identifies a peer — does not.
+     */
+    @Test
+    fun `when the peer republishes their profile then the typed message survives`() {
+        val profile = mutableStateOf(accusedUserProfile)
+
+        setTestContent {
+            ReportUserDialog(
+                accusedUserProfile = profile.value,
+                reportMessage = STALE_DRAFT,
+            )
+        }
+
+        composeTestRule.onNodeWithText(STALE_DRAFT).assertIsDisplayed()
+        composeTestRule.onNodeWithText(STALE_DRAFT).performTextReplacement(EDITED_DRAFT)
+        composeTestRule.waitForIdle()
+
+        // Same id, different content — exactly what a re-published profile looks like.
+        profile.value = accusedUserProfile.copy(statement = "freshly edited statement")
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText(EDITED_DRAFT).assertIsDisplayed()

@@ -31,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
@@ -46,7 +45,6 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.button.LinkButton
-import network.bisq.mobile.presentation.common.ui.components.atoms.debouncedClickable
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.UpIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.components.molecules.UserProfileRow
@@ -146,10 +144,10 @@ fun TradeDetailsHeaderContent(
                 reputation = tradeUiState.peersReputationScore,
                 showUserName = true,
                 userProfileIconProvider = userProfileIconProvider,
-                modifier =
-                    Modifier.debouncedClickable(role = Role.Button) {
-                        onAction(TradeDetailsHeaderUiAction.OpenPeerProfile)
-                    },
+                // Avatar only, as everywhere else the peer profile is reachable from — the offer
+                // card, the open-trade row and the chat bubble. `UserProfileRow` keeps the click off
+                // the row it lays out for exactly that reason.
+                onIconClick = { onAction(TradeDetailsHeaderUiAction.OpenPeerProfile) },
             )
         }
 

@@ -59,6 +59,29 @@ Two private same-named fakes still exist for the offerbook market list, keyed on
 `ComputeOfferbookMarketListUseCaseTest`. The latter is in `commonTest`, which cannot see an
 `androidUnitTest` helper at all — so prefer the shared fake, but do not assume it is the only one.
 
+## Known gap — back-stack-aware screen tests {#backstack-screen-tests}
+
+A screen that resolves its presenter through `RememberPresenterLifecycleBackStackAware` needs two
+things no base provides yet:
+
+- a `LocalViewModelStoreOwner`, because the helper stores the presenter in a `viewModel { }`;
+- its own `KoinIsolatedContext`, because `org.koin.compose.getKoin()` caches its context wrapper
+  process-wide and only re-resolves when reading it *throws* — so the first test in a class pins the
+  Koin instance and every later test resolves against the one stopped in teardown
+  (`Scope '_root_' is closed`). `koinInject` is immune; it goes through `currentKoinScope()`.
+
+`PresentationKoinComposeTestBase` wraps content in `LocalIsTest` + `BisqTheme` only, and
+`KoinIntegrationTestBase` does not keep the `KoinApplication` that `startKoin` returns, so these
+tests set Koin and the compose rule up inline. That is the one sanctioned exception to "extend a leaf
+base"; do not copy it for anything else.
+
+Reference: `PaymentAccountReviewScreenTest`. Same pattern: `PeerProfileScreenTest`,
+`PaymentAccountFormScreenTest`, `CashDepositAccountDetailContentTest`,
+`SameBankAccountDetailContentTest`.
+
+Follow-up: teach the base to hold the `KoinApplication` and expose a `setTestContent` variant that
+provides a `ViewModelStoreOwner`, then migrate the five.
+
 ## Proof tests {#proof-tests}
 
 | Test | Base | Path |

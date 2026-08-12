@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
+import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButtonType
@@ -35,16 +36,21 @@ fun ReportUserDialog(
     val isReportActionEnabled by presenter.isReportActionEnabled.collectAsState()
     RememberPresenterLifecycle(presenter)
 
-    // Keyed on the accused peer, never on the callbacks: callers pass inline lambdas that capture
-    // their presenter, so their identity can change on any recomposition. Restarting the effect
-    // re-runs `initialize`, which re-seeds [reportMessage] over whatever the user is currently
+    // Keyed on the accused peer's id, never on the callbacks: callers pass inline lambdas that
+    // capture their presenter, so their identity can change on any recomposition. Restarting the
+    // effect re-runs `initialize`, which re-seeds [reportMessage] over whatever the user is currently
     // typing — destroying the very draft that parameter exists to preserve. `reportMessage` is a
     // seed, not a key, for the same reason; reopening the dialog is a fresh composition, so a draft
     // kept after a failed report still comes back.
+    //
+    // The id rather than the whole VO: `UserProfileVO` is a data class, so a peer who republishes
+    // their profile while this dialog is open (new terms, statement, avatar version…) arrives as an
+    // unequal value for the same peer, and keying on that would restart the effect over a draft in
+    // progress. Identity is `networkId.pubKey.id`; the rest is presentation.
     val currentOnReportSuccess by rememberUpdatedState(onReportSuccess)
     val currentOnReportFailure by rememberUpdatedState(onReportFailure)
 
-    LaunchedEffect(accusedUserProfile) {
+    LaunchedEffect(accusedUserProfile.id) {
         presenter.initialize(accusedUserProfile, reportMessage)
         presenter.effect.collect { event ->
             when (event) {

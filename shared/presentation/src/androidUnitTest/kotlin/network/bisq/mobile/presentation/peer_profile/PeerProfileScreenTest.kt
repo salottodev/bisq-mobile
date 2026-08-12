@@ -70,7 +70,8 @@ import org.koin.dsl.module
  * base, following `PaymentAccountReviewScreenTest`. Screens resolved through
  * `RememberPresenterLifecycleBackStackAware` need two things a plain `setContent` does not give them
  * — a [LocalViewModelStoreOwner] and an explicitly provided Koin context — and both are visible here
- * rather than inherited.
+ * rather than inherited. See `docs/testing/catalog.md#backstack-screen-tests`: this is the one
+ * sanctioned exception to the extend-a-leaf-base rule, with a follow-up to close it.
  */
 @RunWith(AndroidJUnit4::class)
 @OptIn(ExperimentalCoroutinesApi::class)

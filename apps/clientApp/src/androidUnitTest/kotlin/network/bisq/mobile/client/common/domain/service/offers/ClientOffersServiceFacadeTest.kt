@@ -62,6 +62,9 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
     private val userProfileServiceFacade: UserProfileServiceFacade = mockk(relaxed = true)
     private lateinit var facade: ClientOffersServiceFacade
 
+    /** Set by [activateWithOffers], for the tests that need to deliver a second NUM_OFFERS event. */
+    private lateinit var numOffersObserver: WebSocketEventObserver
+
     private val usdMarket = MarketVO("BTC", "USD", "Bitcoin", "US Dollar")
     private val brlMarket = MarketVO("BTC", "BRL", "Bitcoin", "Brazilian Real")
 
@@ -504,7 +507,7 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
         payload: String,
         numOffers: Int,
     ): WebSocketEventObserver {
-        val numOffersObserver = WebSocketEventObserver()
+        val numOffersObserver = WebSocketEventObserver().also { this@ClientOffersServiceFacadeTest.numOffersObserver = it }
         val offersObserver = WebSocketEventObserver()
         coEvery { apiGateway.subscribeNumOffers() } returns numOffersObserver
         coEvery { apiGateway.subscribeOffers() } returns offersObserver
@@ -598,6 +601,47 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
 
             waitUntil { !facade.isOfferbookLoading.value }
             assertTrue(facade.offerbookListItems.value.isEmpty())
+        }
+
+    /**
+     * NUM_OFFERS and OFFERS are separate topics, so a take-down can reach us as a lower node count
+     * before the delta drops the offer from the cache. Subtracting a still-cached ignored offer from
+     * that already-reduced count would report fewer offers than the published list is showing —
+     * here, one, while two are on screen.
+     */
+    @Test
+    fun `a reduced node count never publishes fewer offers than the list shows`() =
+        runTest {
+            ignoredProfileIds.value = setOf("maker-a")
+
+            // Advertised 5 against 3 cached (one ignored) so the count starts at 4 and the assertion
+            // below pins a real transition rather than a value that was already correct.
+            activateWithOffers(
+                offersPayloadByMaker(brlMarket, "o1" to "maker-a", "o2" to "maker-b", "o3" to "maker-c"),
+                numOffers = 5,
+            )
+            advanceUntilIdle()
+            waitUntil {
+                facade.offerbookMarketItems.value
+                    .singleOrNull()
+                    ?.numOffers == 4
+            }
+
+            // The node dropped maker-a's offer: its count is down to 2 while our cache still holds it.
+            numOffersObserver.setEvent(numOffersEvent("""{"BRL": 2}""", sequenceNumber = 2))
+            advanceUntilIdle()
+
+            waitUntil {
+                facade.offerbookMarketItems.value
+                    .singleOrNull()
+                    ?.numOffers == 2
+            }
+            assertEquals(
+                listOf("o2", "o3"),
+                facade.offerbookListItems.value
+                    .map { it.offerId }
+                    .sorted(),
+            )
         }
 
     /**
@@ -970,15 +1014,29 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
         )
     }
 
-    private fun numOffersEvent(payload: String) =
-        WebSocketEvent(
-            topic = Topic.NUM_OFFERS,
-            subscriberId = "num-offers-test",
-            deferredPayload = payload,
-            modificationType = ModificationType.REPLACE,
-            sequenceNumber = 1,
-        )
+    /**
+     * [WebSocketEventObserver.setEvent] drops anything whose sequence number does not advance, so a
+     * test delivering a second NUM_OFFERS must bump this — otherwise the event is silently ignored.
+     */
+    private fun numOffersEvent(
+        payload: String,
+        sequenceNumber: Int = 1,
+    ) = WebSocketEvent(
+        topic = Topic.NUM_OFFERS,
+        subscriberId = "num-offers-test",
+        deferredPayload = payload,
+        modificationType = ModificationType.REPLACE,
+        sequenceNumber = sequenceNumber,
+    )
 
+    /**
+     * Real-time polling, deliberately, and the only place in this file that blocks: the facade
+     * publishes from its own `serviceScope`, and clientApp's test module binds a real
+     * [network.bisq.mobile.domain.utils.DefaultCoroutineJobsManager] rather than one running on
+     * [testDispatcher] — so `advanceUntilIdle()` does not settle that work and sampling a StateFlow
+     * straight after feeding an event races the publish. The timeout is wall-clock for the same
+     * reason; virtual time says nothing about a scope it does not drive.
+     */
     private fun waitUntil(
         timeoutMs: Long = 5_000L,
         condition: () -> Boolean,
