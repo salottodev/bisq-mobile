@@ -1,0 +1,74 @@
+package network.bisq.mobile.presentation.report_user
+
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTextReplacement
+import io.mockk.mockk
+import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
+import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.presentation.main.MainPresenter
+import network.bisq.mobile.test.presentation.compose.PresentationKoinComposeTestBase
+import org.koin.core.module.Module
+import org.koin.dsl.module
+import kotlin.test.Test
+
+/**
+ * The dialog seeds its text field from `reportMessage`, the draft kept after a failed report. That
+ * seeding must happen once per dialog and never again while the user is typing a replacement.
+ */
+class ReportUserDialogTest : PresentationKoinComposeTestBase() {
+    private val userProfileServiceFacade: UserProfileServiceFacade = mockk(relaxed = true)
+    private val mainPresenter: MainPresenter = mockk(relaxed = true)
+    private val accusedUserProfile = createMockUserProfile("Satoshi")
+
+    /** Written to by the test's callbacks, purely so those lambdas capture `tick`. */
+    private var lastTick: Int = -1
+
+    override fun additionalModules(): List<Module> =
+        listOf(
+            module {
+                factory { ReportUserPresenter(mainPresenter, userProfileServiceFacade) }
+            },
+        )
+
+    /**
+     * Both callers pass inline lambdas capturing their presenter, so the callbacks take a new
+     * identity on any recomposition of the host screen. Keying the dialog's `LaunchedEffect` on them
+     * restarts it, re-runs `initialize`, and re-seeds the stale draft over the in-progress edit —
+     * which is what bumping `tick` below reproduces.
+     */
+    @Test
+    fun `when the host recomposes with new callbacks then the typed message survives`() {
+        val tick = mutableIntStateOf(0)
+
+        setTestContent {
+            // Read during composition, then captured *by value* in the callbacks: that is what gives
+            // them a new identity per recomposition. Reading the state inside the lambda body
+            // instead would leave the captures stable, Compose would memoise them, and the dialog
+            // would be skipped entirely — the trap this test exists to spring.
+            val currentTick = tick.intValue
+
+            ReportUserDialog(
+                accusedUserProfile = accusedUserProfile,
+                reportMessage = STALE_DRAFT,
+                onReportFailure = { _ -> lastTick = currentTick },
+                onReportSuccess = { lastTick = currentTick },
+            )
+        }
+
+        composeTestRule.onNodeWithText(STALE_DRAFT).assertIsDisplayed()
+        composeTestRule.onNodeWithText(STALE_DRAFT).performTextReplacement(EDITED_DRAFT)
+        composeTestRule.waitForIdle()
+
+        tick.intValue++
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText(EDITED_DRAFT).assertIsDisplayed()
+    }
+
+    private companion object {
+        const val STALE_DRAFT = "kept after the failed report"
+        const val EDITED_DRAFT = "what the user is typing now"
+    }
+}

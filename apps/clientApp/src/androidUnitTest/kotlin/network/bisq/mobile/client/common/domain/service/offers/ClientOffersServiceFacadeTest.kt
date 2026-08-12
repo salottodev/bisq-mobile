@@ -8,6 +8,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -36,6 +37,7 @@ import network.bisq.mobile.data.replicated.security.keys.PublicKeyVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.market_price.MarketPriceServiceFacade
+import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -56,6 +58,8 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
     private val json = Json { ignoreUnknownKeys = true }
     private val webSocketClientService: WebSocketClientService = mockk(relaxed = true)
     private val connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected())
+    private val ignoredProfileIds = MutableStateFlow<Set<String>>(emptySet())
+    private val userProfileServiceFacade: UserProfileServiceFacade = mockk(relaxed = true)
     private lateinit var facade: ClientOffersServiceFacade
 
     private val usdMarket = MarketVO("BTC", "USD", "Bitcoin", "US Dollar")
@@ -67,12 +71,14 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
         // is a no-op (the subscription remains the source of truth for empty markets).
         coEvery { apiGateway.getOffers(any()) } returns Result.success(emptyList())
         coEvery { apiGateway.subscribeOffers() } returns WebSocketEventObserver()
+        every { userProfileServiceFacade.ignoredProfileIds } returns ignoredProfileIds
         facade =
             ClientOffersServiceFacade(
                 marketPriceServiceFacade = marketPriceServiceFacade,
                 apiGateway = apiGateway,
                 json = json,
                 webSocketClientService = webSocketClientService,
+                userProfileServiceFacade = userProfileServiceFacade,
             )
     }
 
@@ -481,6 +487,119 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
             assertEquals(false, facade.isOfferbookLoading.value)
         }
 
+    // -------------------------------------------------------------------------
+    // Ignored makers
+    //
+    // An ignored maker's offer is not a valid offerbook entry — the same rule the node applies in
+    // `isValidOfferbookMessage`. Filtering here rather than in the presenter is what makes ignoring
+    // take effect immediately, since the presenter's pipeline has no reason to re-run on its own.
+    // -------------------------------------------------------------------------
+
+    /**
+     * Drives the facade to "market selected, offers delivered", in the order the longer-form tests
+     * in this class use: the markets collector only starts once the test dispatcher has run, so
+     * `advanceUntilIdle` has to come before anything blocks the thread waiting on it.
+     */
+    private suspend fun TestScope.activateWithOffers(
+        payload: String,
+        numOffers: Int,
+    ): WebSocketEventObserver {
+        val numOffersObserver = WebSocketEventObserver()
+        val offersObserver = WebSocketEventObserver()
+        coEvery { apiGateway.subscribeNumOffers() } returns numOffersObserver
+        coEvery { apiGateway.subscribeOffers() } returns offersObserver
+        coEvery { apiGateway.getMarkets() } returns Result.success(listOf(brlMarket))
+
+        facade.activate()
+        advanceUntilIdle()
+        connectionState.value = ConnectionState.Connected
+        waitUntil { facade.offerbookMarketItems.value.isNotEmpty() }
+        numOffersObserver.setEvent(numOffersEvent("""{"BRL": $numOffers}"""))
+        advanceUntilIdle()
+
+        facade.selectOfferbookMarket(MarketListItem.from(brlMarket, numOffers = numOffers))
+        runCurrent()
+        offersObserver.setEvent(offersEvent(payload, sequenceNumber = 1))
+        return offersObserver
+    }
+
+    /**
+     * The ignore set is already populated when NUM_OFFERS arrives, i.e. before the OFFERS snapshot
+     * has filled the cache — so at that moment there is nothing to subtract and the raw count is
+     * published. The count must be corrected once the snapshot lands, or it stays above the visible
+     * list and `advertised > offers.size` keeps the offerbook behind a sync spinner for good.
+     */
+    @Test
+    fun `offers from an already ignored maker are never published and the count follows the snapshot`() =
+        runTest {
+            ignoredProfileIds.value = setOf("maker-a")
+
+            activateWithOffers(offersPayloadByMaker(brlMarket, "o1" to "maker-a", "o2" to "maker-b"), numOffers = 2)
+            advanceUntilIdle()
+
+            // `waitUntil` rather than a bare assertion throughout these tests: the facade publishes
+            // from its own (real) scope, which advanceUntilIdle does not settle, so sampling races
+            // the publish.
+            waitUntil { facade.offerbookListItems.value.map { it.offerId } == listOf("o2") }
+            waitUntil {
+                facade.offerbookMarketItems.value
+                    .singleOrNull()
+                    ?.numOffers == 1
+            }
+        }
+
+    @Test
+    fun `ignoring a maker removes their offer from the published list`() =
+        runTest {
+            activateWithOffers(offersPayloadByMaker(brlMarket, "o1" to "maker-a", "o2" to "maker-b"), numOffers = 2)
+            advanceUntilIdle()
+            waitUntil { facade.offerbookListItems.value.size == 2 }
+
+            ignoredProfileIds.value = setOf("maker-a")
+            advanceUntilIdle()
+
+            waitUntil { facade.offerbookListItems.value.map { it.offerId } == listOf("o2") }
+        }
+
+    /**
+     * The per-market cache keeps every offer and the filter is applied on publish, so un-ignoring
+     * restores the offer immediately rather than waiting for the next snapshot or refetch.
+     */
+    @Test
+    fun `un-ignoring a maker restores their offer`() =
+        runTest {
+            ignoredProfileIds.value = setOf("maker-a")
+            activateWithOffers(offersPayloadByMaker(brlMarket, "o1" to "maker-a", "o2" to "maker-b"), numOffers = 2)
+            advanceUntilIdle()
+            waitUntil { facade.offerbookListItems.value.size == 1 }
+
+            ignoredProfileIds.value = emptySet()
+            advanceUntilIdle()
+
+            waitUntil {
+                facade.offerbookListItems.value
+                    .map { it.offerId }
+                    .sorted() == listOf("o1", "o2")
+            }
+        }
+
+    /**
+     * The count-aware spinner is judged on the unfiltered snapshot: NUM_OFFERS is counted by the
+     * node, which knows nothing about local ignores. Judging it on the filtered list would leave a
+     * market whose offers all come from ignored makers loading forever instead of showing "no offers".
+     */
+    @Test
+    fun `loading clears even when every offer in the market is from an ignored maker`() =
+        runTest {
+            ignoredProfileIds.value = setOf("maker-a")
+
+            activateWithOffers(offersPayloadByMaker(brlMarket, "o1" to "maker-a"), numOffers = 1)
+            advanceUntilIdle()
+
+            waitUntil { !facade.isOfferbookLoading.value }
+            assertTrue(facade.offerbookListItems.value.isEmpty())
+        }
+
     /**
      * REST fast-path: on market selection we fetch the market's offers directly, which returns
      * without waiting for the OFFERS subscription snapshot.
@@ -655,6 +774,139 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
                 .first()
         }
 
+    /**
+     * NUM_OFFERS is counted by the node, which knows nothing about who this device ignores. Ignoring
+     * a maker shrinks the published list, so unless the advertised count shrinks with it the facade
+     * reads "offers still inbound" forever and the offerbook is stranded behind a sync spinner.
+     *
+     * Asserted on the two inputs rather than on [isSyncingSelectedMarketOffers] itself, which is
+     * `advertised > offers.size` (`OffersServiceFacade`) and therefore false exactly when these are
+     * equal. The flow cannot be asserted on directly here: this module's Koin graph binds a real
+     * `DefaultCoroutineJobsManager`, so the facade emits off the test scheduler, and the flow's
+     * `WhileSubscribed` resets to its initial `false` between collections — an assertion on it
+     * passes against the very regression this test exists to catch. The wiring of the flow itself is
+     * covered by `syncing state is exposed while advertised count exceeds cached offers…` above.
+     */
+    @Test
+    fun `advertised count matches the visible list after a maker is ignored`() =
+        runTest {
+            val numOffersObserver = WebSocketEventObserver()
+            val offersObserver = WebSocketEventObserver()
+            coEvery { apiGateway.subscribeNumOffers() } returns numOffersObserver
+            coEvery { apiGateway.subscribeOffers() } returns offersObserver
+            coEvery { apiGateway.getMarkets() } returns Result.success(listOf(brlMarket))
+
+            facade.activate()
+            advanceUntilIdle()
+            connectionState.value = ConnectionState.Connected
+            waitUntil { facade.offerbookMarketItems.value.isNotEmpty() }
+            numOffersObserver.setEvent(numOffersEvent("""{"BRL": 2}"""))
+            advanceUntilIdle()
+
+            facade.selectOfferbookMarket(MarketListItem.from(brlMarket, numOffers = 2))
+            runCurrent()
+            offersObserver.setEvent(
+                offersEvent(offersPayloadByMaker(brlMarket, "o1" to "maker-a", "o2" to "maker-b"), sequenceNumber = 1),
+            )
+            advanceUntilIdle()
+            waitUntil { facade.offerbookListItems.value.size == 2 }
+            waitUntil {
+                facade.offerbookMarketItems.value
+                    .singleOrNull()
+                    ?.numOffers == 2
+            }
+
+            ignoredProfileIds.value = setOf("maker-a")
+            advanceUntilIdle()
+
+            // Equal on both sides => `advertised > offers.size` is false => no sync spinner.
+            waitUntil { facade.offerbookListItems.value.size == 1 }
+            waitUntil {
+                facade.offerbookMarketItems.value
+                    .singleOrNull()
+                    ?.numOffers == 1
+            }
+        }
+
+    @Test
+    fun `market offer count drops while a maker is ignored and returns when un-ignored`() =
+        runTest {
+            val numOffersObserver = WebSocketEventObserver()
+            val offersObserver = WebSocketEventObserver()
+            coEvery { apiGateway.subscribeNumOffers() } returns numOffersObserver
+            coEvery { apiGateway.subscribeOffers() } returns offersObserver
+            coEvery { apiGateway.getMarkets() } returns Result.success(listOf(brlMarket))
+
+            facade.activate()
+            advanceUntilIdle()
+            connectionState.value = ConnectionState.Connected
+            waitUntil { facade.offerbookMarketItems.value.isNotEmpty() }
+            numOffersObserver.setEvent(numOffersEvent("""{"BRL": 2}"""))
+            advanceUntilIdle()
+
+            facade.selectOfferbookMarket(MarketListItem.from(brlMarket, numOffers = 2))
+            runCurrent()
+            offersObserver.setEvent(
+                offersEvent(offersPayloadByMaker(brlMarket, "o1" to "maker-a", "o2" to "maker-b"), sequenceNumber = 1),
+            )
+            advanceUntilIdle()
+            waitUntil {
+                facade.offerbookMarketItems.value
+                    .singleOrNull()
+                    ?.numOffers == 2
+            }
+
+            ignoredProfileIds.value = setOf("maker-a")
+            advanceUntilIdle()
+            waitUntil {
+                facade.offerbookMarketItems.value
+                    .singleOrNull()
+                    ?.numOffers == 1
+            }
+
+            ignoredProfileIds.value = emptySet()
+            advanceUntilIdle()
+            waitUntil {
+                facade.offerbookMarketItems.value
+                    .singleOrNull()
+                    ?.numOffers == 2
+            }
+        }
+
+    /** The subtraction must not underflow, and the spinner must still clear on an all-ignored market. */
+    @Test
+    fun `market with only ignored makers reports zero offers and clears loading`() =
+        runTest {
+            val numOffersObserver = WebSocketEventObserver()
+            val offersObserver = WebSocketEventObserver()
+            coEvery { apiGateway.subscribeNumOffers() } returns numOffersObserver
+            coEvery { apiGateway.subscribeOffers() } returns offersObserver
+            coEvery { apiGateway.getMarkets() } returns Result.success(listOf(brlMarket))
+
+            facade.activate()
+            advanceUntilIdle()
+            connectionState.value = ConnectionState.Connected
+            waitUntil { facade.offerbookMarketItems.value.isNotEmpty() }
+            numOffersObserver.setEvent(numOffersEvent("""{"BRL": 1}"""))
+            advanceUntilIdle()
+
+            facade.selectOfferbookMarket(MarketListItem.from(brlMarket, numOffers = 1))
+            runCurrent()
+            offersObserver.setEvent(offersEvent(offersPayloadByMaker(brlMarket, "o1" to "maker-a"), sequenceNumber = 1))
+            advanceUntilIdle()
+
+            ignoredProfileIds.value = setOf("maker-a")
+            advanceUntilIdle()
+
+            waitUntil { facade.offerbookListItems.value.isEmpty() }
+            waitUntil {
+                facade.offerbookMarketItems.value
+                    .singleOrNull()
+                    ?.numOffers == 0
+            }
+            waitUntil { !facade.isOfferbookLoading.value }
+        }
+
     private fun offersEvent(
         payload: String,
         sequenceNumber: Int = 1,
@@ -672,14 +924,21 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
         vararg offerIds: String,
     ): String = json.encodeToString(offerIds.map { buildOfferDto(it, market) })
 
+    /** Payload where each offer is authored by its own maker, so ignoring can be targeted. */
+    private fun offersPayloadByMaker(
+        market: MarketVO,
+        vararg offerIdToMakerId: Pair<String, String>,
+    ): String = json.encodeToString(offerIdToMakerId.map { (offerId, makerId) -> buildOfferDto(offerId, market, makerId) })
+
     private fun buildOfferDto(
         id: String,
         market: MarketVO,
+        makerId: String = "id",
     ): OfferItemPresentationDto {
         val makerNetworkId =
             NetworkIdVO(
                 AddressByTransportTypeMapVO(mapOf()),
-                PubKeyVO(PublicKeyVO("pub"), keyId = "key", hash = "hash", id = "id"),
+                PubKeyVO(PublicKeyVO("pub"), keyId = "key", hash = "hash", id = makerId),
             )
         val offer =
             BisqEasyOfferVO(
@@ -721,7 +980,7 @@ class ClientOffersServiceFacadeTest : ClientKoinIntegrationTestBase() {
         )
 
     private fun waitUntil(
-        timeoutMs: Long = 2_000L,
+        timeoutMs: Long = 5_000L,
         condition: () -> Boolean,
     ) {
         val deadline = System.currentTimeMillis() + timeoutMs

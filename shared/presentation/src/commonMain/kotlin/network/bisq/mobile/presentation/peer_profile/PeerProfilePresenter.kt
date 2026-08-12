@@ -132,16 +132,18 @@ class PeerProfilePresenter(
                 } catch (e: Exception) {
                     // Not `isNotFound`: the lookup crossing the network means this is just as likely a
                     // connection problem, and telling the user their peer does not exist would be wrong.
-                    log.e(e) { "Failed to load peer profile $profileId" }
+                    log.e(e) { "Failed to load peer profile" }
                     updateIfCurrent(profileId) { it.copy(isLoadFailed = true, isLoading = false) }
                 }
             }
     }
 
     /**
-     * Drops a write whose load has been superseded. Keyed on the requested id because [initialize]
-     * replaces the state — and with it `profileId` — synchronously before launching, so the state
-     * already identifies the load that owns it by the time any result arrives.
+     * Drops a write that belongs to a peer other than the one the state currently describes. Keyed
+     * on the requested id because [initialize] replaces the state — and with it `profileId` —
+     * synchronously before launching, so the state already identifies the load that owns it by the
+     * time any result arrives. A retry for the *same* peer is deliberately not filtered here: both
+     * attempts carry the same id, and the superseded one is stopped by cancelling [loadProfileJob].
      */
     private fun updateIfCurrent(
         profileId: String,
@@ -202,7 +204,7 @@ class PeerProfilePresenter(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                log.w(e) { "Failed to load reputation for $profileId" }
+                log.w(e) { "Failed to load reputation for peer" }
                 return null
             }
         result.getOrNull()?.let { return it }
@@ -213,13 +215,19 @@ class PeerProfilePresenter(
      * Binds to the facade's ignored-ids flow rather than tracking the state locally, so an
      * ignore/unignore performed elsewhere (chat context menu, ignored-users list) is reflected here
      * live. It is a StateFlow, so the current value arrives immediately and no seed call is needed.
+     *
+     * Writes through [updateIfCurrent] for consistency with [loadProfile], not because a stale
+     * emission is reachable today: navigation gives every peer its own back stack entry, hence its
+     * own presenter instance, so one instance only ever sees one profileId. The guard is what keeps
+     * a stale write harmless if that ever stops holding — [initialize] is public and takes an id,
+     * and the presenter holder is keyed by class alone.
      */
     private fun observeIgnoredState(profileId: String) {
         ignoredStateJob?.cancel()
         ignoredStateJob =
             presenterScope.launch {
                 userProfileServiceFacade.ignoredProfileIds.collect { ignoredIds ->
-                    _uiState.update { it.copy(isIgnored = profileId in ignoredIds) }
+                    updateIfCurrent(profileId) { it.copy(isIgnored = profileId in ignoredIds) }
                 }
             }
     }
@@ -236,7 +244,7 @@ class PeerProfilePresenter(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                log.e(e) { "Failed to ignore $profileId" }
+                log.e(e) { "Failed to ignore peer" }
                 handleError(e)
             }
         }
@@ -255,7 +263,7 @@ class PeerProfilePresenter(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                log.e(e) { "Failed to undo ignore for $profileId" }
+                log.e(e) { "Failed to undo ignore for peer" }
                 handleError(e)
             }
         }

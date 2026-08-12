@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -34,12 +35,21 @@ fun ReportUserDialog(
     val isReportActionEnabled by presenter.isReportActionEnabled.collectAsState()
     RememberPresenterLifecycle(presenter)
 
-    LaunchedEffect(Unit, onReportSuccess, onReportFailure) {
+    // Keyed on the accused peer, never on the callbacks: callers pass inline lambdas that capture
+    // their presenter, so their identity can change on any recomposition. Restarting the effect
+    // re-runs `initialize`, which re-seeds [reportMessage] over whatever the user is currently
+    // typing — destroying the very draft that parameter exists to preserve. `reportMessage` is a
+    // seed, not a key, for the same reason; reopening the dialog is a fresh composition, so a draft
+    // kept after a failed report still comes back.
+    val currentOnReportSuccess by rememberUpdatedState(onReportSuccess)
+    val currentOnReportFailure by rememberUpdatedState(onReportFailure)
+
+    LaunchedEffect(accusedUserProfile) {
         presenter.initialize(accusedUserProfile, reportMessage)
         presenter.effect.collect { event ->
             when (event) {
-                ReportUserEffect.ReportSuccess -> onReportSuccess()
-                is ReportUserEffect.ReportError -> onReportFailure(event.reportMessage)
+                ReportUserEffect.ReportSuccess -> currentOnReportSuccess()
+                is ReportUserEffect.ReportError -> currentOnReportFailure(event.reportMessage)
             }
         }
     }
