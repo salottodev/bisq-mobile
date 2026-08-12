@@ -44,6 +44,7 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
     private companion object {
         /** [createMockUserProfile] sets `networkId.pubKey.id` to the name, so the id is the name. */
         const val PEER_ID = "peer-1"
+        const val OTHER_ID = "peer-2"
         const val OWN_ID = "my-profile"
 
         val REPUTATION = ReputationScoreVO(totalScore = 12_400L, fiveSystemScore = 4.5, ranking = 7)
@@ -82,7 +83,6 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             val state = presenter.uiState.value
-            assertEquals(PEER_ID, state.profileId)
             assertEquals(peer, state.userProfile)
             assertEquals(peer.userName, state.displayName)
             assertEquals(4.5, state.starRating)
@@ -241,6 +241,25 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             coVerify(exactly = 1) { userProfileServiceFacade.findUserProfile(PEER_ID) }
+        }
+
+    /**
+     * A presenter is bound to one peer for life: navigation gives every destination its own back
+     * stack entry, so it gives every peer its own presenter instance. This pins what the presenter
+     * does if that ever stops holding — it keeps the peer it was bound to rather than swapping to a
+     * half-loaded second one.
+     */
+    @Test
+    fun `when initialized again with a different id then the first peer is kept`() =
+        runTest {
+            presenter.initialize(PEER_ID)
+            advanceUntilIdle()
+
+            presenter.initialize(OTHER_ID)
+            advanceUntilIdle()
+
+            assertEquals(peer, presenter.uiState.value.userProfile)
+            coVerify(exactly = 0) { userProfileServiceFacade.findUserProfile(OTHER_ID) }
         }
 
     // ---------------------------------------------------------------------------------------

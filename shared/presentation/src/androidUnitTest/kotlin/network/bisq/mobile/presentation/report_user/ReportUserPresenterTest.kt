@@ -15,6 +15,7 @@ import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarT
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.test.presentation.coroutines.PresentationKoinTestBase
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -111,6 +112,25 @@ class ReportUserPresenterTest : PresentationKoinTestBase() {
             }
         }
 
+    /**
+     * `UserProfileServiceFacade.reportUserProfile` documents a trimmed message. Trimming happens at
+     * the call and nowhere else: the state keeps what the user typed, so a report that fails reopens
+     * the dialog on their own text rather than on a silently edited copy.
+     */
+    @Test
+    fun `the service receives a trimmed message while the typed draft is left alone`() =
+        runTest {
+            coEvery { userProfileServiceFacade.reportUserProfile(any(), any()) } returns
+                Result.failure(RuntimeException("network error"))
+            presenter.onMessageChange(PADDED_MESSAGE)
+
+            presenter.onReportClick()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { userProfileServiceFacade.reportUserProfile(reportedUser, TRIMMED_MESSAGE) }
+            assertEquals(PADDED_MESSAGE, presenter.uiState.value.message)
+        }
+
     @Test
     fun `report click before initialize completes without calling service`() =
         runTest {
@@ -127,4 +147,9 @@ class ReportUserPresenterTest : PresentationKoinTestBase() {
             coVerify(exactly = 0) { userProfileServiceFacade.reportUserProfile(any(), any()) }
             assertTrue(uninitializedPresenter.isReportActionEnabled.value)
         }
+
+    private companion object {
+        const val PADDED_MESSAGE = "  This user violated chat rules  "
+        const val TRIMMED_MESSAGE = "This user violated chat rules"
+    }
 }

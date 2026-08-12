@@ -71,7 +71,10 @@ class ReportUserPresenter(
                     userProfileServiceFacade
                         .reportUserProfile(
                             accused,
-                            message,
+                            // Trimmed here rather than in [message] itself: the facade contract asks for
+                            // a trimmed message, while the draft handed to [onReportFailed] must stay
+                            // exactly as the user typed it so a retry reopens on their own text.
+                            message.trim(),
                         ).onSuccess {
                             showSnackbar("mobile.chat.reportToModerator.success".i18n(), type = SnackbarType.SUCCESS)
                             _effect.emit(ReportUserEffect.ReportSuccess)

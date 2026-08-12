@@ -15,7 +15,6 @@ import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
  * counting only the in-memory open trades would under-report. Tracked as a follow-up.
  */
 data class PeerProfileUiState(
-    val profileId: String = "",
     /** Kept for the avatar renderer and the report dialog, both of which need the full VO. */
     val userProfile: UserProfileVO? = null,
     val displayName: String = "",

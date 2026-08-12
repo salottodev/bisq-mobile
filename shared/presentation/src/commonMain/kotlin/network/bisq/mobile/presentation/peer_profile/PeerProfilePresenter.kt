@@ -41,21 +41,29 @@ class PeerProfilePresenter(
     val userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage
         get() = userProfileServiceFacade::getUserProfileIcon
 
-    private var initializedProfileId: String? = null
+    /** The peer this presenter is bound to; null until [initialize]. */
+    private var profileId: String? = null
     private var ignoredStateJob: Job? = null
     private var loadProfileJob: Job? = null
 
     /**
-     * Idempotent: the screen's `LaunchedEffect` re-fires whenever this destination is revealed from
-     * the back stack, and reloading then would flash the loading state over already-correct data.
-     * Keyed on the id rather than a boolean so navigating to a different peer still reloads — which
-     * is why the state is replaced wholesale and the previous ignored-state collector is cancelled
-     * rather than left running alongside a second one.
+     * Binds this presenter to one peer, once. The screen's `LaunchedEffect` re-fires whenever this
+     * destination is revealed from the back stack, and reloading then would flash the loading state
+     * over already-correct data — hence the early return.
+     *
+     * A second call for a *different* peer is ignored rather than handled: navigation gives every
+     * destination its own back stack entry, so it also gives every peer its own presenter instance
+     * (see `PresenterHolder` in `BackStackAwarePresenterLifecycleHelper`). The warning is there
+     * because a caller that ever breaks that assumption would otherwise render the wrong peer in
+     * silence.
      */
     fun initialize(profileId: String) {
-        if (initializedProfileId == profileId) return
-        initializedProfileId = profileId
-        _uiState.value = PeerProfileUiState(profileId = profileId)
+        val bound = this.profileId
+        if (bound != null) {
+            if (bound != profileId) log.w { "Ignoring re-initialize with a different peer" }
+            return
+        }
+        this.profileId = profileId
         loadProfile(profileId)
         observeIgnoredState(profileId)
     }
@@ -86,8 +94,7 @@ class PeerProfilePresenter(
     }
 
     private fun onRetryLoad() {
-        val profileId = _uiState.value.profileId
-        if (profileId.isEmpty()) return
+        val profileId = this.profileId ?: return
         _uiState.update { it.copy(isLoading = true, isLoadFailed = false) }
         loadProfile(profileId)
     }
@@ -96,8 +103,8 @@ class PeerProfilePresenter(
      * Only one load may be in flight. Retrying supersedes the previous attempt rather than racing
      * it: `findUserProfile` is a node round-trip on the client flavour, so a slow first attempt can
      * otherwise land *after* a fast retry and replace a rendered profile with its own failure.
-     * Cancelling is not enough on its own — a coroutine already past its last suspension point runs
-     * to completion — so every write also goes through [updateIfCurrent].
+     * Cancelling the superseded job is what prevents that — both attempts are for the same peer, so
+     * nothing downstream could tell their writes apart.
      */
     private fun loadProfile(profileId: String) {
         loadProfileJob?.cancel()
@@ -105,19 +112,19 @@ class PeerProfilePresenter(
             presenterScope.launch {
                 try {
                     if (isOwnProfile(profileId)) {
-                        updateIfCurrent(profileId) { it.copy(isOwnProfile = true, isLoading = false) }
+                        _uiState.update { it.copy(isOwnProfile = true, isLoading = false) }
                         return@launch
                     }
 
                     val userProfile = userProfileServiceFacade.findUserProfile(profileId)
                     if (userProfile == null) {
-                        updateIfCurrent(profileId) { it.copy(isNotFound = true, isLoading = false) }
+                        _uiState.update { it.copy(isNotFound = true, isLoading = false) }
                         return@launch
                     }
 
                     val reputation = loadReputation(profileId)
 
-                    updateIfCurrent(profileId) {
+                    _uiState.update {
                         it.copy(
                             userProfile = userProfile,
                             displayName = userProfile.userName,
@@ -133,23 +140,9 @@ class PeerProfilePresenter(
                     // Not `isNotFound`: the lookup crossing the network means this is just as likely a
                     // connection problem, and telling the user their peer does not exist would be wrong.
                     log.e(e) { "Failed to load peer profile" }
-                    updateIfCurrent(profileId) { it.copy(isLoadFailed = true, isLoading = false) }
+                    _uiState.update { it.copy(isLoadFailed = true, isLoading = false) }
                 }
             }
-    }
-
-    /**
-     * Drops a write that belongs to a peer other than the one the state currently describes. Keyed
-     * on the requested id because [initialize] replaces the state — and with it `profileId` —
-     * synchronously before launching, so the state already identifies the load that owns it by the
-     * time any result arrives. A retry for the *same* peer is deliberately not filtered here: both
-     * attempts carry the same id, and the superseded one is stopped by cancelling [loadProfileJob].
-     */
-    private fun updateIfCurrent(
-        profileId: String,
-        transform: (PeerProfileUiState) -> PeerProfileUiState,
-    ) {
-        _uiState.update { if (it.profileId == profileId) transform(it) else it }
     }
 
     /**
@@ -215,26 +208,19 @@ class PeerProfilePresenter(
      * Binds to the facade's ignored-ids flow rather than tracking the state locally, so an
      * ignore/unignore performed elsewhere (chat context menu, ignored-users list) is reflected here
      * live. It is a StateFlow, so the current value arrives immediately and no seed call is needed.
-     *
-     * Writes through [updateIfCurrent] for consistency with [loadProfile], not because a stale
-     * emission is reachable today: navigation gives every peer its own back stack entry, hence its
-     * own presenter instance, so one instance only ever sees one profileId. The guard is what keeps
-     * a stale write harmless if that ever stops holding — [initialize] is public and takes an id,
-     * and the presenter holder is keyed by class alone.
      */
     private fun observeIgnoredState(profileId: String) {
         ignoredStateJob?.cancel()
         ignoredStateJob =
             presenterScope.launch {
                 userProfileServiceFacade.ignoredProfileIds.collect { ignoredIds ->
-                    updateIfCurrent(profileId) { it.copy(isIgnored = profileId in ignoredIds) }
+                    _uiState.update { it.copy(isIgnored = profileId in ignoredIds) }
                 }
             }
     }
 
     private fun onConfirmIgnore() {
-        val profileId = _uiState.value.profileId
-        if (profileId.isEmpty()) return
+        val profileId = this.profileId ?: return
         guardedSuspendAction(_isIgnoreActionEnabled, "onConfirmIgnore") {
             _uiState.update { it.copy(showIgnoreConfirmDialog = false) }
             try {
@@ -255,8 +241,7 @@ class PeerProfilePresenter(
      * visible button. (The ignored-users list does confirm — there a mis-tap is harder to notice.)
      */
     private fun onUndoIgnore() {
-        val profileId = _uiState.value.profileId
-        if (profileId.isEmpty()) return
+        val profileId = this.profileId ?: return
         guardedSuspendAction(_isIgnoreActionEnabled, "onUndoIgnore") {
             try {
                 userProfileServiceFacade.undoIgnoreUserProfile(profileId)

@@ -321,7 +321,6 @@ private fun previewUiState(
     reputationScore: Long = 12400,
     isIgnored: Boolean = false,
 ) = PeerProfileUiState(
-    profileId = "peer-1",
     userProfile = createMockUserProfile(displayName),
     displayName = displayName,
     starRating = starRating,
@@ -371,17 +370,17 @@ private fun PeerProfileScreen_IgnoredPeerPreview() =
 @ExcludeFromCoverage
 @Preview
 @Composable
-private fun PeerProfileScreen_LoadingPreview() = PeerProfilePreview(PeerProfileUiState(profileId = "peer-1", isLoading = true))
+private fun PeerProfileScreen_LoadingPreview() = PeerProfilePreview(PeerProfileUiState(isLoading = true))
 
 @ExcludeFromCoverage
 @Preview
 @Composable
-private fun PeerProfileScreen_NotFoundPreview() = PeerProfilePreview(PeerProfileUiState(profileId = "peer-1", isLoading = false, isNotFound = true))
+private fun PeerProfileScreen_NotFoundPreview() = PeerProfilePreview(PeerProfileUiState(isLoading = false, isNotFound = true))
 
 @ExcludeFromCoverage
 @Preview
 @Composable
-private fun PeerProfileScreen_LoadFailedPreview() = PeerProfilePreview(PeerProfileUiState(profileId = "peer-1", isLoading = false, isLoadFailed = true))
+private fun PeerProfileScreen_LoadFailedPreview() = PeerProfilePreview(PeerProfileUiState(isLoading = false, isLoadFailed = true))
 
 @ExcludeFromCoverage
 @Preview
