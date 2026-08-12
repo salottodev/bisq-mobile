@@ -1,11 +1,15 @@
 package network.bisq.mobile.domain.analytics
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -52,6 +56,8 @@ class BufferedAnalyticsServiceTest {
      */
     private class RecordingAnalyticsService(
         private val throwOnTrack: Boolean = false,
+        var throwOnInit: Boolean = false,
+        var throwCancellationOnInit: Boolean = false,
         private val throwOnCaptureException: Boolean = false,
     ) : AnalyticsService {
         val initCalls = mutableListOf<InitArgs>()
@@ -76,6 +82,8 @@ class BufferedAnalyticsServiceTest {
             socksProxyPort: Int?,
         ) {
             initCalls += InitArgs(dsn, environment, release, isDebug, socksProxyHost, socksProxyPort)
+            if (throwCancellationOnInit) throw CancellationException("simulated cancellation")
+            if (throwOnInit) error("simulated init failure")
         }
 
         override fun track(event: AnalyticsEvent) {
@@ -99,7 +107,7 @@ class BufferedAnalyticsServiceTest {
     fun `init forwards dsn environment release and isDebug to the downstream`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
 
             service.init(dsn = "http://abc@onion/3", environment = "production", release = "0.5.0", isDebug = false)
 
@@ -114,7 +122,7 @@ class BufferedAnalyticsServiceTest {
     fun `init does not flip readiness on its own`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
 
             service.init("http://abc@onion/3", "production", "0.5.0", false)
 
@@ -127,7 +135,7 @@ class BufferedAnalyticsServiceTest {
     fun `track before ready goes to the buffer not the downstream`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
 
             service.track(AnalyticsEvent.ScreenOpened.Dashboard)
             advanceUntilIdle() // drain the fire-and-forget enqueue coroutine
@@ -140,7 +148,7 @@ class BufferedAnalyticsServiceTest {
     fun `captureException before ready goes to the buffer`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
 
             service.captureException(RuntimeException("boom"))
             advanceUntilIdle()
@@ -153,7 +161,7 @@ class BufferedAnalyticsServiceTest {
     fun `trackImmediate before ready jumps the line ahead of pending normal events`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
 
             // The AnalyticsEvent sealed type has only one concrete subclass right
             // now (Dashboard), so we use exception messages as the distinguishable
@@ -172,6 +180,7 @@ class BufferedAnalyticsServiceTest {
 
             assertEquals(3, service.bufferedCount())
 
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
 
@@ -197,7 +206,7 @@ class BufferedAnalyticsServiceTest {
             // ensures `trackImmediate` itself is exercised so a future
             // refactor that breaks it loudly fails.
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
 
             service.track(AnalyticsEvent.ScreenOpened.Dashboard)
             service.trackImmediate(AnalyticsEvent.ScreenOpened.Dashboard)
@@ -206,6 +215,7 @@ class BufferedAnalyticsServiceTest {
             assertEquals(2, service.bufferedCount(), "both tracks must be in the buffer pre-ready")
             assertTrue(downstream.tracked.isEmpty(), "nothing reaches downstream pre-ready")
 
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
 
@@ -220,7 +230,8 @@ class BufferedAnalyticsServiceTest {
             // verifies the synchronous fast-path is wired so subsequent
             // refactors can't accidentally route all calls through the buffer.
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
 
@@ -237,9 +248,10 @@ class BufferedAnalyticsServiceTest {
     fun `onSentryReady flips the flag`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
 
             assertFalse(service.isReady)
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             assertTrue(service.isReady)
         }
@@ -248,7 +260,7 @@ class BufferedAnalyticsServiceTest {
     fun `onSentryReady drains the buffer to the downstream`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
 
             // Pile up multiple buffered events
             service.track(AnalyticsEvent.ScreenOpened.Dashboard)
@@ -257,6 +269,7 @@ class BufferedAnalyticsServiceTest {
             advanceUntilIdle()
             assertEquals(3, service.bufferedCount())
 
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
 
@@ -269,16 +282,18 @@ class BufferedAnalyticsServiceTest {
     fun `onSentryReady is idempotent - second call does not double-flush`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
 
             service.track(AnalyticsEvent.ScreenOpened.Dashboard)
             advanceUntilIdle()
 
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
             assertEquals(1, downstream.tracked.size)
 
             // Second ready call must not re-flush already-drained events.
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
             assertEquals(1, downstream.tracked.size, "second ready signal must be a no-op")
@@ -290,7 +305,8 @@ class BufferedAnalyticsServiceTest {
     fun `track after ready goes directly to downstream not the buffer`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
 
@@ -304,7 +320,8 @@ class BufferedAnalyticsServiceTest {
     fun `trackImmediate after ready goes directly to downstream`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
 
@@ -318,7 +335,8 @@ class BufferedAnalyticsServiceTest {
     fun `captureException after ready goes directly to downstream`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
 
@@ -334,7 +352,8 @@ class BufferedAnalyticsServiceTest {
     fun `captureExceptionImmediate after ready goes directly to downstream`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
 
@@ -365,6 +384,7 @@ class BufferedAnalyticsServiceTest {
                     scope = unconfinedScope(),
                     maxBuffer = 3,
                     flushIntervalMs = 0L,
+                    sendDispatcher = Dispatchers.Unconfined,
                 )
 
             // Use exceptions for distinguishable identity — see the buffer-
@@ -384,6 +404,7 @@ class BufferedAnalyticsServiceTest {
 
             assertEquals(3, service.bufferedCount(), "buffer must stay bounded")
 
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
 
@@ -404,6 +425,7 @@ class BufferedAnalyticsServiceTest {
                     scope = unconfinedScope(),
                     maxBuffer = 3,
                     flushIntervalMs = 0L,
+                    sendDispatcher = Dispatchers.Unconfined,
                 )
 
             // Three normal-priority items fill the buffer. Then a critical
@@ -424,6 +446,7 @@ class BufferedAnalyticsServiceTest {
 
             assertEquals(3, service.bufferedCount())
 
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
 
@@ -440,7 +463,8 @@ class BufferedAnalyticsServiceTest {
     fun `track falls back to buffer when downstream throws after ready`() =
         runTest {
             val downstream = RecordingAnalyticsService(throwOnTrack = true)
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
 
@@ -456,7 +480,8 @@ class BufferedAnalyticsServiceTest {
     fun `captureException falls back to buffer when downstream throws after ready`() =
         runTest {
             val downstream = RecordingAnalyticsService(throwOnCaptureException = true)
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
 
@@ -473,9 +498,10 @@ class BufferedAnalyticsServiceTest {
     fun `isReady reflects the readiness flag`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
 
             assertFalse(service.isReady)
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             assertTrue(service.isReady)
         }
@@ -484,7 +510,7 @@ class BufferedAnalyticsServiceTest {
     fun `bufferedCount tracks enqueue and drain`() =
         runTest {
             val downstream = RecordingAnalyticsService()
-            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
 
             assertEquals(0, service.bufferedCount())
 
@@ -493,8 +519,78 @@ class BufferedAnalyticsServiceTest {
             advanceUntilIdle()
             assertEquals(2, service.bufferedCount())
 
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
             service.onSentryReady()
             advanceUntilIdle()
             assertEquals(0, service.bufferedCount())
+        }
+
+    // ============ INIT FAILURE GATING ============
+
+    @Test
+    fun `failed init keeps events buffered and onSentryReady does not flip readiness`() =
+        runTest {
+            val downstream = RecordingAnalyticsService(throwOnInit = true)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
+            service.track(AnalyticsEvent.ScreenOpened.Dashboard)
+
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
+            service.onSentryReady()
+
+            assertFalse(service.isReady, "failed init must never flip readiness")
+            assertTrue(downstream.tracked.isEmpty(), "no event may reach an uninitialised SDK")
+            assertEquals(1, service.bufferedCount(), "events must stay buffered after failed init")
+        }
+
+    @Test
+    fun `successful re-init after a failed one allows readiness and flushes the buffer`() =
+        runTest {
+            val downstream = RecordingAnalyticsService(throwOnInit = true)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
+            service.track(AnalyticsEvent.ScreenOpened.Dashboard)
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
+            service.onSentryReady()
+            assertFalse(service.isReady)
+
+            downstream.throwOnInit = false
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
+            service.onSentryReady()
+
+            assertTrue(service.isReady, "readiness must be attainable once a later init succeeds")
+            assertEquals(listOf<AnalyticsEvent>(AnalyticsEvent.ScreenOpened.Dashboard), downstream.tracked)
+            assertEquals(0, service.bufferedCount())
+        }
+
+    @Test
+    fun `cancellation thrown by downstream init propagates and never marks init succeeded`() =
+        runTest {
+            val downstream = RecordingAnalyticsService(throwCancellationOnInit = true)
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L, sendDispatcher = Dispatchers.Unconfined)
+            service.track(AnalyticsEvent.ScreenOpened.Dashboard)
+
+            service.init("http://abc@onion/3", "production", "0.5.0", false)
+            service.onSentryReady()
+
+            assertFalse(service.isReady, "a cancelled init must never flip readiness")
+            assertEquals(1, service.bufferedCount(), "events must stay buffered after a cancelled init")
+        }
+
+    // ============ DEFAULT SEND LANE ============
+
+    @Test
+    fun `default send lane processes operations when no dispatcher is injected`() =
+        runTest {
+            val downstream = RecordingAnalyticsService()
+            val service = BufferedAnalyticsService(downstream, unconfinedScope(), flushIntervalMs = 0L)
+
+            service.track(AnalyticsEvent.ScreenOpened.Dashboard)
+
+            // The production lane (Dispatchers.Default, parallelism 1) is asynchronous —
+            // poll in real time from outside the test scheduler's virtual clock.
+            withContext(Dispatchers.Default) {
+                withTimeout(5_000) {
+                    while (service.bufferedCount() != 1) delay(10)
+                }
+            }
         }
 }

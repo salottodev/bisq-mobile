@@ -2,7 +2,10 @@ package network.bisq.mobile.domain.analytics
 
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -48,9 +51,12 @@ import network.bisq.mobile.domain.utils.Logging
  *   in-memory operations, never around calls into the downstream Sentry SDK.
  * - The public [track] / [captureException] / [trackImmediate] /
  *   [captureExceptionImmediate] methods are non-suspending (matching the
- *   [AnalyticsService] contract). They take the fast path when Sentry is
- *   ready (Sentry SDKs are documented thread-safe) or fire-and-forget the
- *   buffer enqueue into [scope] when not — callers never block.
+ *   [AnalyticsService] contract) and NEVER touch the SDK on the caller's
+ *   thread: the Sentry SDK performs disk I/O in `captureMessage`, which
+ *   StrictMode caught running on main at every screen attach.
+ *   Every send/enqueue is fired onto [sendDispatcher] — a parallelism-1 lane,
+ *   so operations execute sequentially in submission order and the FIFO
+ *   guarantees of the buffer policy hold across direct sends and enqueues.
  *
  * ## Lifecycle
  *
@@ -71,14 +77,27 @@ class BufferedAnalyticsService(
     private val scope: CoroutineScope,
     private val maxBuffer: Int = DEFAULT_MAX_BUFFER,
     private val flushIntervalMs: Long = DEFAULT_FLUSH_INTERVAL_MS,
+    sendDispatcher: CoroutineDispatcher? = null,
 ) : AnalyticsService,
     Logging {
+    // Parallelism-1 lane for everything that may call into the Sentry SDK. See the class doc's
+    // thread-safety section: SDK calls do disk I/O and must stay off the caller's thread, and a
+    // single lane keeps sends and buffer operations in submission order. Tests inject an
+    // unconfined dispatcher to keep their eager-execution assertions.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val sendDispatcher: CoroutineDispatcher = sendDispatcher ?: Dispatchers.Default.limitedParallelism(1)
+
     private val buffer = ArrayDeque<BufferedItem>()
     private val mutex = Mutex()
 
     // atomicfu's atomic<Boolean> gives us cross-platform volatile semantics
     // without needing platform-specific @Volatile.
     private val sentryReady = atomic(false)
+
+    // Latest init() outcome, written on the send lane. Gates onSentryReady(): a failed init
+    // must never flip readiness, or the ready-flush would push buffered events into an
+    // uninitialised SDK where they get silently dropped.
+    private val initSucceeded = atomic(false)
 
     private sealed class BufferedItem {
         data class Track(
@@ -100,7 +119,9 @@ class BufferedAnalyticsService(
         // interfering with `advanceUntilIdle()`. Production code never sets
         // this to zero.
         if (flushIntervalMs > 0) {
-            scope.launch {
+            // On the send lane so a periodic flush cannot interleave with in-flight sends;
+            // delay() suspends without occupying the lane.
+            scope.launch(this.sendDispatcher) {
                 while (isActive) {
                     delay(flushIntervalMs)
                     if (sentryReady.value) flush()
@@ -117,49 +138,73 @@ class BufferedAnalyticsService(
         socksProxyHost: String?,
         socksProxyPort: Int?,
     ) {
-        // Forward init synchronously. Readiness is a separate signal that the
-        // lifecycle service flips via onSentryReady() once Tor is up AND
-        // Sentry.init has completed — see ApplicationLifecycleService.
-        downstream.init(dsn, environment, release, isDebug, socksProxyHost, socksProxyPort)
+        // Forwarded on the send lane, not the caller's thread: Sentry.init does heavy disk I/O
+        // and the lifecycle service invokes this from a Main-dispatched coroutine mid-bootstrap
+        // (StrictMode caught it dropping frames). Ordering with onSentryReady() is preserved by
+        // the lane's FIFO: the ready-check-and-flush queues BEHIND this init task, so by the
+        // time it runs, initSucceeded reflects THIS init's outcome and a failed init keeps
+        // events buffered instead of flushing them into a dead SDK.
+        scope.launch(sendDispatcher) {
+            initSucceeded.value =
+                try {
+                    downstream.init(dsn, environment, release, isDebug, socksProxyHost, socksProxyPort)
+                    true
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (t: Throwable) {
+                    // Class name only — the exception message can embed the DSN (Sentry's
+                    // DSN-parse errors do), and the DSN carries the ingest key.
+                    log.e { "Analytics downstream init failed (${t::class.simpleName}) — events will stay buffered" }
+                    false
+                }
+        }
     }
 
     override fun track(event: AnalyticsEvent) {
-        if (sentryReady.value && tryDirect { downstream.track(event) }) {
-            log.d { "Analytics: track(${event.name}) → forwarded direct" }
-            return
+        scope.launch(sendDispatcher) {
+            if (sentryReady.value && tryDirect { downstream.track(event) }) {
+                log.d { "Analytics: track(${event.name}) → forwarded direct" }
+            } else {
+                // Not ready, or direct push threw: buffer at TAIL (FIFO ordering).
+                log.d { "Analytics: track(${event.name}) → buffered (Sentry not ready)" }
+                enqueueAtTail(BufferedItem.Track(event))
+            }
         }
-        // Not ready, or direct push threw: buffer at TAIL (FIFO ordering).
-        log.d { "Analytics: track(${event.name}) → buffered (Sentry not ready)" }
-        scope.launch { enqueueAtTail(BufferedItem.Track(event)) }
     }
 
     override fun trackImmediate(event: AnalyticsEvent) {
-        if (sentryReady.value && tryDirect { downstream.trackImmediate(event) }) {
-            log.d { "Analytics: trackImmediate(${event.name}) → forwarded direct" }
-            return
+        scope.launch(sendDispatcher) {
+            if (sentryReady.value && tryDirect { downstream.trackImmediate(event) }) {
+                log.d { "Analytics: trackImmediate(${event.name}) → forwarded direct" }
+            } else {
+                // Not ready, or direct push threw: buffer at HEAD so this jumps any
+                // lower-priority events still queued behind it.
+                log.d { "Analytics: trackImmediate(${event.name}) → buffered at HEAD (Sentry not ready)" }
+                enqueueAtHead(BufferedItem.Track(event))
+            }
         }
-        // Not ready, or direct push threw: buffer at HEAD so this jumps any
-        // lower-priority events still queued behind it.
-        log.d { "Analytics: trackImmediate(${event.name}) → buffered at HEAD (Sentry not ready)" }
-        scope.launch { enqueueAtHead(BufferedItem.Track(event)) }
     }
 
     override fun captureException(throwable: Throwable) {
-        if (sentryReady.value && tryDirect { downstream.captureException(throwable) }) {
-            log.d { "Analytics: captureException(${throwable::class.simpleName}) → forwarded direct" }
-            return
+        scope.launch(sendDispatcher) {
+            if (sentryReady.value && tryDirect { downstream.captureException(throwable) }) {
+                log.d { "Analytics: captureException(${throwable::class.simpleName}) → forwarded direct" }
+            } else {
+                log.d { "Analytics: captureException(${throwable::class.simpleName}) → buffered (Sentry not ready)" }
+                enqueueAtTail(BufferedItem.Exception(throwable))
+            }
         }
-        log.d { "Analytics: captureException(${throwable::class.simpleName}) → buffered (Sentry not ready)" }
-        scope.launch { enqueueAtTail(BufferedItem.Exception(throwable)) }
     }
 
     override fun captureExceptionImmediate(throwable: Throwable) {
-        if (sentryReady.value && tryDirect { downstream.captureExceptionImmediate(throwable) }) {
-            log.d { "Analytics: captureExceptionImmediate(${throwable::class.simpleName}) → forwarded direct" }
-            return
+        scope.launch(sendDispatcher) {
+            if (sentryReady.value && tryDirect { downstream.captureExceptionImmediate(throwable) }) {
+                log.d { "Analytics: captureExceptionImmediate(${throwable::class.simpleName}) → forwarded direct" }
+            } else {
+                log.d { "Analytics: captureExceptionImmediate(${throwable::class.simpleName}) → buffered at HEAD (Sentry not ready)" }
+                enqueueAtHead(BufferedItem.Exception(throwable))
+            }
         }
-        log.d { "Analytics: captureExceptionImmediate(${throwable::class.simpleName}) → buffered at HEAD (Sentry not ready)" }
-        scope.launch { enqueueAtHead(BufferedItem.Exception(throwable)) }
     }
 
     /**
@@ -172,9 +217,17 @@ class BufferedAnalyticsService(
      * SDK options.
      */
     fun onSentryReady() {
-        if (!sentryReady.compareAndSet(expect = false, update = true)) return
-        log.d { "Sentry ready — flushing buffered analytics events" }
-        scope.launch { flush() }
+        // Both the gate check and the readiness flip run on the send lane so they observe the
+        // outcome of the init() task queued before them — see init()'s FIFO-ordering comment.
+        scope.launch(sendDispatcher) {
+            if (!initSucceeded.value) {
+                log.w { "onSentryReady ignored — downstream init failed or never ran; events stay buffered" }
+                return@launch
+            }
+            if (!sentryReady.compareAndSet(expect = false, update = true)) return@launch
+            log.d { "Sentry ready — flushing buffered analytics events" }
+            flush()
+        }
     }
 
     /**
