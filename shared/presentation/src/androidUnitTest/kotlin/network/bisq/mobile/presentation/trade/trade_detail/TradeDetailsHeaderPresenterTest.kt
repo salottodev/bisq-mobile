@@ -14,11 +14,13 @@ import network.bisq.mobile.data.service.mediation.MediationServiceFacade
 import network.bisq.mobile.data.service.offers.MediatorNotAvailableException
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.domain.analytics.AnalyticsEvent
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 import network.bisq.mobile.presentation.common.ui.error.GenericErrorHandler
 import network.bisq.mobile.presentation.main.MainPresenter
+import network.bisq.mobile.test.mocks.SettingsRepositoryMock
 import network.bisq.mobile.test.presentation.coroutines.PresentationKoinTestBase
 import java.util.Locale
 import kotlin.test.Test
@@ -60,12 +62,13 @@ class TradeDetailsHeaderPresenterTest : PresentationKoinTestBase() {
         }
     }
 
-    private fun createPresenter(): TradeDetailsHeaderPresenter =
+    private fun createPresenter(settingsRepository: SettingsRepositoryMock = SettingsRepositoryMock()): TradeDetailsHeaderPresenter =
         TradeDetailsHeaderPresenter(
             mainPresenter,
             tradesServiceFacade,
             mediationServiceFacade,
             userProfileServiceFacade,
+            settingsRepository,
         )
 
     @Test
@@ -79,6 +82,29 @@ class TradeDetailsHeaderPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             assertEquals(DirectionEnum.SELL, presenter.directionEnum)
+        }
+
+    @Test
+    fun `isAnalyticsEnabled mirrors the persisted opt-in and gates the interrupt-reason chips`() =
+        runTest {
+            val harness = createTradeDetailsHeaderTestHarness(isSeller = false)
+            every { tradesServiceFacade.selectedTrade } returns harness.selectedTrade
+            val settingsRepository = SettingsRepositoryMock()
+
+            val presenter = createPresenter(settingsRepository)
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            // Default is opted-out — the chips must never show unless proven otherwise.
+            assertEquals(false, presenter.isAnalyticsEnabled.value)
+
+            settingsRepository.setAnalyticsEnabled(true)
+            advanceUntilIdle()
+            assertEquals(true, presenter.isAnalyticsEnabled.value)
+
+            settingsRepository.setAnalyticsEnabled(false)
+            advanceUntilIdle()
+            assertEquals(false, presenter.isAnalyticsEnabled.value)
         }
 
     @Test
@@ -189,6 +215,45 @@ class TradeDetailsHeaderPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             coVerify { tradesServiceFacade.cancelTrade() }
+        }
+
+    @Test
+    fun `when interrupt trade in reject state then forwards selected reason to reject trade`() =
+        runTest {
+            val harness = createTradeDetailsHeaderTestHarness(isSeller = true)
+            every { tradesServiceFacade.selectedTrade } returns harness.selectedTrade
+            coEvery { tradesServiceFacade.rejectTrade(any()) } returns Result.success(Unit)
+
+            val presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onInterruptTrade(AnalyticsEvent.Trade.InterruptReason.PRICE_MOVED)
+            advanceUntilIdle()
+
+            coVerify { tradesServiceFacade.rejectTrade(AnalyticsEvent.Trade.InterruptReason.PRICE_MOVED) }
+            coVerify(exactly = 0) { tradesServiceFacade.cancelTrade(any()) }
+        }
+
+    @Test
+    fun `when interrupt trade in cancel state then forwards selected reason to cancel trade`() =
+        runTest {
+            val harness = createTradeDetailsHeaderTestHarness(isSeller = true)
+            every { tradesServiceFacade.selectedTrade } returns harness.selectedTrade
+            coEvery { tradesServiceFacade.cancelTrade(any()) } returns Result.success(Unit)
+
+            val presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            harness.tradeStateFlow.value = BisqEasyTradeStateEnum.BUYER_SENT_FIAT_SENT_CONFIRMATION
+            advanceUntilIdle()
+
+            presenter.onInterruptTrade(AnalyticsEvent.Trade.InterruptReason.PRICE_MOVED)
+            advanceUntilIdle()
+
+            coVerify { tradesServiceFacade.cancelTrade(AnalyticsEvent.Trade.InterruptReason.PRICE_MOVED) }
+            coVerify(exactly = 0) { tradesServiceFacade.rejectTrade(any()) }
         }
 
     @Test
