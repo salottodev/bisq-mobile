@@ -37,6 +37,7 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
     private lateinit var reputationServiceFacade: ReputationServiceFacade
     private lateinit var ignoredProfileIds: MutableStateFlow<Set<String>>
     private lateinit var ownProfiles: MutableStateFlow<List<UserProfileVO>>
+    private lateinit var reputationScores: MutableStateFlow<Map<String, Long>>
     private lateinit var presenter: PeerProfilePresenter
 
     private val peer = createMockUserProfile(PEER_ID)
@@ -53,13 +54,19 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
     override fun onKoinReady() {
         ignoredProfileIds = MutableStateFlow(emptySet())
         ownProfiles = MutableStateFlow(emptyList())
+        reputationScores = MutableStateFlow(emptyMap())
 
         userProfileServiceFacade =
             mockk(relaxed = true) {
                 every { ignoredProfileIds } returns this@PeerProfilePresenterTest.ignoredProfileIds
                 every { userProfiles } returns ownProfiles
             }
-        reputationServiceFacade = mockk(relaxed = true)
+        // Never left to the relaxed mock: the presenter collects this, and a mocked StateFlow would
+        // go silent by accident rather than by design.
+        reputationServiceFacade =
+            mockk(relaxed = true) {
+                every { scoreByUserProfileId } returns reputationScores
+            }
 
         coEvery { userProfileServiceFacade.findUserProfile(PEER_ID) } returns peer
         coEvery { reputationServiceFacade.getReputation(PEER_ID) } returns Result.success(REPUTATION)
@@ -147,7 +154,7 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
             // screen must still render. A non-empty score map proves the snapshot arrived and this
             // peer simply is not in it.
             coEvery { reputationServiceFacade.getReputation(PEER_ID) } returns Result.failure(RuntimeException("no score"))
-            every { reputationServiceFacade.scoreByUserProfileId } returns mapOf("someone-else" to 500L)
+            reputationScores.value = mapOf("someone-else" to 500L)
 
             presenter.initialize(PEER_ID)
             advanceUntilIdle()
@@ -167,7 +174,7 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
             // contradict the offerbook card the user tapped through, which may show 4.5 stars for
             // this very peer.
             coEvery { reputationServiceFacade.getReputation(PEER_ID) } returns Result.failure(RuntimeException("no score"))
-            every { reputationServiceFacade.scoreByUserProfileId } returns emptyMap()
+            reputationScores.value = emptyMap()
 
             presenter.initialize(PEER_ID)
             advanceUntilIdle()
@@ -185,7 +192,7 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
             // Running it through the zero fallback would render a transport error as a confident
             // "0 pts" — the misreading the unknown state exists to prevent.
             coEvery { reputationServiceFacade.getReputation(PEER_ID) } throws RuntimeException("transport")
-            every { reputationServiceFacade.scoreByUserProfileId } returns mapOf("someone-else" to 500L)
+            reputationScores.value = mapOf("someone-else" to 500L)
 
             presenter.initialize(PEER_ID)
             advanceUntilIdle()
@@ -195,6 +202,52 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
             assertTrue(state.isReputationUnknown)
             assertEquals(0L, state.reputationScore)
             assertFalse(state.isLoadFailed)
+        }
+
+    @Test
+    fun `when the snapshot arrives after the profile then the score fills in`() =
+        runTest {
+            // The client facade answers getReputation from a cache the REPUTATION subscription fills
+            // asynchronously, so a screen opened before the first payload resolves to "unknown". It
+            // must not stay that way once the payload lands.
+            coEvery { reputationServiceFacade.getReputation(PEER_ID) } returns Result.failure(RuntimeException("not cached yet"))
+
+            presenter.initialize(PEER_ID)
+            advanceUntilIdle()
+            assertTrue(presenter.uiState.value.isReputationUnknown)
+
+            coEvery { reputationServiceFacade.getReputation(PEER_ID) } returns Result.success(REPUTATION)
+            reputationScores.value = mapOf(PEER_ID to 12_400L)
+            advanceUntilIdle()
+
+            val state = presenter.uiState.value
+            assertFalse(state.isReputationUnknown)
+            assertEquals(12_400L, state.reputationScore)
+            assertEquals(4.5, state.starRating)
+        }
+
+    @Test
+    fun `when another peer's score changes then this peer is not looked up again`() =
+        runTest {
+            // Re-resolving is not free on the node flavour — Bisq2 ranks a peer by sorting every score
+            // it holds — and the snapshot changes on every peer's update, not just this one's.
+            var lookups = 0
+            coEvery { reputationServiceFacade.getReputation(PEER_ID) } answers {
+                lookups++
+                Result.success(REPUTATION)
+            }
+            // Non-empty before loading: a snapshot arriving at all is a relevant change, and this test
+            // is about the ones that are not.
+            reputationScores.value = mapOf("someone-else" to 500L)
+
+            presenter.initialize(PEER_ID)
+            advanceUntilIdle()
+            val afterLoad = lookups
+
+            reputationScores.value = mapOf("someone-else" to 900L, "a-third-peer" to 10L)
+            advanceUntilIdle()
+
+            assertEquals(afterLoad, lookups)
         }
 
     @Test

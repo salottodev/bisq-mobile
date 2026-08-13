@@ -50,6 +50,7 @@ class PeerProfileScreenUiTest : PresentationInjectComposeUiTestBase() {
 
     private lateinit var ignoredProfileIds: MutableStateFlow<Set<String>>
     private lateinit var ownProfiles: MutableStateFlow<List<UserProfileVO>>
+    private lateinit var reputationScores: MutableStateFlow<Map<String, Long>>
 
     private val peer = createMockUserProfile(PEER_ID)
 
@@ -77,6 +78,7 @@ class PeerProfileScreenUiTest : PresentationInjectComposeUiTestBase() {
     override fun onKoinReady() {
         ignoredProfileIds = MutableStateFlow(emptySet())
         ownProfiles = MutableStateFlow(emptyList())
+        reputationScores = MutableStateFlow(emptyMap())
 
         userProfileServiceFacade = mockk(relaxed = true)
         reputationServiceFacade = mockk(relaxed = true)
@@ -84,6 +86,9 @@ class PeerProfileScreenUiTest : PresentationInjectComposeUiTestBase() {
 
         every { userProfileServiceFacade.ignoredProfileIds } returns ignoredProfileIds
         every { userProfileServiceFacade.userProfiles } returns ownProfiles
+        // Never left to the relaxed mock: the presenter collects this, and a mocked StateFlow would
+        // go silent by accident rather than by design.
+        every { reputationServiceFacade.scoreByUserProfileId } returns reputationScores
         coEvery { userProfileServiceFacade.findUserProfile(PEER_ID) } returns peer
         coEvery { reputationServiceFacade.getReputation(PEER_ID) } returns Result.success(REPUTATION)
     }
@@ -204,7 +209,7 @@ class PeerProfileScreenUiTest : PresentationInjectComposeUiTestBase() {
             coEvery { reputationServiceFacade.getReputation(PEER_ID) } returns Result.failure(RuntimeException("no score"))
             // Non-empty: the snapshot arrived and this peer is genuinely unscored, as opposed to the
             // unavailable case above where nothing has loaded.
-            every { reputationServiceFacade.scoreByUserProfileId } returns mapOf("someone-else" to 500L)
+            reputationScores.value = mapOf("someone-else" to 500L)
 
             renderScreen()
             advanceUntilIdle()

@@ -1,8 +1,12 @@
 package network.bisq.mobile.node.common.domain.service.reputation
 
+import bisq.common.observable.Pin
 import bisq.user.reputation.ReputationScore
 import bisq.user.reputation.ReputationService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.ServiceFacade
@@ -15,16 +19,32 @@ class NodeReputationServiceFacade(
 ) : ServiceFacade(),
     ReputationServiceFacade {
     private val reputationService: ReputationService by lazy { applicationService.reputationService.get() }
+    private val pins: MutableList<Pin> = mutableListOf()
 
-    override val scoreByUserProfileId: Map<String, Long> get() = reputationService.scoreByUserProfileId
+    private val _scoreByUserProfileId = MutableStateFlow<Map<String, Long>>(emptyMap())
+    override val scoreByUserProfileId: StateFlow<Map<String, Long>> = _scoreByUserProfileId.asStateFlow()
 
     // Life cycle
     override suspend fun activate() {
         super<ServiceFacade>.activate()
+
+        // Copied rather than published directly: reputationService.scoreByUserProfileId is a live
+        // ObservableHashMap, so handing it out would let collectors read it mid-update and would
+        // defeat the StateFlow's equality check. Bisq2 sets userProfileIdWithScoreChange right after
+        // every put into that map, which is the signal that a new score landed.
+        publishScores()
+        pins += reputationService.userProfileIdWithScoreChange.addObserver { publishScores() }
     }
 
     override suspend fun deactivate() {
+        pins.forEach { it.unbind() }
+        pins.clear()
+
         super<ServiceFacade>.deactivate()
+    }
+
+    private fun publishScores() {
+        _scoreByUserProfileId.value = reputationService.scoreByUserProfileId.toMap()
     }
 
     // API

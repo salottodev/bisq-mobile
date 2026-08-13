@@ -36,6 +36,16 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CreateOfferAmountPresenterTest : PlatformPresentationKoinTestBase() {
+    /**
+     * `scoreByUserProfileId` is stubbed explicitly because a relaxed mock cannot fabricate a
+     * `StateFlow`, and the presenter reads `.value` off it while counting potential takers.
+     */
+    private fun reputationFacadeMock(stubs: ReputationServiceFacade.() -> Unit = {}) =
+        mockk<ReputationServiceFacade>(relaxed = true).apply {
+            every { scoreByUserProfileId } returns MutableStateFlow(emptyMap())
+            stubs()
+        }
+
     @Test
     fun fixed_slider_updates_progressively_and_limit_info_updates_on_release() =
         runTest {
@@ -85,7 +95,7 @@ class CreateOfferAmountPresenterTest : PlatformPresentationKoinTestBase() {
                     marketPriceServiceFacade,
                     createOfferCoordinator,
                     mockk<UserProfileServiceFacade>(relaxed = true),
-                    mockk<ReputationServiceFacade>(relaxed = true),
+                    reputationFacadeMock(),
                     FakeConfigServiceFacade(),
                 )
 
@@ -164,7 +174,7 @@ class CreateOfferAmountPresenterTest : PlatformPresentationKoinTestBase() {
                     marketPriceServiceFacade,
                     createOfferCoordinator,
                     mockk<UserProfileServiceFacade>(relaxed = true),
-                    mockk<ReputationServiceFacade>(relaxed = true),
+                    reputationFacadeMock(),
                     FakeConfigServiceFacade(),
                 )
 
@@ -244,7 +254,7 @@ class CreateOfferAmountPresenterTest : PlatformPresentationKoinTestBase() {
                     every { selectedUserProfile } returns MutableStateFlow(userProfile)
                 }
             val reputationServiceFacade =
-                mockk<ReputationServiceFacade>(relaxed = true).apply {
+                reputationFacadeMock {
                     coEvery { getReputation(userProfile.id) } returns Result.success(ReputationScoreVO(totalScore = 30_000L, fiveSystemScore = 5.0, ranking = 1))
                 }
 
@@ -323,7 +333,7 @@ class CreateOfferAmountPresenterTest : PlatformPresentationKoinTestBase() {
             // raw slider fraction (amount - min) / range is negative. Pre-fix this produced an
             // inverted RangeSlider valueRange (0f..negative) and crashed on measure (issue #1571).
             val reputationServiceFacade =
-                mockk<ReputationServiceFacade>(relaxed = true).apply {
+                reputationFacadeMock {
                     coEvery { getReputation(userProfile.id) } returns
                         Result.success(ReputationScoreVO(totalScore = 0L, fiveSystemScore = 0.0, ranking = 0))
                 }

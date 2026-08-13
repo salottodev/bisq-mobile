@@ -5,6 +5,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
@@ -45,6 +47,7 @@ class PeerProfilePresenter(
     private var profileId: String? = null
     private var ignoredStateJob: Job? = null
     private var loadProfileJob: Job? = null
+    private var reputationJob: Job? = null
 
     /**
      * Binds this presenter to one peer, once. The screen's `LaunchedEffect` re-fires whenever this
@@ -134,6 +137,8 @@ class PeerProfilePresenter(
                             isLoading = false,
                         )
                     }
+
+                    observeReputation(profileId)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -187,8 +192,7 @@ class PeerProfilePresenter(
      * function exists to prevent — the offerbook card the user tapped through may be showing 4.5
      * stars for the same peer.
      *
-     * Follow-up: a late-arriving snapshot does not refresh this screen, because the facade exposes
-     * the map as a plain getter rather than a flow and the load runs once.
+     * Both verdicts are re-taken whenever the snapshot changes — see [observeReputation].
      */
     private suspend fun loadReputation(profileId: String): ReputationScoreVO? {
         val result =
@@ -201,7 +205,45 @@ class PeerProfilePresenter(
                 return null
             }
         result.getOrNull()?.let { return it }
-        return if (reputationServiceFacade.scoreByUserProfileId.isNotEmpty()) ZERO_REPUTATION else null
+        return if (reputationServiceFacade.scoreByUserProfileId.value.isNotEmpty()) ZERO_REPUTATION else null
+    }
+
+    /**
+     * Keeps the score current after the first paint. On the client flavour `getReputation` reads a
+     * local cache filled asynchronously by the `REPUTATION` subscription, so opening this screen
+     * before the first payload lands resolves to "unknown" — and without this, it would stay that way
+     * for as long as the screen is open. The node fills its own map from the network just the same.
+     *
+     * The snapshot is the trigger, not the source: it carries scores, while the screen needs the whole
+     * score object, so each pass re-asks [loadReputation] for this one peer. Narrowed to the two facts
+     * that can change this peer's verdict — its own score, and whether anything has arrived at all,
+     * which is what flips "unknown" to a real zero — because on the node that re-ask is not a lookup:
+     * Bisq2 ranks a peer by sorting every score it holds, and every other peer's update would pay for
+     * it.
+     *
+     * The first emission is deliberately not dropped: a `StateFlow` replays the current value, which
+     * re-resolves to what [loadProfile] just wrote, and `_uiState` conflates the identical copy. That
+     * closes the gap between that read and this subscription, where a dropped emission would
+     * otherwise be lost for good.
+     */
+    private fun observeReputation(profileId: String) {
+        reputationJob?.cancel()
+        reputationJob =
+            presenterScope.launch {
+                reputationServiceFacade.scoreByUserProfileId
+                    .map { scores -> scores[profileId] to scores.isNotEmpty() }
+                    .distinctUntilChanged()
+                    .collect {
+                        val reputation = loadReputation(profileId)
+                        _uiState.update {
+                            it.copy(
+                                starRating = reputation?.fiveSystemScore ?: 0.0,
+                                reputationScore = reputation?.totalScore ?: 0L,
+                                isReputationUnknown = reputation == null,
+                            )
+                        }
+                    }
+            }
     }
 
     /**
