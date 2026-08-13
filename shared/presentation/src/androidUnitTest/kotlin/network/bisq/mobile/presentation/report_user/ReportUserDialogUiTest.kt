@@ -18,7 +18,7 @@ import kotlin.test.Test
  * The dialog seeds its text field from `reportMessage`, the draft kept after a failed report. That
  * seeding must happen once per dialog and never again while the user is typing a replacement.
  */
-class ReportUserDialogTest : PresentationKoinComposeTestBase() {
+class ReportUserDialogUiTest : PresentationKoinComposeTestBase() {
     private val userProfileServiceFacade: UserProfileServiceFacade = mockk(relaxed = true)
     private val mainPresenter: MainPresenter = mockk(relaxed = true)
     private val accusedUserProfile = createMockUserProfile("Satoshi")

@@ -49,6 +49,12 @@ kotlin {
             api(libs.koin.core)
             api(libs.koin.test)
 
+            // KoinIsolatedContext, for the Compose bases that pin a graph to one composition
+            implementation(libs.koin.compose)
+
+            // LocalViewModelStoreOwner, for screens whose presenter lives in a viewModel { }
+            implementation(libs.androidx.lifecycle.viewmodel.compose)
+
             // Presentation test bases (test.presentation.*) — api because base classes
             // expose presentation types (NavigationManager, GlobalUiManager) to subclasses.
             // One-way dependency: test-utils androidMain -> presentation main. Presentation's

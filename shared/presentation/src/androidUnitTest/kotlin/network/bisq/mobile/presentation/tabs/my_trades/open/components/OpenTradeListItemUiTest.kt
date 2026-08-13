@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
  * The row is a tap target in its own right — it opens the trade — so the peer profile link must stay
  * confined to the avatar. These two tests pin both halves of that split.
  */
-class OpenTradeListItemTest : PresentationKoinComposeTestBase() {
+class OpenTradeListItemUiTest : PresentationKoinComposeTestBase() {
     private val peerName = "Satoshi"
     private val item: TradeItemPresentationModel =
         createMockTradeItem(tradeRole = TradeRoleEnum.BUYER_AS_TAKER, peerName = peerName)

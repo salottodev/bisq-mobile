@@ -35,6 +35,7 @@ Changed file layer?
 ├── Domain Android-only API (androidMain) → androidUnitTest + @RunWith(RobolectricTestRunner) — no leaf base
 ├── Presenter (:shared:presentation) → *PresenterTest.kt, PresentationKoinTestBase / PlatformPresentationKoinTestBase → recipes.md#presenter
 ├── Composable (:shared:presentation) → *UiTest.kt, BisqComposeUiTestBase or PresentationKoinComposeTestBase → recipes.md#compose
+├── Screen (:shared:presentation) resolved via RememberPresenterLifecycleBackStackAware → PresentationInjectComposeUiTestBase → recipes.md#compose
 ├── Client facade/service → ClientKoinIntegrationTestBase → recipes.md#client
 ├── Client Compose + TestApplication → BisqComposeUiTestBase + @Config(TestApplication); no startKoin → recipes.md#compose
 ├── Client Compose + inject overrides → ClientInjectComposeUiTestBase (not TestApplication) → recipes.md#compose
@@ -44,7 +45,7 @@ Changed file layer?
 
 Do not extend `CoroutineTestBase` or `KoinIntegrationTestBase` directly.
 
-**Proof tests (copy these, not legacy siblings):** `FaqPresenterTest`, `OfferbookPresenterFilterTest`, `ClientSettingsServiceFacadeTest`, `SwitchUiTest`, `LinkButtonUiTest`, `PaymentAccountMethodIconUiTest`, `ClientSplashScreenUiTest` — paths in [catalog.md](testing/catalog.md).
+**Proof tests (copy these, not legacy siblings):** `FaqPresenterTest`, `OfferbookPresenterFilterTest`, `ClientSettingsServiceFacadeTest`, `SwitchUiTest`, `LinkButtonUiTest`, `PaymentAccountMethodIconUiTest`, `ClientSplashScreenUiTest`, `PeerProfileScreenUiTest` — paths in [catalog.md](testing/catalog.md).
 
 ## File placement
 
@@ -67,6 +68,7 @@ Test:       <module>/src/<testSourceSet>/kotlin/<same package>/<Name><Suffix>.kt
 | --- | --- |
 | `@Config(application = TestApplication::class)` | Pair with `BisqComposeUiTestBase` (or plain UI without a Koin-starting base). Koin from `TestApplication.onCreate()` — **no** `startKoin` in `@Before` |
 | Client Compose inject overrides | `ClientInjectComposeUiTestBase` — plain `Application`, owned `startKoin`; **no** `TestApplication` |
+| Back-stack-aware presentation screen | `PresentationInjectComposeUiTestBase` + `setInjectTestContent` — Koin from the base; **no** `startKoin` in the test |
 | Client facade test | `ClientKoinIntegrationTestBase` — **no** `TestApplication` |
 | Presentation test | `PresentationKoinTestBase` + `presentationTestModule` — **not** `clientTestModule` |
 | Presenter that attaches a view | Needs `AnalyticsService` bound. The cataloged bases and modules already bind `NoOpAnalyticsService`; a hand-rolled `module { }` must add it or `onViewAttached()` throws `NoDefinitionFoundException` |

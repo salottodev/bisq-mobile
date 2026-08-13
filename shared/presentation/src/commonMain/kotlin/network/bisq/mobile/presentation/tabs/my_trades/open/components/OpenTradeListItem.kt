@@ -140,7 +140,7 @@ fun OpenTradeListItem(
 private val previewUserProfileIconProvider: suspend (UserProfileVO) -> PlatformImage = { createEmptyImage() }
 
 /**
- * Builds a real [TradeItemPresentationModel] for the previews below and for `OpenTradeListItemTest`,
+ * Builds a real [TradeItemPresentationModel] for the previews below and for `OpenTradeListItemUiTest`,
  * mirroring `createMockOfferItem` in `OfferCard.kt`. The model reads through to a DTO and a
  * [BisqEasyTradeModel], so there is no shorter way to get one — but every type in the chain is a
  * plain data class. `internal` rather than private only so the test can share this one fixture.

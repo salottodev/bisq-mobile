@@ -73,7 +73,12 @@ fun PeerProfileScreen(profileId: String) {
         isIgnoreActionEnabled = isIgnoreActionEnabled,
         topBar = {
             TopBar(
-                title = uiState.displayName.ifEmpty { "mobile.peerProfile.title".i18n() },
+                title =
+                    if (uiState.displayName.isEmpty()) {
+                        "mobile.peerProfile.title".i18n()
+                    } else {
+                        i18nText("mobile.peerProfile.titleWithName", uiState.displayName)
+                    },
                 showUserAvatar = false,
             )
         },
@@ -308,7 +313,12 @@ private val previewUserProfileIconProvider: suspend (UserProfileVO) -> PlatformI
 @Composable
 private fun PreviewTopBar(uiState: PeerProfileUiState) {
     TopBarContent(
-        title = uiState.displayName.ifEmpty { "mobile.peerProfile.title".i18n() },
+        title =
+            if (uiState.displayName.isEmpty()) {
+                "mobile.peerProfile.title".i18n()
+            } else {
+                i18nText("mobile.peerProfile.titleWithName", uiState.displayName)
+            },
         showBackButton = true,
         showUserAvatar = false,
     )
