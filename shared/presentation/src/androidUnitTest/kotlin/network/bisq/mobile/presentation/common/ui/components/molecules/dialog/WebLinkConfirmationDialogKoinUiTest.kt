@@ -1,0 +1,692 @@
+package network.bisq.mobile.presentation.common.ui.components.molecules.dialog
+
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.spyk
+import io.mockk.verify
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.presentation.common.ui.base.SnackbarPosition
+import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
+import network.bisq.mobile.presentation.main.MainPresenter
+import network.bisq.mobile.test.presentation.compose.PresentationKoinComposeTestBase
+import org.junit.Test
+import org.koin.core.module.Module
+import kotlin.test.assertEquals
+
+/**
+ * UI tests for [WebLinkConfirmationDialog] using Robolectric.
+ *
+ * These tests verify that the dialog composable renders and behaves correctly when settings and
+ * the main presenter are provided via Koin, including persistence, clipboard and snackbar side
+ * effects, auto-handling when confirmation is suppressed, and user interactions on the dialog.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class WebLinkConfirmationDialogKoinUiTest : PresentationKoinComposeTestBase() {
+    private lateinit var presenter: MainPresenter
+    private lateinit var settingsFacade: WebLinkDialogSettingsServiceFake
+
+    override fun additionalModules(): List<Module> = listOf(webLinkConfirmationTestModule({ presenter }, { settingsFacade }))
+
+    override fun onKoinReady() {
+        settingsFacade = spyk(WebLinkDialogSettingsServiceFake(initialShowWebLinkConfirmation = true))
+        presenter = mockk(relaxed = true)
+        mockNavigateToUrlBehavior(presenter, openUrlResult = true)
+    }
+
+    /**
+     * showWebLinkConfirmation = false,
+     * permitOpeningBrowser = true,
+     */
+    @Test
+    fun `when web link confirmation suppressed and browser permitted then opens uri invokes onConfirm without showing dialog`() {
+        // Given
+        val link = "https://example.com/auto"
+        val onConfirm = mockk<() -> Unit>(relaxed = true)
+        settingsFacade.setShowWebLinkConfirmation(false)
+        settingsFacade.setPermitOpeningBrowserState(true)
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = onConfirm,
+                onDismiss = {},
+                headline = "Should not appear",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Then
+        composeTestRule.waitForIdle()
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
+        verify(exactly = 1) { onConfirm() }
+        composeTestRule.assertNoNodeWithText("Should not appear")
+    }
+
+    @Test
+    fun `when web link confirmation suppressed and browser permitted but launcher fails then invokes onError and does not invoke onConfirm`() {
+        // Given
+        val link = "https://example.com/auto-fail"
+        val onConfirm = mockk<() -> Unit>(relaxed = true)
+        val onError = mockk<() -> Unit>(relaxed = true)
+        settingsFacade.setShowWebLinkConfirmation(false)
+        settingsFacade.setPermitOpeningBrowserState(true)
+        mockNavigateToUrlBehavior(presenter, openUrlResult = false)
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = onConfirm,
+                onDismiss = {},
+                onError = onError,
+                headline = "Should not appear",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Then
+        composeTestRule.waitForIdle()
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
+        verify(exactly = 1) { onError() }
+        verify(exactly = 0) { onConfirm() }
+        verify(exactly = 1) {
+            presenter.showSnackbar(
+                "mobile.error.cannotOpenUrl".i18n(),
+                SnackbarType.ERROR,
+                SnackbarPosition.BOTTOM,
+                SnackbarDuration.Short,
+            )
+        }
+        composeTestRule.assertNoNodeWithText("Should not appear")
+    }
+
+    /**
+     * showWebLinkConfirmation = false,
+     * permitOpeningBrowser = false,
+     */
+    @Test
+    fun `when web link confirmation suppressed and browser not permitted then copies link shows snackbar invokes onDismiss without showing dialog`() {
+        // Given
+        val link = "https://example.com/copy-path"
+        val onDismiss = mockk<() -> Unit>(relaxed = true)
+        settingsFacade.setShowWebLinkConfirmation(false)
+        settingsFacade.setPermitOpeningBrowserState(false)
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = {},
+                onDismiss = onDismiss,
+                headline = "Should not appear",
+                headlineLeftIcon = null,
+                message = "Hidden",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Then
+        composeTestRule.waitForIdle()
+        verify(exactly = 1) { onDismiss() }
+        assertEquals(link, clipboardPrimaryText())
+        verify(exactly = 1) {
+            presenter.showSnackbar(
+                "mobile.components.copyIconButton.copied".i18n(),
+                SnackbarType.SUCCESS,
+                SnackbarPosition.BOTTOM,
+                SnackbarDuration.Short,
+            )
+        }
+        composeTestRule.assertNoNodeWithText("Should not appear")
+    }
+
+    @Test
+    fun `when dismiss clicked then persists browser permit=false, copies link and invokes onDismiss`() {
+        // Given
+        val link = "https://example.com/no"
+        val onDismiss = mockk<() -> Unit>(relaxed = true)
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = {},
+                onDismiss = onDismiss,
+                headline = "Headline",
+                headlineLeftIcon = null,
+                message = "Message",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Action
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_no").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then
+        coVerify(exactly = 1) { settingsFacade.setPermitOpeningBrowser(false) }
+        coVerify(exactly = 0) { settingsFacade.setWebLinkDontShowAgain() }
+        verify(exactly = 1) { onDismiss() }
+        assertEquals(link, clipboardPrimaryText())
+    }
+
+    @Test
+    fun `when dismiss clicked with dont show again checked then persists browser permit false, persists dont show flag and invokes onDismiss`() {
+        // Given
+        val link = "https://example.com/no-dsa"
+        val onDismiss = mockk<() -> Unit>(relaxed = true)
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = {},
+                onDismiss = onDismiss,
+                headline = "Headline",
+                headlineLeftIcon = null,
+                message = "Message",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Action
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("action.dontShowAgain".i18n()).performClick()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_no").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then
+        coVerify(exactly = 1) { settingsFacade.setPermitOpeningBrowser(false) }
+        coVerify(exactly = 1) { settingsFacade.setWebLinkDontShowAgain() }
+        verify(exactly = 1) { onDismiss() }
+    }
+
+    @Test
+    fun `when set permit opening browser fails on dismiss then shows error, snackbar still shown, link copied and invokes onDismiss`() {
+        // Given
+        val link = "https://example.com/fail-dismiss"
+        val onDismiss = mockk<() -> Unit>(relaxed = true)
+        coEvery { settingsFacade.setPermitOpeningBrowser(false) } returns Result.failure(RuntimeException("network"))
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = {},
+                onDismiss = onDismiss,
+                headline = "Headline",
+                headlineLeftIcon = null,
+                message = "Message",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Action
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_no").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then
+        coVerify(exactly = 1) { settingsFacade.setPermitOpeningBrowser(false) } // but this errors
+        verify(exactly = 1) {
+            presenter.showSnackbar(
+                "mobile.error.generic".i18n(),
+                SnackbarType.ERROR,
+                SnackbarPosition.BOTTOM,
+                SnackbarDuration.Short,
+            )
+        }
+        verify(exactly = 1) { onDismiss() }
+        assertEquals(link, clipboardPrimaryText())
+    }
+
+    @Test
+    fun `when set dont show again fails on dismiss with dont show checked then shows error snackbar, link copied and invokes onDismiss`() {
+        // Given
+        val link = "https://example.com/fail-dismiss-dsa"
+        val onDismiss = mockk<() -> Unit>(relaxed = true)
+        coEvery { settingsFacade.setWebLinkDontShowAgain() } returns Result.failure(RuntimeException("network"))
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = {},
+                onDismiss = onDismiss,
+                headline = "Headline",
+                headlineLeftIcon = null,
+                message = "Message",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Action
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("action.dontShowAgain".i18n()).performClick()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_no").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then
+        coVerify(exactly = 1) { settingsFacade.setPermitOpeningBrowser(false) }
+        coVerify(exactly = 1) { settingsFacade.setWebLinkDontShowAgain() } // but this errors
+        verify(exactly = 1) {
+            presenter.showSnackbar(
+                "mobile.error.generic".i18n(),
+                SnackbarType.ERROR,
+                SnackbarPosition.BOTTOM,
+                SnackbarDuration.Short,
+            )
+        }
+        verify(exactly = 1) { onDismiss() }
+        assertEquals(link, clipboardPrimaryText())
+    }
+
+    @Test
+    fun `when copy snackbar throws on dismiss then invokes onError and shows generic error snackbar`() {
+        // Given
+        val link = "https://example.com/copy-throws"
+        val onDismiss = mockk<() -> Unit>(relaxed = true)
+        val onError = mockk<() -> Unit>(relaxed = true)
+        every {
+            presenter.showSnackbar(
+                "mobile.components.copyIconButton.copied".i18n(),
+                SnackbarType.SUCCESS,
+                SnackbarPosition.BOTTOM,
+                SnackbarDuration.Short,
+            )
+        } throws RuntimeException("forced copy snackbar failure")
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = {},
+                onDismiss = onDismiss,
+                onError = onError,
+                headline = "Headline",
+                headlineLeftIcon = null,
+                message = "Message",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Action
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_no").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then
+        verify(exactly = 1) { onError() }
+        verify(exactly = 0) { onDismiss() }
+        assertEquals(link, clipboardPrimaryText())
+        verify(exactly = 1) {
+            presenter.showSnackbar(
+                "mobile.error.generic".i18n(),
+                SnackbarType.ERROR,
+                SnackbarPosition.BOTTOM,
+                SnackbarDuration.Short,
+            )
+        }
+    }
+
+    @Test
+    fun `when confirm clicked then persists browser permitted true, opens uri, does not set dont show again and invokes onConfirm`() {
+        // Given
+        val link = "https://example.com/yes"
+        val onConfirm = mockk<() -> Unit>(relaxed = true)
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = onConfirm,
+                onDismiss = {},
+                headline = "Headline",
+                headlineLeftIcon = null,
+                message = "Message",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Action
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_yes").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then
+        coVerify(exactly = 1) { settingsFacade.setPermitOpeningBrowser(true) }
+        coVerify(exactly = 0) { settingsFacade.setWebLinkDontShowAgain() }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
+        verify(exactly = 1) { onConfirm() }
+    }
+
+    @Test
+    fun `when confirm clicked with dont show again checked then persists browser permitted, persists dont show flag, opens uri and invokes onConfirm`() {
+        // Given
+        val link = "https://example.com/yes-dsa"
+        val onConfirm = mockk<() -> Unit>(relaxed = true)
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = onConfirm,
+                onDismiss = {},
+                headline = "Headline",
+                headlineLeftIcon = null,
+                message = "Message",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Action
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("action.dontShowAgain".i18n()).performClick()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_yes").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then
+        coVerify(exactly = 1) { settingsFacade.setPermitOpeningBrowser(true) }
+        coVerify(exactly = 1) { settingsFacade.setWebLinkDontShowAgain() }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
+        verify(exactly = 1) { onConfirm() }
+    }
+
+    @Test
+    fun `when set permit opening browser fails on confirm then shows error snackbar still, opens uri and invokes onConfirm`() {
+        // Given
+        val link = "https://example.com/fail-confirm"
+        val onConfirm = mockk<() -> Unit>(relaxed = true)
+        coEvery { settingsFacade.setPermitOpeningBrowser(true) } returns Result.failure(RuntimeException("network"))
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = onConfirm,
+                onDismiss = {},
+                headline = "Headline",
+                headlineLeftIcon = null,
+                message = "Message",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Action
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_yes").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then
+        coVerify(exactly = 1) { settingsFacade.setPermitOpeningBrowser(true) } // but this errors
+        verify(exactly = 1) {
+            presenter.showSnackbar(
+                "mobile.error.generic".i18n(),
+                SnackbarType.ERROR,
+                SnackbarPosition.BOTTOM,
+                SnackbarDuration.Short,
+            )
+        }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
+        verify(exactly = 1) { onConfirm() }
+    }
+
+    @Test
+    fun `when set dont show again fails on confirm with dont show checked then shows error snackbar, opens uri and invokes onConfirm`() {
+        // Given
+        val link = "https://example.com/fail-confirm-dsa"
+        val onConfirm = mockk<() -> Unit>(relaxed = true)
+        coEvery { settingsFacade.setWebLinkDontShowAgain() } returns Result.failure(RuntimeException("network"))
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = onConfirm,
+                onDismiss = {},
+                headline = "Headline",
+                headlineLeftIcon = null,
+                message = "Message",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Action
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("action.dontShowAgain".i18n()).performClick()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_yes").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then
+        coVerify(exactly = 1) { settingsFacade.setPermitOpeningBrowser(true) }
+        coVerify(exactly = 1) { settingsFacade.setWebLinkDontShowAgain() } // but this errors
+        verify(exactly = 1) {
+            presenter.showSnackbar(
+                "mobile.error.generic".i18n(),
+                SnackbarType.ERROR,
+                SnackbarPosition.BOTTOM,
+                SnackbarDuration.Short,
+            )
+        }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
+        verify(exactly = 1) { onConfirm() }
+    }
+
+    @Test
+    fun `when confirm clicked and launcher fails then invokes onError shows error snackbar and does not invoke onConfirm`() {
+        // Given
+        val link = "https://example.com/yes-fail-open"
+        val onConfirm = mockk<() -> Unit>(relaxed = true)
+        val onError = mockk<() -> Unit>(relaxed = true)
+        mockNavigateToUrlBehavior(presenter, openUrlResult = false)
+
+        // When
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = onConfirm,
+                onDismiss = {},
+                onError = onError,
+                headline = "Headline",
+                headlineLeftIcon = null,
+                message = "Message",
+                confirmButtonText = "Yes",
+                dismissButtonText = "No",
+            )
+        }
+
+        // Action
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_yes").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then
+        coVerify(exactly = 1) { settingsFacade.setPermitOpeningBrowser(true) }
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
+        verify(exactly = 1) { onError() }
+        verify(exactly = 0) { onConfirm() }
+        verify(exactly = 1) {
+            presenter.showSnackbar(
+                "mobile.error.cannotOpenUrl".i18n(),
+                SnackbarType.ERROR,
+                SnackbarPosition.BOTTOM,
+                SnackbarDuration.Short,
+            )
+        }
+    }
+
+    /**
+     * Flow test:
+     * 1. Open dialog with link1
+     * 2. Check don't show again and open link
+     * 3. Open dialog with link2
+     * 4. Should skip dialog render and open link
+     */
+    @Test
+    fun `when dont show again after open url then second link opens uri without dialog`() {
+        // Given
+        val link1 = "https://example.com/twostep-open-first"
+        val link2 = "https://example.com/twostep-open-second"
+        val headline = "Headline"
+        val message = "Message"
+        val confirmButtonText = "Yes"
+        val dismissButtonText = "No"
+        val onConfirm = mockk<() -> Unit>(relaxed = true)
+
+        // One setContent per test (Compose rule); drive second navigation by changing link state.
+        val linkState = mutableStateOf(link1)
+        setTestContent {
+            key(linkState.value) {
+                WebLinkConfirmationDialog(
+                    link = linkState.value,
+                    onConfirm = onConfirm,
+                    onDismiss = {},
+                    headline = headline,
+                    headlineLeftIcon = null,
+                    message = message,
+                    confirmButtonText = confirmButtonText,
+                    dismissButtonText = dismissButtonText,
+                )
+            }
+        }
+
+        // When — first link: full dialog, dont show again + confirm
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("action.dontShowAgain".i18n()).performClick()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_yes").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then — persisted state matches production semantics
+        assertEquals(false, settingsFacade.showWebLinkConfirmation.value)
+        assertEquals(true, settingsFacade.permitOpeningBrowser.value)
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link1) }
+        verify(exactly = 1) { onConfirm() }
+
+        // When — second link: suppressed confirmation, auto-open
+        composeTestRule.runOnIdle { linkState.value = link2 }
+        composeTestRule.waitForIdle()
+
+        // Then
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link2) }
+        verify(exactly = 2) { onConfirm() }
+        composeTestRule.assertNoNodeWithText(headline)
+    }
+
+    /**
+     * Flow test:
+     * 1. Open dialog with link1
+     * 2. Check don't show again and copy link
+     * 3. Open dialog with link2
+     * 4. Should skip dialog render and copy link and show snackbar
+     */
+    @Test
+    fun `when dont show again after copy link then second link copies without dialog`() {
+        // Given
+        val link1 = "https://example.com/twostep-copy-first"
+        val link2 = "https://example.com/twostep-copy-second"
+        val headline = "Headline"
+        val message = "Message"
+        val confirmButtonText = "Yes"
+        val dismissButtonText = "No"
+        val onDismiss = mockk<() -> Unit>(relaxed = true)
+
+        val linkState = mutableStateOf(link1)
+        setTestContent {
+            key(linkState.value) {
+                WebLinkConfirmationDialog(
+                    link = linkState.value,
+                    onConfirm = {},
+                    onDismiss = onDismiss,
+                    headline = headline,
+                    headlineLeftIcon = null,
+                    message = message,
+                    confirmButtonText = confirmButtonText,
+                    dismissButtonText = dismissButtonText,
+                )
+            }
+        }
+
+        // When — first link: full dialog, dont show again + dismiss (no)
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("action.dontShowAgain".i18n()).performClick()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_no").performClick()
+        composeTestRule.waitForIdle()
+
+        // Then
+        assertEquals(false, settingsFacade.showWebLinkConfirmation.value)
+        assertEquals(false, settingsFacade.permitOpeningBrowser.value)
+        assertEquals(link1, clipboardPrimaryText())
+        verify(exactly = 1) { onDismiss() }
+        verify(exactly = 1) {
+            presenter.showSnackbar(
+                "mobile.components.copyIconButton.copied".i18n(),
+                SnackbarType.SUCCESS,
+                SnackbarPosition.BOTTOM,
+                SnackbarDuration.Short,
+            )
+        }
+
+        // When — second link: suppressed confirmation, auto-copy
+        composeTestRule.runOnIdle { linkState.value = link2 }
+        composeTestRule.waitForIdle()
+
+        // Then
+        assertEquals(link2, clipboardPrimaryText())
+        verify(exactly = 2) { onDismiss() }
+        verify(exactly = 2) {
+            presenter.showSnackbar(
+                "mobile.components.copyIconButton.copied".i18n(),
+                SnackbarType.SUCCESS,
+                SnackbarPosition.BOTTOM,
+                SnackbarDuration.Short,
+            )
+        }
+        composeTestRule.assertNoNodeWithText(headline)
+    }
+
+    @Test
+    fun `when confirm clicked and launcher fails then attempts navigation and invokes onError`() {
+        val link = "https://example.com/launcher-fails"
+        val onError = mockk<() -> Unit>(relaxed = true)
+        mockNavigateToUrlBehavior(presenter, openUrlResult = false)
+
+        setTestContent {
+            WebLinkConfirmationDialog(
+                link = link,
+                onConfirm = {},
+                onDismiss = {},
+                onError = onError,
+            )
+        }
+
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithContentDescription("dialog_confirm_yes").performClick()
+        composeTestRule.waitForIdle()
+
+        coVerify(exactly = 1) { presenter.navigateToUrlWithLauncher(link) }
+        verify(exactly = 1) { onError() }
+    }
+}
