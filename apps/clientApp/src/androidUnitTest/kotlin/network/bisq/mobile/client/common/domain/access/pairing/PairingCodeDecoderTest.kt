@@ -91,25 +91,44 @@ class PairingCodeDecoderTest {
     }
 
     @Test
-    fun `decode throws for unsupported version`() {
+    fun `decode throws UnsupportedPairingVersionException for unsupported version`() {
         val bytes = encodePairingCode(version = 99)
 
-        assertFailsWith<IllegalArgumentException> {
+        assertFailsWith<UnsupportedPairingVersionException> {
             PairingCodeDecoder.decode(bytes)
         }
     }
 
     @Test
-    fun `decode throws for invalid number of permissions`() {
+    fun `decode throws for permission count above sanity cap`() {
         val writer = BinaryWriter()
         BinaryEncodingUtils.writeByte(writer, PairingCode.VERSION)
         BinaryEncodingUtils.writeString(writer, "test")
         BinaryEncodingUtils.writeLong(writer, 1700000000000L)
-        BinaryEncodingUtils.writeInt(writer, 100) // Invalid: more than Permission.entries.size
+        BinaryEncodingUtils.writeInt(writer, PairingCodeDecoder.MAX_ENCODED_PERMISSIONS + 1)
 
         assertFailsWith<IllegalArgumentException> {
             PairingCodeDecoder.decode(writer.toByteArray())
         }
+    }
+
+    @Test
+    fun `decode accepts more permissions than this app version knows`() {
+        // A newer node grants permissions added after this app was built. The count exceeds
+        // the local enum size; the unknown ids must be skipped, not fail the whole pairing.
+        val writer = BinaryWriter()
+        BinaryEncodingUtils.writeByte(writer, PairingCode.VERSION)
+        BinaryEncodingUtils.writeString(writer, "upgraded-node")
+        BinaryEncodingUtils.writeLong(writer, 1700000000000L)
+        val unknownIds = listOf(Permission.entries.size, Permission.entries.size + 1)
+        BinaryEncodingUtils.writeInt(writer, Permission.entries.size + unknownIds.size)
+        Permission.entries.forEach { BinaryEncodingUtils.writeInt(writer, it.id) }
+        unknownIds.forEach { BinaryEncodingUtils.writeInt(writer, it) }
+
+        val result = PairingCodeDecoder.decode(writer.toByteArray())
+
+        assertEquals("upgraded-node", result.id)
+        assertEquals(Permission.entries.toSet(), result.grantedPermissions)
     }
 
     @Test
@@ -121,6 +140,22 @@ class PairingCodeDecoderTest {
         BinaryEncodingUtils.writeInt(writer, -1) // Invalid: negative
 
         assertFailsWith<IllegalArgumentException> {
+            PairingCodeDecoder.decode(writer.toByteArray())
+        }
+    }
+
+    @Test
+    fun `decode throws for payload truncated inside permission list`() {
+        // Declares 3 permissions but carries only 1 — must fail as invalid format,
+        // not silently return a partial permission set.
+        val writer = BinaryWriter()
+        BinaryEncodingUtils.writeByte(writer, PairingCode.VERSION)
+        BinaryEncodingUtils.writeString(writer, "test")
+        BinaryEncodingUtils.writeLong(writer, 1700000000000L)
+        BinaryEncodingUtils.writeInt(writer, 3)
+        BinaryEncodingUtils.writeInt(writer, Permission.OFFERBOOK.id)
+
+        assertFailsWith<IllegalStateException> {
             PairingCodeDecoder.decode(writer.toByteArray())
         }
     }
