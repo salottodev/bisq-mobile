@@ -31,7 +31,6 @@ import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.notification.NotificationController
 import network.bisq.mobile.presentation.common.notification.NotificationIds
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
-import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.common.ui.utils.EMPTY_STRING
 import network.bisq.mobile.presentation.main.MainPresenter
@@ -283,6 +282,10 @@ class TradeChatPresenter(
         this.hideUndoIgnoreUserPopup()
     }
 
+    fun onPeerProfileClick(profileId: String) {
+        navigateTo(NavRoute.PeerProfile(profileId))
+    }
+
     fun onReportUser(tradeMessage: BisqEasyOpenTradeMessageModel) {
         _reportUserTradeMessage.value = tradeMessage
         _showReportUserDialog.value = true
@@ -293,16 +296,13 @@ class TradeChatPresenter(
         _reportUserMessage.value = EMPTY_STRING
     }
 
-    fun onReportUserError(
-        errorMessage: String,
-        reportMessage: String,
-    ) {
+    /**
+     * Keeps the typed report so the dialog can be reopened with it. The error snackbar belongs to
+     * `ReportUserPresenter` — raising a second one here would double it.
+     */
+    fun onReportUserError(reportMessage: String) {
         _reportUserMessage.value = reportMessage
         _showReportUserDialog.value = false
-        showSnackbar(
-            message = errorMessage,
-            type = SnackbarType.ERROR,
-        )
     }
 
     fun onOpenChatRules() {

@@ -59,11 +59,12 @@ abstract class PresentationKoinComposeTestBase : PresentationKoinTestBase() {
      */
     protected fun restartKoinWith(vararg extraModules: Module) {
         stopKoin()
-        startKoin {
-            modules(baseModules())
-            modules(additionalModules())
-            modules(extraModules.toList())
-        }
+        koinApplication =
+            startKoin {
+                modules(baseModules())
+                modules(additionalModules())
+                modules(extraModules.toList())
+            }
         onKoinReady()
     }
 }

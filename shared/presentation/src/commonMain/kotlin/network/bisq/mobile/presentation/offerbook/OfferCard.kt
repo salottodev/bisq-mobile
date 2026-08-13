@@ -40,6 +40,7 @@ import network.bisq.mobile.data.replicated.presentation.offerbook.OfferItemPrese
 import network.bisq.mobile.data.replicated.security.keys.PubKeyVO
 import network.bisq.mobile.data.replicated.security.keys.PublicKeyVO
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
+import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.utils.PlatformImage
@@ -65,6 +66,7 @@ fun OfferCard(
     item: OfferItemPresentationModel,
     onSelectOffer: () -> Unit,
     userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage,
+    onPeerProfileClick: (String) -> Unit,
     enabled: Boolean = true,
 ) {
     val userName by item.userName.collectAsState()
@@ -126,6 +128,17 @@ fun OfferCard(
             supportedLanguageCodes = item.bisqEasyOffer.supportedLanguageCodes,
             showUserName = false,
             modifier = Modifier.weight(1.0F),
+            // Only the avatar opens the maker's profile, as in the chat bubble. The rating and
+            // languages below it stay part of the card's take-offer surface — tapping anywhere on a
+            // card is how offers have always been taken, and a column-wide profile link would
+            // swallow those taps. Null for own offers, which have no peer profile, and while the
+            // card is disabled, so an in-flight take-offer cannot be interrupted by navigating away.
+            onIconClick =
+                if (isMyOffer || !enabled) {
+                    null
+                } else {
+                    { onPeerProfileClick(item.makersUserProfile.id) }
+                },
         )
 
         BisqGap.H1()
@@ -289,6 +302,7 @@ private fun OfferCard_BuyPreview() {
                 ),
             onSelectOffer = {},
             userProfileIconProvider = previewUserProfileIconProvider,
+            onPeerProfileClick = {},
         )
     }
 }
@@ -308,6 +322,7 @@ private fun OfferCard_SellPreview() {
                 ),
             onSelectOffer = {},
             userProfileIconProvider = previewUserProfileIconProvider,
+            onPeerProfileClick = {},
         )
     }
 }
@@ -328,6 +343,7 @@ private fun OfferCard_MyOfferBuyPreview() {
                 ),
             onSelectOffer = {},
             userProfileIconProvider = previewUserProfileIconProvider,
+            onPeerProfileClick = {},
         )
     }
 }
@@ -348,6 +364,7 @@ private fun OfferCard_MyOfferSellPreview() {
                 ),
             onSelectOffer = {},
             userProfileIconProvider = previewUserProfileIconProvider,
+            onPeerProfileClick = {},
         )
     }
 }
@@ -368,6 +385,7 @@ private fun OfferCard_InvalidReputationPreview() {
                 ),
             onSelectOffer = {},
             userProfileIconProvider = previewUserProfileIconProvider,
+            onPeerProfileClick = {},
         )
     }
 }
@@ -387,6 +405,7 @@ private fun OfferCard_LongUserNamePreview() {
                 ),
             onSelectOffer = {},
             userProfileIconProvider = previewUserProfileIconProvider,
+            onPeerProfileClick = {},
         )
     }
 }
@@ -407,6 +426,7 @@ private fun OfferCard_ManySupportedLanguageCodesPreview() {
                 ),
             onSelectOffer = {},
             userProfileIconProvider = previewUserProfileIconProvider,
+            onPeerProfileClick = {},
         )
     }
 }
@@ -428,6 +448,7 @@ private fun OfferCard_MyOfferManySupportedLanguageCodesPreview() {
                 ),
             onSelectOffer = {},
             userProfileIconProvider = previewUserProfileIconProvider,
+            onPeerProfileClick = {},
         )
     }
 }

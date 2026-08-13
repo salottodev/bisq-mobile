@@ -309,6 +309,25 @@ class OpenTradeListPresenterTest : PresentationKoinTestBase() {
         }
 
     // -----------------------------------------------------------------------
+    // OnPeerProfileClick
+    // -----------------------------------------------------------------------
+
+    /**
+     * Unlike opening the trade, viewing a peer is not gated on the trade rules — reading who you are
+     * dealing with is exactly what someone does *before* accepting them.
+     */
+    @Test
+    fun `OnPeerProfileClick navigates to PeerProfile even when tradeRulesConfirmed is false`() =
+        runTest {
+            tradeRulesConfirmedFlow.value = false
+            withPresenter { presenter ->
+                presenter.onAction(OpenTradeListUiAction.OnPeerProfileClick("peer-1"))
+
+                verify { navigationManager.navigate(NavRoute.PeerProfile("peer-1"), any(), any()) }
+            }
+        }
+
+    // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
 

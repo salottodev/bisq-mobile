@@ -5,7 +5,6 @@ import network.bisq.mobile.client.common.presentation.top_bar.ClientTopBarPresen
 import network.bisq.mobile.client.main.ClientMainPresenter
 import network.bisq.mobile.client.network.presentation.connections.ClientNetworkConnectionsPresenter
 import network.bisq.mobile.client.network.presentation.network.ClientNetworkOverviewPresenter
-import network.bisq.mobile.client.offerbook.ClientOfferbookPresenter
 import network.bisq.mobile.client.settings.faqs.FaqClientPresenter
 import network.bisq.mobile.client.splash.ClientSplashPresenter
 import network.bisq.mobile.client.tabs.more.ClientMiscItemsPresenter
@@ -55,7 +54,7 @@ val clientPresentationModule =
         } bind SplashPresenter::class
 
         factory<OfferbookPresenter> {
-            ClientOfferbookPresenter(
+            OfferbookPresenter(
                 get(),
                 get(),
                 get(),

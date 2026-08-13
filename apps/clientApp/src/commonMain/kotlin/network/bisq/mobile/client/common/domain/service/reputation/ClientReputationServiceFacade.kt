@@ -1,6 +1,8 @@
 package network.bisq.mobile.client.common.domain.service.reputation
 
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.websocket.subscription.WebSocketEventPayload
@@ -23,7 +25,11 @@ class ClientReputationServiceFacade(
     private val reputationByUserProfileId = MutableStateFlow<Map<String, ReputationScoreVO>>(emptyMap())
 
     // Properties
-    override val scoreByUserProfileId: Map<String, Long> get() = reputationByUserProfileId.value.mapValues { (_, v) -> v.totalScore }
+    // Kept alongside the VO cache rather than derived with stateIn(serviceScope): that scope is
+    // cancelled on deactivate, which would leave a derived flow silent for the rest of the process.
+    // Both are written together, in subscribeReputation.
+    private val _scoreByUserProfileId = MutableStateFlow<Map<String, Long>>(emptyMap())
+    override val scoreByUserProfileId: StateFlow<Map<String, Long>> = _scoreByUserProfileId.asStateFlow()
 
     // Life cycle
     override suspend fun activate() {
@@ -73,6 +79,7 @@ class ClientReputationServiceFacade(
                 WebSocketEventPayload.from<Map<String, ReputationScoreVO>>(json, webSocketEvent).payload
             }.onSuccess { payload ->
                 reputationByUserProfileId.value = payload
+                _scoreByUserProfileId.value = payload.mapValues { (_, v) -> v.totalScore }
             }.onFailure { t ->
                 log.e(t) { "Failed to deserialize reputation payload; event ignored." }
             }

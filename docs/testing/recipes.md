@@ -46,6 +46,7 @@ Pitfalls: no `startKoin` in test class; no `ClientKoinIntegrationTestBase` for `
 | Presentation + Koin | `PresentationKoinComposeTestBase` / `PlatformPresentationKoinComposeTestBase` |
 | Client + `TestApplication` | `BisqComposeUiTestBase` + `@Config(application = TestApplication::class)` — Koin from Application |
 | Client + inject overrides | `ClientInjectComposeUiTestBase` — plain `Application`, owned `startKoin` |
+| Presentation + back-stack-aware screen | `PresentationInjectComposeUiTestBase` — `presentationTestModule` plus a `ViewModelStoreOwner` and pinned Koin graph |
 
 Always set content via `setBisqTestContent` / `setTestContent` (`LocalIsTest` + `BisqTheme`). Leaf-base `setTestContent` calls `waitForIdle()` after set — still `waitForIdle()` after interactions. Proof: `SwitchUiTest`, `LinkButtonUiTest`, `PaymentAccountMethodIconUiTest` (client + `TestApplication`).
 
@@ -136,6 +137,39 @@ class MyScreenUiTest : ClientInjectComposeUiTestBase() {
 ```
 
 Pitfalls: build mocks in `onBeforeKoinStart()` before `additionalModules()` captures them (no inline `mockk()` inside factories); use `setInjectTestContent` (not bare `setTestContent`) so BackStackAware gets a fresh `ViewModelStore`; do not call `startKoin` / `stopKoin` yourself.
+
+### Presentation + back-stack-aware screen
+
+Base: [`PresentationInjectComposeUiTestBase`](catalog.md#leaf-bases). The `:shared:presentation` counterpart of the recipe above, for a whole screen whose presenter comes from `RememberPresenterLifecycleBackStackAware`. Koin is the base's (`presentationTestModule` + `additionalModules()`); only the render call differs from `PresentationKoinComposeTestBase`. Proof: `PeerProfileScreenUiTest`.
+
+```kotlin
+@OptIn(ExperimentalCoroutinesApi::class)
+class MyScreenUiTest : PresentationInjectComposeUiTestBase() {
+    private lateinit var facade: MyServiceFacade // VERIFY
+
+    override fun additionalModules(): List<Module> =
+        listOf(
+            module {
+                single<ITopBarPresenter> { PreviewTopBarPresenter() } // only if the screen renders a TopBar
+                factory { MyPresenter(facade, mainPresenter) } // VERIFY
+            },
+        )
+
+    override fun onKoinReady() {
+        facade = mockk(relaxed = true)
+        every { facade.someFlow } returns MutableStateFlow(emptySet()) // relaxed mocks do not survive collectAsState
+    }
+
+    @Test
+    fun `when rendered then shows the loaded name`() {
+        setInjectTestContent { MyScreen(argument) } // VERIFY
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Satoshi").assertIsDisplayed()
+    }
+}
+```
+
+Pitfalls: mocks assigned in `onKoinReady()` are fine — module definitions resolve lazily, at injection time; `setInjectTestContent`, never bare `setTestContent`, or `getKoin()` resolves against a stopped graph on the second test in the class; keep `advanceUntilIdle()` only where the test really drives virtual time (a hanging facade call, a flow emission), `composeTestRule.waitForIdle()` otherwise.
 
 ---
 

@@ -17,6 +17,7 @@ Do **not** extend `CoroutineTestBase` or `KoinIntegrationTestBase` directly.
 | `NodeKoinIntegrationTestBase` | `apps/nodeApp/src/androidUnitTest/kotlin/.../test_utils/NodeKoinIntegrationTestBase.kt` | Node presenters/facades |
 | `BisqComposeUiTestBase` | `shared/test-utils/src/androidMain/kotlin/.../test/presentation/compose/BisqComposeUiTestBase.kt` | Compose UI, no Koin |
 | `PresentationKoinComposeTestBase` | `shared/test-utils/src/androidMain/kotlin/.../test/presentation/compose/PresentationKoinComposeTestBase.kt` | Compose + `presentationTestModule` (shared `StandardTestDispatcher`) |
+| `PresentationInjectComposeUiTestBase` | `shared/test-utils/src/androidMain/kotlin/.../test/presentation/compose/PresentationInjectComposeUiTestBase.kt` | + `ViewModelStoreOwner` and pinned Koin graph, for `RememberPresenterLifecycleBackStackAware` screens |
 | `PlatformPresentationKoinComposeTestBase` | `shared/test-utils/src/androidMain/kotlin/.../test/presentation/compose/PlatformPresentationKoinComposeTestBase.kt` | Compose + Koin + platform mocks |
 
 ## Key helpers
@@ -70,11 +71,13 @@ Two private same-named fakes still exist for the offerbook market list, keyed on
 | `LinkButtonUiTest` | `PresentationKoinComposeTestBase` | `shared/presentation/src/androidUnitTest/kotlin/.../button/LinkButtonUiTest.kt` |
 | `PaymentAccountMethodIconUiTest` | `BisqComposeUiTestBase` + `@Config(TestApplication)` | `apps/clientApp/src/androidUnitTest/kotlin/.../payment_accounts_list/ui/PaymentAccountMethodIconUiTest.kt` |
 | `ClientSplashScreenUiTest` | `ClientInjectComposeUiTestBase` | `apps/clientApp/src/androidUnitTest/kotlin/.../splash/ClientSplashScreenUiTest.kt` |
+| `PeerProfileScreenUiTest` | `PresentationInjectComposeUiTestBase` | `shared/presentation/src/androidUnitTest/kotlin/.../peer_profile/PeerProfileScreenUiTest.kt` |
 
 ### Compose exceptions / patterns
 
 - **`SecureScreenEffectUiTest`** (`apps/clientApp/.../security/SecureScreenEffectUiTest.kt`) must keep `createAndroidComposeRule<ComponentActivity>()` because it reads `composeTestRule.activity.window` / `FLAG_SECURE`. Do **not** force `BisqComposeUiTestBase` (bases expose only `createComposeRule()`). Theme via `setBisqTestContent` only when needed.
 - **Inject-heavy client Compose screens** (`RememberPresenterLifecycleBackStackAware` + `BasePresenter` `KoinComponent.inject()`): extend [`ClientInjectComposeUiTestBase`](#leaf-bases) — plain `Application`, owned `startKoin` (`clientTestModule` + `additionalModules()`), `setInjectTestContent`. Do **not** combine `@Config(TestApplication)` with a second `startKoin`. Prefer Content/`UiState` tests on `BisqComposeUiTestBase` + `TestApplication` when inject overrides are unnecessary.
+- **Back-stack-aware `:shared:presentation` screens**: extend [`PresentationInjectComposeUiTestBase`](#leaf-bases) and render through `setInjectTestContent`. It adds the two things such a screen needs and `setTestContent` does not give it — a `LocalViewModelStoreOwner` for the `viewModel { }` the lifecycle helper stores the presenter in, and a `KoinIsolatedContext`, because `org.koin.compose.getKoin()` caches its context wrapper process-wide and only re-resolves when reading it *throws*, so the first test in a class would pin the Koin instance and every later one would resolve against the graph stopped in teardown (`Scope '_root_' is closed`). `koinInject` is immune; it goes through `currentKoinScope()`. Koin still comes from the base — no `startKoin` in the test. Proof: `PeerProfileScreenUiTest`.
 
 ## Removed — do not cite
 

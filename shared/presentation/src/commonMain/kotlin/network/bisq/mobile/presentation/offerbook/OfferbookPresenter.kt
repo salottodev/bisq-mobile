@@ -30,7 +30,6 @@ import network.bisq.mobile.data.replicated.offer.DirectionEnum
 import network.bisq.mobile.data.replicated.offer.DirectionEnumExtensions.mirror
 import network.bisq.mobile.data.replicated.offer.amount.spec.FixedAmountSpecVO
 import network.bisq.mobile.data.replicated.offer.amount.spec.RangeAmountSpecVO
-import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO
 import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVOExtensions.getFixedOrMaxAmount
 import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVOExtensions.getFixedOrMinAmount
 import network.bisq.mobile.data.replicated.presentation.offerbook.OfferItemPresentationModel
@@ -273,11 +272,10 @@ open class OfferbookPresenter(
                 val filtered = mutableListOf<OfferItemPresentationModel>()
                 if (selectedProfile == null) return@mapLatest null
                 var directionFilteredCount = 0
-                var ignoredUserFilteredCount = 0
                 var methodFilteredCount = 0
                 var onlyMyFilteredCount = 0
 
-                // Baseline availability (direction + ignored-user + only-my if enabled), independent of method selections
+                // Baseline availability (direction + only-my if enabled), independent of method selections
                 val availablePayments = mutableSetOf<String>()
                 val availableSettlements = mutableSetOf<String>()
 
@@ -285,16 +283,11 @@ open class OfferbookPresenter(
                 for (item in offers) {
                     val offerCurrency = item.bisqEasyOffer.market.quoteCurrencyCode
                     val offerDirection = item.bisqEasyOffer.direction.mirror
-                    val isIgnoredUser = isOfferFromIgnoredUserCached(item.bisqEasyOffer)
 
-                    log.v { "Offer ${item.offerId} - Currency: $offerCurrency, Direction: $offerDirection, IsIgnored: $isIgnoredUser, isMy=${item.isMyOffer}" }
+                    log.v { "Offer ${item.offerId} - Currency: $offerCurrency, Direction: $offerDirection, isMy=${item.isMyOffer}" }
 
-                    if (isIgnoredUser) {
-                        ignoredUserFilteredCount++
-                        log.v { "Offer ${item.offerId} filtered out (ignored user)" }
-                        continue
-                    }
-
+                    // Offers from ignored makers never get here: both flavours drop them in their
+                    // OffersServiceFacade, where the ignore set is also watched for changes.
                     if (onlyMine && !item.isMyOffer) {
                         onlyMyFilteredCount++
                         log.v { "Offer ${item.offerId} filtered out (only my offers enabled)" }
@@ -339,7 +332,7 @@ open class OfferbookPresenter(
                 _availablePaymentMethodIds.value = availablePayments
                 _availableSettlementMethodIds.value = availableSettlements
 
-                log.d { "OfferbookPresenter filtering results - Market: ${selectedMarket.market.quoteCurrencyCode}, Dir matches: $directionFilteredCount, Ignored: $ignoredUserFilteredCount, OnlyMy: $onlyMyFilteredCount, Methods: $methodFilteredCount, Final: ${filtered.size}" }
+                log.d { "OfferbookPresenter filtering results - Market: ${selectedMarket.market.quoteCurrencyCode}, Dir matches: $directionFilteredCount, OnlyMy: $onlyMyFilteredCount, Methods: $methodFilteredCount, Final: ${filtered.size}" }
                 // Every BUY-direction offer's validity check needs the SAME score (mine, as
                 // prospective seller), so fetch it once per pipeline run instead of once per offer:
                 // on the client, getReputation can be a full websocket round trip (debug builds
@@ -934,6 +927,10 @@ open class OfferbookPresenter(
         _showNotEnoughReputationDialog.value = false
     }
 
+    fun onPeerProfileClick(profileId: String) {
+        navigateTo(NavRoute.PeerProfile(profileId))
+    }
+
     fun onNavigateToReputation() {
         navigateTo(NavRoute.Reputation)
         _showNotEnoughReputationDialog.value = false
@@ -951,20 +948,6 @@ open class OfferbookPresenter(
         canTakeOffer(item, userProfile)
     }
 
-    private suspend fun isOfferFromIgnoredUser(offer: BisqEasyOfferVO): Boolean {
-        val makerUserProfileId = offer.makerNetworkId.pubKey.id
-        return try {
-            val isIgnored = userProfileServiceFacade.isUserIgnored(makerUserProfileId)
-            if (isIgnored) {
-                log.v { "Offer ${offer.id} from ignored user $makerUserProfileId" }
-            }
-            isIgnored
-        } catch (e: Exception) {
-            log.w("isUserIgnored failed for $makerUserProfileId", e)
-            false
-        }
-    }
-
     fun onTradeRestrictingAlertAction(action: AlertNotificationUiAction) {
         when (action) {
             AlertNotificationUiAction.OnUpdateNow -> {
@@ -975,12 +958,6 @@ open class OfferbookPresenter(
             else -> Unit
         }
     }
-
-    /**
-     * Fast, non-suspending check for ignored users using cached data.
-     * This method is safe to call from hot paths like offer filtering.
-     */
-    open fun isOfferFromIgnoredUserCached(offer: BisqEasyOfferVO): Boolean = false
 
     private fun resetActionGuards() {
         _isCreateOfferEnabled.value = true

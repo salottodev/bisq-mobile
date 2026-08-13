@@ -144,6 +144,10 @@ fun TradeDetailsHeaderContent(
                 reputation = tradeUiState.peersReputationScore,
                 showUserName = true,
                 userProfileIconProvider = userProfileIconProvider,
+                // Avatar only, as everywhere else the peer profile is reachable from — the offer
+                // card, the open-trade row and the chat bubble. `UserProfileRow` keeps the click off
+                // the row it lays out for exactly that reason.
+                onIconClick = { onAction(TradeDetailsHeaderUiAction.OpenPeerProfile) },
             )
         }
 

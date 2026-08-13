@@ -2,21 +2,20 @@ package network.bisq.mobile.presentation.report_user
 
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
-import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageDto
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
-import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
+import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.test.presentation.coroutines.PresentationKoinTestBase
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -27,28 +26,6 @@ class ReportUserPresenterTest : PresentationKoinTestBase() {
     private val mainPresenter: MainPresenter = mockk(relaxed = true)
 
     private val reportedUser = createMockUserProfile("reportedUser")
-    private val chatMessage =
-        BisqEasyOpenTradeMessageModel(
-            mockk<BisqEasyOpenTradeMessageDto> {
-                every { chatMessageType } returns ChatMessageTypeEnum.TEXT
-                every { senderUserProfile } returns reportedUser
-                every { messageId } returns "msg1"
-                every { text } returns "bad message"
-                every { citation } returns null
-                every { date } returns 1000L
-                every { tradeId } returns "trade1"
-                every { mediator } returns null
-                every { bisqEasyOffer } returns null
-                every { citationAuthorUserProfile } returns null
-            },
-            createMockUserProfile("myUser"),
-            emptyList(),
-        )
-
-    override fun beforeStartKoin() {
-        super.beforeStartKoin()
-        globalUiManager = GlobalUiManager(testDispatcher)
-    }
 
     override fun onKoinReady() {
         presenter =
@@ -57,14 +34,13 @@ class ReportUserPresenterTest : PresentationKoinTestBase() {
                 userProfileServiceFacade = userProfileServiceFacade,
             )
         presenter.onViewAttached()
-        presenter.initialize(chatMessage, null)
+        presenter.initialize(reportedUser)
         presenter.onMessageChange("This user violated chat rules")
     }
 
     override fun onTearDown() {
         try {
             presenter.onViewUnattaching()
-            globalUiManager.dispose()
         } finally {
             super.onTearDown()
         }
@@ -92,7 +68,7 @@ class ReportUserPresenterTest : PresentationKoinTestBase() {
         }
 
     @Test
-    fun `report failure re-enables report button for retry`() =
+    fun `report failure shows an error snackbar and re-enables the report button for retry`() =
         runTest {
             coEvery { userProfileServiceFacade.reportUserProfile(any(), any()) } returns
                 Result.failure(RuntimeException("network error"))
@@ -103,10 +79,18 @@ class ReportUserPresenterTest : PresentationKoinTestBase() {
             assertTrue(presenter.isReportActionEnabled.value)
             assertTrue(presenter.uiState.value.isReportMessageValid)
             assertFalse(presenter.uiState.value.isLoading)
+            verify {
+                globalUiManager.showSnackbar(
+                    "mobile.chat.reportToModerator.error".i18n(),
+                    SnackbarType.ERROR,
+                    any(),
+                    any(),
+                )
+            }
         }
 
     @Test
-    fun `report success completes and re-enables report button`() =
+    fun `report success shows a confirmation snackbar and re-enables the report button`() =
         runTest {
             coEvery { userProfileServiceFacade.reportUserProfile(any(), any()) } returns
                 Result.success(Unit)
@@ -117,6 +101,34 @@ class ReportUserPresenterTest : PresentationKoinTestBase() {
             assertTrue(presenter.isReportActionEnabled.value)
             assertFalse(presenter.uiState.value.isLoading)
             coVerify(exactly = 1) { userProfileServiceFacade.reportUserProfile(reportedUser, any()) }
+            // The dialog closes on success, so the snackbar is the only trace the report left behind.
+            verify {
+                globalUiManager.showSnackbar(
+                    "mobile.chat.reportToModerator.success".i18n(),
+                    SnackbarType.SUCCESS,
+                    any(),
+                    any(),
+                )
+            }
+        }
+
+    /**
+     * `UserProfileServiceFacade.reportUserProfile` documents a trimmed message. Trimming happens at
+     * the call and nowhere else: the state keeps what the user typed, so a report that fails reopens
+     * the dialog on their own text rather than on a silently edited copy.
+     */
+    @Test
+    fun `the service receives a trimmed message while the typed draft is left alone`() =
+        runTest {
+            coEvery { userProfileServiceFacade.reportUserProfile(any(), any()) } returns
+                Result.failure(RuntimeException("network error"))
+            presenter.onMessageChange(PADDED_MESSAGE)
+
+            presenter.onReportClick()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { userProfileServiceFacade.reportUserProfile(reportedUser, TRIMMED_MESSAGE) }
+            assertEquals(PADDED_MESSAGE, presenter.uiState.value.message)
         }
 
     @Test
@@ -135,4 +147,9 @@ class ReportUserPresenterTest : PresentationKoinTestBase() {
             coVerify(exactly = 0) { userProfileServiceFacade.reportUserProfile(any(), any()) }
             assertTrue(uninitializedPresenter.isReportActionEnabled.value)
         }
+
+    private companion object {
+        const val PADDED_MESSAGE = "  This user violated chat rules  "
+        const val TRIMMED_MESSAGE = "This user violated chat rules"
+    }
 }

@@ -61,7 +61,7 @@ class ClientReputationServiceFacadeTest : ClientKoinIntegrationTestBase() {
             observer.setEvent(reputationEvent("""{"user-1":{"totalScore":120,"fiveSystemScore":4.2,"ranking":5}}"""))
             advanceUntilIdle()
 
-            assertEquals(120L, facade.scoreByUserProfileId["user-1"])
+            assertEquals(120L, facade.scoreByUserProfileId.value["user-1"])
         }
 
     @Test
@@ -84,7 +84,7 @@ class ClientReputationServiceFacadeTest : ClientKoinIntegrationTestBase() {
             )
             advanceUntilIdle()
 
-            assertTrue(facade.scoreByUserProfileId.isEmpty())
+            assertTrue(facade.scoreByUserProfileId.value.isEmpty())
         }
 
     @Test
@@ -99,7 +99,7 @@ class ClientReputationServiceFacadeTest : ClientKoinIntegrationTestBase() {
             observer.setEvent(reputationEvent("""not-json"""))
             advanceUntilIdle()
 
-            assertTrue(facade.scoreByUserProfileId.isEmpty())
+            assertTrue(facade.scoreByUserProfileId.value.isEmpty())
         }
 
     @Test

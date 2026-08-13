@@ -110,6 +110,7 @@ class OpenTradeListPresenter(
             OpenTradeListUiAction.OnOpenTradeGuide -> onOpenTradeGuide()
             OpenTradeListUiAction.OnCloseTradeGuideConfirmation -> onCloseTradeGuideConfirmation()
             is OpenTradeListUiAction.OnSelectTrade -> onSelectTrade(action.item)
+            is OpenTradeListUiAction.OnPeerProfileClick -> navigateTo(NavRoute.PeerProfile(action.profileId))
         }
     }
 

@@ -3,6 +3,7 @@ package network.bisq.mobile.test.koin
 import network.bisq.mobile.test.coroutines.CoroutineTestBase
 import org.junit.After
 import org.junit.Before
+import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.core.module.Module
@@ -17,6 +18,13 @@ import org.koin.test.KoinTest
 abstract class KoinIntegrationTestBase :
     CoroutineTestBase(),
     KoinTest {
+    /**
+     * The graph this test owns. Kept because Compose needs the [KoinApplication] itself, not just
+     * the global instance: `org.koin.compose.KoinIsolatedContext` takes one. Reassign it in any
+     * base that restarts Koin mid-test, or a composition will hold on to the stopped graph.
+     */
+    protected lateinit var koinApplication: KoinApplication
+
     protected abstract fun baseModules(): List<Module>
 
     /**
@@ -38,12 +46,13 @@ abstract class KoinIntegrationTestBase :
     fun baseSetup() {
         setUpCoroutines()
         beforeStartKoin()
-        startKoin {
-            // Loaded first so a test that binds its own AnalyticsService mock still wins.
-            modules(analyticsTestModule)
-            modules(baseModules())
-            modules(additionalModules())
-        }
+        koinApplication =
+            startKoin {
+                // Loaded first so a test that binds its own AnalyticsService mock still wins.
+                modules(analyticsTestModule)
+                modules(baseModules())
+                modules(additionalModules())
+            }
         onSetup()
     }
 
