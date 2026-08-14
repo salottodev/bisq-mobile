@@ -7,7 +7,8 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
@@ -17,7 +18,6 @@ import network.bisq.mobile.data.utils.PlatformImage
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.test.presentation.coroutines.PresentationKoinTestBase
-import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -27,22 +27,13 @@ import kotlin.test.assertTrue
 /**
  * Unit tests for UserProfilePresenter.
  *
- * NOTE: These tests are currently ignored due to a technical limitation with the presenter's design.
- * The UserProfilePresenter.launchJobs() method starts several infinite coroutine collect loops:
- * 1. Collecting from userProfileServiceFacade.selectedUserProfile
- * 2. Collecting from userProfileServiceFacade.userProfiles
- * 3. Collecting from TimeUtils.tickerFlow (which emits every second indefinitely)
+ * Uses [runCurrent] instead of [kotlinx.coroutines.test.advanceUntilIdle] after attach because
+ * [UserProfilePresenter] starts [network.bisq.mobile.domain.utils.TimeUtils.tickerFlow], which
+ * keeps scheduling delayed work and would hang [kotlinx.coroutines.test.advanceUntilIdle].
  *
- * These infinite loops cause tests to hang when onViewAttached() is called, even with
- * StandardTestDispatcher and advanceUntilIdle(). The tickerFlow in particular never completes.
- *
- * Solutions to consider:
- * 1. Refactor the presenter to inject a testable ticker/clock
- * 2. Make the presenter's coroutine scopes more testable
- * 3. Focus on integration tests (see MultiProfileIntegrationTest) instead of unit tests
- *
- * For now, use MultiProfileIntegrationTest which provides good coverage of the multi-profile
- * feature's core functionality without the presenter's infinite loop issues.
+ * A more elegant approach is to refactor the presenter to inject a testable ticker/clock so tests
+ * can keep using [kotlinx.coroutines.test.advanceUntilIdle]. Not needed for this suite now —
+ * consider it if more presenters follow the same ticker pattern.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class UserProfilePresenterTest : PresentationKoinTestBase() {
@@ -64,6 +55,11 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
         every { userProfileServiceFacade.numUserProfiles } returns MutableStateFlow(0)
         coEvery { userProfileServiceFacade.getUserProfileIcon(any(), any()) } returns mockk<PlatformImage>(relaxed = true)
         coEvery { userProfileServiceFacade.getUserPublishDate() } returns 0L
+        coEvery { userProfileServiceFacade.selectUserProfile(any()) } returns Result.success(profile1)
+        coEvery { userProfileServiceFacade.deleteUserProfile(any()) } returns Result.success(profile1)
+        coEvery {
+            userProfileServiceFacade.updateAndPublishUserProfile(any(), any(), any())
+        } returns Result.success(profile1)
         coEvery { reputationServiceFacade.getReputation(any()) } returns
             Result.success(
                 ReputationScoreVO(totalScore = 100L, fiveSystemScore = 50.0, ranking = 10),
@@ -78,12 +74,28 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
             mainPresenter,
         )
 
+    /**
+     * Runs [block] and always detaches the presenter, cancelling its jobs. The detach has to happen
+     * inside [runTest]: the ticker keeps the scheduler busy, so a failed assertion would otherwise
+     * hang runTest's cleanup instead of reporting the failure.
+     */
+    private fun runPresenterTest(block: suspend TestScope.() -> Unit) =
+        runTest {
+            try {
+                block()
+            } finally {
+                if (::presenter.isInitialized) {
+                    presenter.onViewUnattaching()
+                    runCurrent()
+                }
+            }
+        }
+
     // ========== UI State Initialization Tests ==========
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `initial state is empty when no profiles exist`() =
-        runTest {
+        runPresenterTest {
             // Given
             every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(emptyList())
             every { userProfileServiceFacade.selectedUserProfile } returns MutableStateFlow(null)
@@ -91,20 +103,23 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
             // When
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             // Then
             val state = presenter.uiState.value
             assertTrue(state.userProfiles.isEmpty())
             assertNull(state.selectedUserProfile)
-            assertFalse(state.isBusy)
+            // Presenter sets isLoadingData=true on attach and only clears it when a non-null
+            // profile is collected, so empty selection stays loading/busy. But no loading
+            // indicator/content is shown since all controls are gated behind `uiState.selectedUserProfile?.let {}`
+            assertTrue(state.isLoadingData)
+            assertTrue(state.isBusy)
             assertFalse(state.shouldBlurBg)
         }
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `initial state shows profiles when they exist`() =
-        runTest {
+        runPresenterTest {
             // Given
             val profiles = listOf(profile1, profile2, profile3)
             every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(profiles)
@@ -113,7 +128,7 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
             // When
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             // Then
             val state = presenter.uiState.value
@@ -123,10 +138,9 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
 
     // ========== Profile Selection Tests ==========
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `selecting a profile calls service and updates state on success`() =
-        runTest {
+        runPresenterTest {
             // Given
             val profiles = listOf(profile1, profile2)
             val selectedFlow = MutableStateFlow<UserProfileVO?>(profile1)
@@ -139,21 +153,20 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
 
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             // When
             presenter.onAction(UserProfileUiAction.OnUserProfileSelect(profile2))
-            advanceUntilIdle()
+            runCurrent()
 
             // Then
             coVerify { userProfileServiceFacade.selectUserProfile(profile2.networkId.pubKey.id) }
             assertEquals(profile2, presenter.uiState.value.selectedUserProfile)
         }
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `selecting a profile handles failure gracefully`() =
-        runTest {
+        runPresenterTest {
             // Given
             val profiles = listOf(profile1, profile2)
             every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(profiles)
@@ -163,11 +176,11 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
 
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             // When
             presenter.onAction(UserProfileUiAction.OnUserProfileSelect(profile2))
-            advanceUntilIdle()
+            runCurrent()
 
             // Then - should still have profile1 selected
             assertEquals(profile1, presenter.uiState.value.selectedUserProfile)
@@ -175,10 +188,9 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
 
     // ========== Profile Update Tests ==========
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `updating profile statement and terms calls service with correct profileId`() =
-        runTest {
+        runPresenterTest {
             // Given
             every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(listOf(profile1))
             every { userProfileServiceFacade.selectedUserProfile } returns MutableStateFlow(profile1)
@@ -192,12 +204,12 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
 
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             // When - update drafts
             presenter.onAction(UserProfileUiAction.OnStatementChange("New statement"))
             presenter.onAction(UserProfileUiAction.OnTermsChange("New terms"))
-            advanceUntilIdle()
+            runCurrent()
 
             // Then - verify drafts updated
             assertEquals("New statement", presenter.uiState.value.statementDraft)
@@ -207,7 +219,7 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
             presenter.onAction(
                 UserProfileUiAction.OnSavePress,
             )
-            advanceUntilIdle()
+            runCurrent()
 
             // Then
             coVerify {
@@ -218,12 +230,12 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
                 )
             }
             assertFalse(presenter.uiState.value.isBusy)
+            assertTrue(presenter.isActionEnabled.value)
         }
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `updating profile sets isBusy during operation`() =
-        runTest {
+        runPresenterTest {
             // Given
             every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(listOf(profile1))
             every { userProfileServiceFacade.selectedUserProfile } returns MutableStateFlow(profile1)
@@ -233,74 +245,72 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
 
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             // When
             presenter.onAction(
                 UserProfileUiAction.OnSavePress,
             )
 
-            // Then - should be busy immediately
-            assertTrue(presenter.uiState.value.isBusy)
+            // Then - guarded in-flight work disables actions (uiState.isBusy is only isLoadingData)
+            assertFalse(presenter.isActionEnabled.value)
 
-            advanceUntilIdle()
+            runCurrent()
 
-            // Then - should not be busy after completion
+            // Then - should re-enable after completion
+            assertTrue(presenter.isActionEnabled.value)
             assertFalse(presenter.uiState.value.isBusy)
         }
 
     // ========== Profile Deletion Tests ==========
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `delete action shows confirmation dialog`() =
-        runTest {
+        runPresenterTest {
             // Given
             every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(listOf(profile1, profile2))
             every { userProfileServiceFacade.selectedUserProfile } returns MutableStateFlow(profile1)
 
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             // When
             presenter.onAction(UserProfileUiAction.OnDeletePress)
-            advanceUntilIdle()
+            runCurrent()
 
             presenter.onAction(UserProfileUiAction.OnUserProfileSelect(profile2))
-            advanceUntilIdle()
+            runCurrent()
 
             // Then
             assertEquals(profile1, presenter.uiState.value.showDeleteConfirmationForProfile)
         }
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `delete confirmation dismissal clears dialog`() =
-        runTest {
+        runPresenterTest {
             // Given
             every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(listOf(profile1, profile2))
             every { userProfileServiceFacade.selectedUserProfile } returns MutableStateFlow(profile1)
 
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             presenter.onAction(UserProfileUiAction.OnDeletePress)
-            advanceUntilIdle()
+            runCurrent()
 
             // When
             presenter.onAction(UserProfileUiAction.OnDeleteConfirmationDismiss)
-            advanceUntilIdle()
+            runCurrent()
 
             // Then
             assertNull(presenter.uiState.value.showDeleteConfirmationForProfile)
         }
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `delete confirmed calls service and updates state on success`() =
-        runTest {
+        runPresenterTest {
             // Given
             val profilesFlow = MutableStateFlow(listOf(profile1, profile2, profile3))
             every { userProfileServiceFacade.userProfiles } returns profilesFlow
@@ -312,25 +322,25 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
 
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             presenter.onAction(UserProfileUiAction.OnDeletePress)
-            advanceUntilIdle()
+            runCurrent()
 
             // When
             presenter.onAction(UserProfileUiAction.OnDeleteConfirm)
-            advanceUntilIdle()
+            runCurrent()
 
             // Then
             coVerify { userProfileServiceFacade.deleteUserProfile(profile2.networkId.pubKey.id) }
             assertNull(presenter.uiState.value.showDeleteConfirmationForProfile)
             assertFalse(presenter.uiState.value.isBusy)
+            assertTrue(presenter.isActionEnabled.value)
         }
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `delete confirmed shows error dialog on failure`() =
-        runTest {
+        runPresenterTest {
             // Given
             every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(listOf(profile1, profile2))
             every { userProfileServiceFacade.selectedUserProfile } returns MutableStateFlow(profile2)
@@ -339,38 +349,38 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
 
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             presenter.onAction(UserProfileUiAction.OnDeletePress)
-            advanceUntilIdle()
+            runCurrent()
 
             // When
             presenter.onAction(UserProfileUiAction.OnDeleteConfirm)
-            advanceUntilIdle()
+            runCurrent()
 
             // Then
             assertTrue(presenter.uiState.value.showDeleteErrorDialog)
             assertFalse(presenter.uiState.value.isBusy)
+            assertTrue(presenter.isActionEnabled.value)
         }
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `delete error dialog can be dismissed`() =
-        runTest {
+        runPresenterTest {
             // Given
             every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(listOf(profile1))
             every { userProfileServiceFacade.selectedUserProfile } returns MutableStateFlow(profile1)
 
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             presenter.onAction(UserProfileUiAction.OnDeleteError)
-            advanceUntilIdle()
+            runCurrent()
 
             // When
             presenter.onAction(UserProfileUiAction.OnDeleteErrorDialogDismiss)
-            advanceUntilIdle()
+            runCurrent()
 
             // Then
             assertFalse(presenter.uiState.value.showDeleteErrorDialog)
@@ -378,21 +388,20 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
 
     // ========== Create Profile Navigation Tests ==========
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `create profile action navigates to CreateProfile screen`() =
-        runTest {
+        runPresenterTest {
             // Given
             every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(listOf(profile1))
             every { userProfileServiceFacade.selectedUserProfile } returns MutableStateFlow(profile1)
 
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             // When
             presenter.onAction(UserProfileUiAction.OnCreateProfilePress)
-            advanceUntilIdle()
+            runCurrent()
 
             // Then
             verify { navigationManager.navigate(NavRoute.CreateProfile(false), any(), any()) }
@@ -400,23 +409,22 @@ class UserProfilePresenterTest : PresentationKoinTestBase() {
 
     // ========== Lifecycle Tests ==========
 
-    @Ignore("Presenter has infinite coroutine loops that cause tests to hang - see class documentation")
     @Test
     fun `jobs are cancelled on view detach`() =
-        runTest {
+        runPresenterTest {
             // Given
             every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(listOf(profile1))
             every { userProfileServiceFacade.selectedUserProfile } returns MutableStateFlow(profile1)
 
             presenter = createPresenter()
             presenter.onViewAttached()
-            advanceUntilIdle()
+            runCurrent()
 
             // When
             presenter.onViewUnattaching()
-            advanceUntilIdle()
+            // Disposal is launched on Main — run it so cancellation actually executes.
+            runCurrent()
 
-            // Then - no exceptions should be thrown
-            // Jobs should be cancelled gracefully
+            // Then - no exceptions should be thrown; jobs cancel gracefully
         }
 }
