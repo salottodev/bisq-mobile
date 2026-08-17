@@ -65,6 +65,26 @@ For the client we get updates via websocket events.
 
 Model classes can contain also domain methods or util fields.
 
+##### Exception: the chat types
+
+The classes under `chat/` deliberately drop their postfix and mirror the Bisq Easy class names one to
+one, together with the class hierarchy and package layout:
+
+- messages and channels drop `Model` — `PrivateChatMessage`, `BisqEasyOpenTradeMessage`,
+  `BisqEasyOpenTradeChannel`
+- reactions drop `VO` — `ChatMessageReaction`, `PrivateChatMessageReaction`,
+  `BisqEasyOpenTradeMessageReaction`, `BisqEasyOfferbookMessageReaction`
+- `Citation` drops `VO` for the same reason, being a chat type carried by every message
+
+The messages and channels are still models in the sense above — mutability is the `StateFlow` fields,
+not the name — and the reactions are still immutable value objects. Only the naming changes, so that
+a reader can put a mobile type next to its Bisq Easy counterpart without translating the name.
+
+The trade-off is that their names now collide with the Bisq Easy classes in node mode, which is what
+the postfix conventions otherwise avoid. Only the node app has those classes on its classpath, so the
+collision is resolved there with `import bisq.chat… as Bisq2…` aliases; `shared` and the client app
+are unaffected.
+
 #### Data types
 
 #### Optional/nullable data

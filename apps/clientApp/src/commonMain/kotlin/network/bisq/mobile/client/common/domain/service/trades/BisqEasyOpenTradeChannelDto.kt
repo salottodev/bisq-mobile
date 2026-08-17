@@ -1,4 +1,4 @@
-package network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades
+package network.bisq.mobile.client.common.domain.service.trades
 
 import kotlinx.serialization.Serializable
 import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO

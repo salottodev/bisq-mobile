@@ -1,6 +1,6 @@
 package network.bisq.mobile.data.replicated.presentation.open_trades
 
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelModel
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
 import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO
 import network.bisq.mobile.data.replicated.offer.price.spec.FixPriceSpecVO
 import network.bisq.mobile.data.replicated.trade.bisq_easy.BisqEasyTradeModel
@@ -13,17 +13,30 @@ import network.bisq.mobile.i18n.i18n
  * This model is used in the UI and will get the mutual fields updated from domain services.
  */
 data class TradeItemPresentationModel(
-    private val tradeItemPresentationDto: TradeItemPresentationDto,
-    private val channelModel: BisqEasyOpenTradeChannelModel?,
+    private val channelModel: BisqEasyOpenTradeChannel?,
     val bisqEasyTradeModel: BisqEasyTradeModel,
+    val makerUserProfile: UserProfileVO,
+    val takerUserProfile: UserProfileVO,
+    val formattedDate: String,
+    val formattedTime: String,
+    val market: String,
+    val price: Long,
+    val formattedPrice: String,
+    val baseAmount: Long,
+    val formattedBaseAmount: String,
+    val quoteAmount: Long,
+    val formattedQuoteAmount: String,
+    val bitcoinSettlementMethod: String,
+    val bitcoinSettlementMethodDisplayString: String,
+    val fiatPaymentMethod: String,
+    val fiatPaymentMethodDisplayString: String,
+    val isFiatPaymentMethodCustom: Boolean,
+    val formattedMyRole: String,
+    val peersReputationScore: ReputationScoreVO,
 ) {
     // Non-null accessor: throws for closed trades if called in open-trade context
-    val bisqEasyOpenTradeChannelModel: BisqEasyOpenTradeChannelModel
+    val bisqEasyOpenTradeChannelModel: BisqEasyOpenTradeChannel
         get() = channelModel ?: error("Trade $tradeId has no channel (closed trade)")
-
-    // Delegates of tradeItemPresentationVO
-    val makerUserProfile: UserProfileVO get() = tradeItemPresentationDto.makerUserProfile
-    val takerUserProfile: UserProfileVO get() = tradeItemPresentationDto.takerUserProfile
 
     val directionalTitle: String
         get() =
@@ -33,41 +46,20 @@ data class TradeItemPresentationModel(
                 "bisqEasy.openTrades.table.direction.buyer".i18n().uppercase()
             }
 
-    val formattedDate: String get() = tradeItemPresentationDto.formattedDate
-    val formattedTime: String get() = tradeItemPresentationDto.formattedTime
-    val market: String get() = tradeItemPresentationDto.market
-    val price: Long get() = tradeItemPresentationDto.price
-    val formattedPrice: String get() = tradeItemPresentationDto.formattedPrice
     val formattedPriceSpec: String
         get() {
             val spec = bisqEasyOffer.priceSpec
             return if (spec is FixPriceSpecVO) "" else "(${PriceSpecFormatter.getFormattedPriceSpec(spec, true)})"
         }
-    val baseAmount: Long get() = tradeItemPresentationDto.baseAmount
-    val formattedBaseAmount: String get() = tradeItemPresentationDto.formattedBaseAmount
-    val quoteAmount: Long get() = tradeItemPresentationDto.quoteAmount
-    val formattedQuoteAmount: String get() = tradeItemPresentationDto.formattedQuoteAmount
-    val bitcoinSettlementMethod: String get() = tradeItemPresentationDto.bitcoinSettlementMethod
-    val bitcoinSettlementMethodDisplayString: String get() = tradeItemPresentationDto.bitcoinSettlementMethodDisplayString
-    val fiatPaymentMethod: String get() = tradeItemPresentationDto.fiatPaymentMethod
-    val fiatPaymentMethodDisplayString: String get() = tradeItemPresentationDto.fiatPaymentMethodDisplayString
     val paymentMethodCsvDisplayString: String
         get() = "$bitcoinSettlementMethodDisplayString / $fiatPaymentMethodDisplayString"
-    val isFiatPaymentMethodCustom: Boolean get() = tradeItemPresentationDto.isFiatPaymentMethodCustom
-    val formattedMyRole: String get() = tradeItemPresentationDto.formattedMyRole
 
     // Convenience properties
     val myUserProfile: UserProfileVO
-        get() =
-            if (bisqEasyTradeModel.isMaker) {
-                tradeItemPresentationDto.makerUserProfile
-            } else {
-                tradeItemPresentationDto.takerUserProfile
-            }
+        get() = if (bisqEasyTradeModel.isMaker) makerUserProfile else takerUserProfile
     val myUserName: String get() = myUserProfile.userName
 
     val peersUserProfile: UserProfileVO get() = if (bisqEasyTradeModel.isMaker) takerUserProfile else makerUserProfile
-    val peersReputationScore: ReputationScoreVO get() = tradeItemPresentationDto.peersReputationScore
     val peersUserName: String get() = peersUserProfile.userName
     val mediator: UserProfileVO? get() = bisqEasyTradeModel.contract.mediator
     val mediatorUserName: String? get() = mediator?.userName
@@ -106,13 +98,4 @@ data class TradeItemPresentationModel(
             mediatorUserName=$mediatorUserName
         )
         """.trimIndent()
-
-    companion object {
-        fun from(tradeItemPresentationDto: TradeItemPresentationDto): TradeItemPresentationModel =
-            TradeItemPresentationModel(
-                tradeItemPresentationDto = tradeItemPresentationDto,
-                channelModel = BisqEasyOpenTradeChannelModel(tradeItemPresentationDto.channel),
-                bisqEasyTradeModel = BisqEasyTradeModel(tradeItemPresentationDto.trade),
-            )
-    }
 }

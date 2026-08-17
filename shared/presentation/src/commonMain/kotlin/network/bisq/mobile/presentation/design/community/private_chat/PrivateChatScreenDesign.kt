@@ -18,7 +18,7 @@
  *     `LeaveChatIconButton`.
  *   - The simulated input field is replaced with the REAL production `ChatInputField`
  *     (molecules/chat/ChatInputField.kt) — its `quotedMessage` param defaults to null,
- *     so it needs no `BisqEasyOpenTradeMessageModel` instance to preview, exactly the
+ *     so it needs no `BisqEasyOpenTradeMessage` instance to preview, exactly the
  *     same reuse trick already used in DiscussionsChannelScreenDesign.kt. This is the
  *     concrete "align styling with the community components" fix rodvar asked for.
  *
@@ -70,7 +70,7 @@
  * ======================================================================================
  * REUSE OF EXISTING COMPONENTS
  * ======================================================================================
- * - `ChatMessageList` — unchanged in production; accepts BisqEasyOpenTradeMessageModel
+ * - `ChatMessageList` — unchanged in production; accepts BisqEasyOpenTradeMessage
  *   list. Private chat messages (TwoPartyPrivateChatMessage) must be adapted via an
  *   extension function in the presenter: `msg.toBisqEasyOpenTradeMessageModel()`,
  *   mapping common fields (id, text, sender, date, reactions, citation) and leaving

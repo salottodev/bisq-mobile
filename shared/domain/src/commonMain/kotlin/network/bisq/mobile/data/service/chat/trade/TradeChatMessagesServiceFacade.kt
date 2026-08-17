@@ -1,14 +1,14 @@
 package network.bisq.mobile.data.service.chat.trade
 
-import network.bisq.mobile.data.replicated.chat.CitationVO
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
+import network.bisq.mobile.data.replicated.chat.Citation
+import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.service.LifeCycleAware
 
 interface TradeChatMessagesServiceFacade : LifeCycleAware {
     suspend fun sendChatMessage(
         text: String,
-        citationVO: CitationVO?,
+        citation: Citation?,
     ): Result<Unit>
 
     suspend fun addChatMessageReaction(
@@ -18,6 +18,6 @@ interface TradeChatMessagesServiceFacade : LifeCycleAware {
 
     suspend fun removeChatMessageReaction(
         messageId: String,
-        reactionVO: BisqEasyOpenTradeMessageReactionVO,
+        reaction: BisqEasyOpenTradeMessageReaction,
     ): Result<Boolean>
 }

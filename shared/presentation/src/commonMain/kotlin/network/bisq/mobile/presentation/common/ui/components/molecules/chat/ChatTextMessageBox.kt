@@ -5,14 +5,14 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,25 +20,31 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageDto
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
+import network.bisq.mobile.data.replicated.chat.Citation
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
+import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
+import network.bisq.mobile.data.replicated.chat.reactions.ChatMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
+import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.utils.PlatformImage
 import network.bisq.mobile.data.utils.createEmptyImage
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ChatTextMessageBox(
+fun <R : ChatMessageReaction> ChatTextMessageBox(
     isIgnored: Boolean,
     onAddReaction: (ReactionEnum) -> Unit,
-    onRemoveReaction: (BisqEasyOpenTradeMessageReactionVO) -> Unit,
-    message: BisqEasyOpenTradeMessageModel,
+    onRemoveReaction: (R) -> Unit,
+    message: PrivateChatMessage<R>,
     userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage,
     onResendMessage: (String) -> Unit,
     userNameProvider: suspend (String) -> String,
@@ -78,6 +84,7 @@ fun ChatTextMessageBox(
             onPeerProfileClick = onPeerProfileClick,
             onLongClick = { showMenu = true },
         )
+        Spacer(modifier = Modifier.height(4.dp))
         val quoteAndProfileIconAndText = @Composable {
             Column(
                 horizontalAlignment = chatAlign,
@@ -101,34 +108,33 @@ fun ChatTextMessageBox(
                 )
             }
         }
-        val messageBox = @Composable {
-            Column(
-                horizontalAlignment = chatAlign,
+        // Reactions always sit below the bubble. They used to move beside it for messages under ten
+        // characters with fewer than four distinct reactions, which made a conversation change shape
+        // from one message to the next for a reason the reader could not see.
+        Column(
+            horizontalAlignment = chatAlign,
+            verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalf),
+        ) {
+            Surface(
+                color = bubbleBGColor,
+                shape = RoundedCornerShape(BisqUIConstants.BorderRadius),
+                modifier =
+                    Modifier
+                        .padding(chatPadding)
+                        .wrapContentSize(contentAlign)
+                        .combinedClickable(onLongClick = { showMenu = true }, onClick = {}),
             ) {
-                Surface(
-                    color = bubbleBGColor,
-                    shape = RoundedCornerShape(BisqUIConstants.BorderRadius),
-                    modifier =
-                        Modifier
-                            .padding(chatPadding)
-                            .wrapContentSize(contentAlign)
-                            .combinedClickable(onLongClick = { showMenu = true }, onClick = {}),
-                ) {
-                    if (message.citation != null) {
-                        quoteAndProfileIconAndText()
-                    } else {
-                        ProfileIconAndText(
-                            message = message,
-                            userProfileIconProvider = userProfileIconProvider,
-                            onPeerProfileClick = onPeerProfileClick,
-                            onLongClick = { showMenu = true },
-                        )
-                    }
+                if (message.citation != null) {
+                    quoteAndProfileIconAndText()
+                } else {
+                    ProfileIconAndText(
+                        message = message,
+                        userProfileIconProvider = userProfileIconProvider,
+                        onPeerProfileClick = onPeerProfileClick,
+                        onLongClick = { showMenu = true },
+                    )
                 }
             }
-        }
-
-        val reactions = @Composable {
             ReactionDisplay(
                 message,
                 onAddReaction = onAddReaction,
@@ -137,36 +143,11 @@ fun ChatTextMessageBox(
             )
         }
 
-        // If the message is short and there are less than 4 reactions,
-        // show the message and reactions in a single row.
-        val reactionsList by message.chatReactions.collectAsState()
-        val groupedReactions = reactionsList.groupBy { it.reactionId }
-        if (message.textString.length < 10 && groupedReactions.size < 4) {
-            Row {
-                if (message.isMyMessage) {
-                    reactions()
-                    messageBox()
-                } else {
-                    messageBox()
-                    reactions()
-                }
-            }
-        } else {
-            Column(
-                horizontalAlignment = chatAlign,
-                verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalf),
-            ) {
-                messageBox()
-                reactions()
-            }
-        }
-
         ChatMessageContextMenu(
             message = message,
             showMenu = showMenu,
             onSetShowMenu = { value -> setShowMenu(value) },
             onAddReaction = onAddReaction,
-            onRemoveReaction = onRemoveReaction,
             onReply = onReply,
             onCopy = onCopy,
             onIgnoreUser = onIgnoreUser,
@@ -184,29 +165,20 @@ private fun ChatTextMessageBox_MyMessagePreview() {
         val myUserProfile = createMockUserProfile("Bob")
         val peerUserProfile = createMockUserProfile("Alice")
 
-        val dto =
-            BisqEasyOpenTradeMessageDto(
-                tradeId = "trade123",
-                messageId = "msg123",
-                channelId = "channel123",
-                senderUserProfile = myUserProfile,
-                receiverUserProfileId = peerUserProfile.networkId.pubKey.id,
-                receiverNetworkId = peerUserProfile.networkId,
+        val message =
+            BisqEasyOpenTradeMessage(
+                id = "msg123",
+                chatMessageType = ChatMessageTypeEnum.TEXT,
                 text = "Hello! I'm interested in this trade.",
                 citation = null,
-                date = 1234567890000L,
-                mediator = null,
-                chatMessageType = ChatMessageTypeEnum.TEXT,
-                bisqEasyOffer = null,
-                chatMessageReactions = emptySet(),
                 citationAuthorUserProfile = null,
-            )
-
-        val message =
-            BisqEasyOpenTradeMessageModel(
-                dto,
-                myUserProfile,
-                emptyList(),
+                date = 1234567890000L,
+                senderUserProfile = myUserProfile,
+                myUserProfile = myUserProfile,
+                chatReactions = emptyList(),
+                tradeId = "trade123",
+                mediator = null,
+                bisqEasyOffer = null,
             )
 
         ChatTextMessageBox(
@@ -229,29 +201,150 @@ private fun ChatTextMessageBox_PeerMessagePreview() {
         val myUserProfile = createMockUserProfile("Bob")
         val peerUserProfile = createMockUserProfile("Alice")
 
-        val dto =
-            BisqEasyOpenTradeMessageDto(
-                tradeId = "trade123",
-                messageId = "msg456",
-                channelId = "channel123",
-                senderUserProfile = peerUserProfile,
-                receiverUserProfileId = myUserProfile.networkId.pubKey.id,
-                receiverNetworkId = myUserProfile.networkId,
+        val message =
+            BisqEasyOpenTradeMessage(
+                id = "msg456",
+                chatMessageType = ChatMessageTypeEnum.TEXT,
                 text = "Sure! Let's proceed with the payment.",
                 citation = null,
-                date = 1234567890000L,
-                mediator = null,
-                chatMessageType = ChatMessageTypeEnum.TEXT,
-                bisqEasyOffer = null,
-                chatMessageReactions = emptySet(),
                 citationAuthorUserProfile = null,
+                date = 1234567890000L,
+                senderUserProfile = peerUserProfile,
+                myUserProfile = myUserProfile,
+                chatReactions = emptyList(),
+                tradeId = "trade123",
+                mediator = null,
+                bisqEasyOffer = null,
             )
 
+        ChatTextMessageBox(
+            message = message,
+            userProfileIconProvider = { createEmptyImage() },
+            onAddReaction = {},
+            onRemoveReaction = {},
+            isIgnored = false,
+            onResendMessage = {},
+            userNameProvider = { it },
+            onPeerProfileClick = {},
+        )
+    }
+}
+
+/**
+ * [ReactionDisplay] reads only the reaction id and its sender — it groups by the resolved
+ * [ReactionEnum] and asks [PrivateChatMessage.isMyChatReaction] who reacted. The rest is filled with
+ * plausible values so the object stays a faithful one.
+ */
+@ExcludeFromCoverage
+private fun previewReaction(
+    id: String,
+    sender: UserProfileVO,
+    receiver: UserProfileVO,
+    reaction: ReactionEnum,
+) = BisqEasyOpenTradeMessageReaction(
+    id = id,
+    senderUserProfile = sender,
+    receiverUserProfileId = receiver.id,
+    receiverNetworkId = receiver.networkId,
+    chatChannelId = "channel-1",
+    chatChannelDomain = ChatChannelDomainEnum.BISQ_EASY_OPEN_TRADES,
+    chatMessageId = "msg-1",
+    reactionId = reaction.ordinal,
+    date = 1234567890000L,
+    isRemoved = false,
+)
+
+/**
+ * Two thumbs-up — one of them mine, which is what makes a tap remove rather than add — so the count
+ * badge shows, plus a single heart for the form without it.
+ */
+@ExcludeFromCoverage
+private fun previewReactions(
+    myUserProfile: UserProfileVO,
+    peerUserProfile: UserProfileVO,
+) = listOf(
+    previewReaction("r-1", myUserProfile, peerUserProfile, ReactionEnum.THUMBS_UP),
+    previewReaction("r-2", peerUserProfile, myUserProfile, ReactionEnum.THUMBS_UP),
+    previewReaction("r-3", peerUserProfile, myUserProfile, ReactionEnum.HEART),
+)
+
+/**
+ * The only preview that reaches [ReactionDisplay]: every other one passes no reactions, so the row
+ * renders empty.
+ *
+ * The icons are grey placeholders in a preview: [network.bisq.mobile.presentation.common.ui
+ * .components.atoms.DynamicImage] short-circuits under `LocalInspectionMode`. What this is good for
+ * is the pill, the count and where the row sits relative to the bubble.
+ */
+@ExcludeFromCoverage
+@Preview
+@Composable
+private fun ChatTextMessageBox_ReactionsPreview() {
+    BisqTheme.Preview {
+        val myUserProfile = createMockUserProfile("Bob")
+        val peerUserProfile = createMockUserProfile("Alice")
+
         val message =
-            BisqEasyOpenTradeMessageModel(
-                dto,
-                myUserProfile,
-                emptyList(),
+            BisqEasyOpenTradeMessage(
+                id = "msg-1",
+                chatMessageType = ChatMessageTypeEnum.TEXT,
+                text = "Payment sent, please confirm.",
+                citation = null,
+                citationAuthorUserProfile = null,
+                date = 1234567890000L,
+                senderUserProfile = peerUserProfile,
+                myUserProfile = myUserProfile,
+                chatReactions = previewReactions(myUserProfile, peerUserProfile),
+                tradeId = "trade123",
+                mediator = null,
+                bisqEasyOffer = null,
+            )
+
+        ChatTextMessageBox(
+            message = message,
+            userProfileIconProvider = { createEmptyImage() },
+            onAddReaction = {},
+            onRemoveReaction = {},
+            isIgnored = false,
+            onResendMessage = {},
+            userNameProvider = { it },
+            onPeerProfileClick = {},
+        )
+    }
+}
+
+/**
+ * The only preview that reaches [QuoteMessageBubble]: it is drawn just for a message that carries a
+ * citation. Alice replies quoting Bob, which is the way one usually meets a quote — someone
+ * answering something you wrote.
+ */
+@ExcludeFromCoverage
+@Preview
+@Composable
+private fun ChatTextMessageBox_QuotedMessagePreview() {
+    BisqTheme.Preview {
+        val myUserProfile = createMockUserProfile("Bob")
+        val peerUserProfile = createMockUserProfile("Alice")
+
+        val message =
+            BisqEasyOpenTradeMessage(
+                id = "msg-1",
+                chatMessageType = ChatMessageTypeEnum.TEXT,
+                text = "Yes, that works for me.",
+                citation =
+                    Citation(
+                        authorUserProfileId = "Bob",
+                        text = "Can we settle tomorrow morning?",
+                        chatMessageId = "msg-0",
+                    ),
+                citationAuthorUserProfile = myUserProfile,
+                date = 1234567890000L,
+                senderUserProfile = peerUserProfile,
+                myUserProfile = myUserProfile,
+                chatReactions = emptyList(),
+                tradeId = "trade123",
+                mediator = null,
+                bisqEasyOffer = null,
             )
 
         ChatTextMessageBox(
@@ -274,29 +367,20 @@ private fun ChatTextMessageBox_LongMessagePreview() {
         val myUserProfile = createMockUserProfile("Bob")
         val peerUserProfile = createMockUserProfile("Alice")
 
-        val dto =
-            BisqEasyOpenTradeMessageDto(
-                tradeId = "trade123",
-                messageId = "msg789",
-                channelId = "channel123",
-                senderUserProfile = peerUserProfile,
-                receiverUserProfileId = myUserProfile.networkId.pubKey.id,
-                receiverNetworkId = myUserProfile.networkId,
+        val message =
+            BisqEasyOpenTradeMessage(
+                id = "msg789",
+                chatMessageType = ChatMessageTypeEnum.TEXT,
                 text = "This is a longer message to demonstrate how the chat message box handles multiple lines of text. It should wrap properly and maintain good readability with proper spacing and alignment.",
                 citation = null,
-                date = 1234567890000L,
-                mediator = null,
-                chatMessageType = ChatMessageTypeEnum.TEXT,
-                bisqEasyOffer = null,
-                chatMessageReactions = emptySet(),
                 citationAuthorUserProfile = null,
-            )
-
-        val message =
-            BisqEasyOpenTradeMessageModel(
-                dto,
-                myUserProfile,
-                emptyList(),
+                date = 1234567890000L,
+                senderUserProfile = peerUserProfile,
+                myUserProfile = myUserProfile,
+                chatReactions = emptyList(),
+                tradeId = "trade123",
+                mediator = null,
+                bisqEasyOffer = null,
             )
 
         ChatTextMessageBox(

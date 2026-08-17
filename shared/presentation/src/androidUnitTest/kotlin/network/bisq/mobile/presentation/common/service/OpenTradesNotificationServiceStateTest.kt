@@ -14,8 +14,12 @@ import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.presentation.common.notification.ForegroundServiceController
 import network.bisq.mobile.presentation.common.notification.NotificationController
 import network.bisq.mobile.presentation.common.notification.model.NotificationBuilder
+import network.bisq.mobile.presentation.common.notification.model.NotificationConfig
+import network.bisq.mobile.presentation.common.notification.model.android.AndroidLockScreenPolicy
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 
 class OpenTradesNotificationServiceStateTest {
     private lateinit var notificationController: NotificationController
@@ -89,5 +93,26 @@ class OpenTradesNotificationServiceStateTest {
             )
 
             verify(exactly = 1) { notificationController.notify(any<NotificationBuilder.() -> Unit>()) }
+        }
+
+    @Test
+    fun `a trade state notification is shown in full on the lock screen`() =
+        runTest {
+            var config: NotificationConfig? = null
+            every { notificationController.notify(any<NotificationBuilder.() -> Unit>()) } answers {
+                config = NotificationBuilder().apply(firstArg<NotificationBuilder.() -> Unit>()).build()
+            }
+
+            service.handleTradeStateNotification(
+                mockTrade(isMaker = true, isTaker = false),
+                BisqEasyTradeStateEnum.TAKER_SENT_TAKE_OFFER_REQUEST,
+            )
+
+            // Redaction is for copy that names a peer. A state transition does not, so hiding it
+            // would cost the user information and protect nothing.
+            assertEquals(
+                AndroidLockScreenPolicy.ShowContent,
+                assertNotNull(config, "the service must have posted a notification").android?.lockScreen,
+            )
         }
 }

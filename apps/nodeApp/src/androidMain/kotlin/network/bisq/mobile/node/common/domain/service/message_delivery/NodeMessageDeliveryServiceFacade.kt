@@ -1,13 +1,13 @@
 package network.bisq.mobile.node.common.domain.service.message_delivery
 
 import bisq.chat.ChatMessageType
-import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
 import bisq.common.observable.Pin
 import bisq.network.p2p.services.confidential.ack.MessageDeliveryStatus
 import network.bisq.mobile.data.replicated.network.confidential.ack.MessageDeliveryInfoVO
 import network.bisq.mobile.data.service.message_delivery.MessageDeliveryServiceFacade
 import network.bisq.mobile.node.common.domain.mapping.Mappings
 import network.bisq.mobile.node.common.domain.service.AndroidApplicationService
+import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage as Bisq2BisqEasyOpenTradeMessage
 
 class NodeMessageDeliveryServiceFacade(
     private val applicationService: AndroidApplicationService.Provider,
@@ -41,12 +41,12 @@ class NodeMessageDeliveryServiceFacade(
         tradeMessageId: String,
         onNewStatus: (entry: Pair<String, MessageDeliveryInfoVO>) -> Unit,
     ) {
-        val message: BisqEasyOpenTradeMessage? = findBisqEasyOpenTradeMessages(tradeMessageId)
+        val message: Bisq2BisqEasyOpenTradeMessage? = findBisqEasyOpenTradeMessages(tradeMessageId)
         if (message == null) {
             log.w { "TradeMessage for id $tradeMessageId not found" }
             return
         }
-        val tradeMessage: BisqEasyOpenTradeMessage = message
+        val tradeMessage: Bisq2BisqEasyOpenTradeMessage = message
 
         val deliveryStatusMapPin =
             networkService.messageDeliveryStatusByMessageId.addObserver { ackRequestingMessageId, status ->
@@ -56,7 +56,7 @@ class NodeMessageDeliveryServiceFacade(
                 val tradeMessageId = tradeMessage.id
                 var chatMessageId: String = tradeMessage.ackRequestingMessageId
                 var peersProfileId: String? = null
-                val separator: String = BisqEasyOpenTradeMessage.ACK_REQUESTING_MESSAGE_ID_SEPARATOR
+                val separator: String = Bisq2BisqEasyOpenTradeMessage.ACK_REQUESTING_MESSAGE_ID_SEPARATOR
                 // In case of a bisqEasyOpenTradeMessage we use the message id and receiver id separated with a '_'.
                 // This allows us to handle the ACK messages separately to know when the message was received by
                 // both the peer and the mediator (in case of mediation).
@@ -104,7 +104,7 @@ class NodeMessageDeliveryServiceFacade(
         deliveryStatusMapPins.remove(tradeMessageId)?.unbind()
     }
 
-    private fun findBisqEasyOpenTradeMessages(messageId: String): BisqEasyOpenTradeMessage? =
+    private fun findBisqEasyOpenTradeMessages(messageId: String): Bisq2BisqEasyOpenTradeMessage? =
         bisqEasyOpenTradeChannelService.channels
             .flatMap { it.chatMessages }
             .find {

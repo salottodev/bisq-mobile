@@ -18,7 +18,7 @@ package network.bisq.mobile.data.replicated.chat.bisq_easy.offerbook
 
 import kotlinx.serialization.Serializable
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.CitationVO
+import network.bisq.mobile.data.replicated.chat.Citation
 import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO
 
 @Serializable
@@ -28,7 +28,7 @@ data class BisqEasyOfferbookMessageDto(
     val authorUserProfileId: String,
     val bisqEasyOffer: BisqEasyOfferVO?,
     val text: String?,
-    val citation: CitationVO?,
+    val citation: Citation?,
     val date: Long,
     val wasEdited: Boolean,
     val chatMessageType: ChatMessageTypeEnum,

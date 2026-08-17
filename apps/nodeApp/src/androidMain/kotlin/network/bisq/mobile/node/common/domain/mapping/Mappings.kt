@@ -23,13 +23,8 @@ import bisq.account.payment_method.fiat.FiatPaymentMethodSpec
 import bisq.account.protocol_type.TradeProtocolType
 import bisq.chat.ChatChannelDomain
 import bisq.chat.ChatMessageType
-import bisq.chat.Citation
 import bisq.chat.bisq_easy.offerbook.BisqEasyOfferbookMessage
-import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
-import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
 import bisq.chat.notifications.ChatChannelNotificationType
-import bisq.chat.reactions.BisqEasyOfferbookMessageReaction
-import bisq.chat.reactions.BisqEasyOpenTradeMessageReaction
 import bisq.chat.reactions.Reaction
 import bisq.common.encoding.Hex
 import bisq.common.market.Market
@@ -84,14 +79,10 @@ import network.bisq.mobile.android.node.BuildNodeConfig
 import network.bisq.mobile.data.replicated.account.protocol_type.TradeProtocolTypeEnum
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.CitationVO
+import network.bisq.mobile.data.replicated.chat.Citation
 import network.bisq.mobile.data.replicated.chat.bisq_easy.offerbook.BisqEasyOfferbookMessageDto
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelDto
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageDto
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
 import network.bisq.mobile.data.replicated.chat.notifications.ChatChannelNotificationTypeEnum
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOfferbookMessageReactionVO
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
+import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOfferbookMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.monetary.CoinVO
@@ -146,7 +137,6 @@ import network.bisq.mobile.data.replicated.trade.bisq_easy.BisqEasyTradePartyVO
 import network.bisq.mobile.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
 import network.bisq.mobile.data.replicated.user.identity.UserIdentityVO
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
-import network.bisq.mobile.data.replicated.user.profile.userProfileDemoObj
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import java.security.KeyPair
 import java.security.PrivateKey
@@ -154,6 +144,8 @@ import java.security.PublicKey
 import java.util.Base64
 import java.util.Optional
 import kotlin.jvm.optionals.getOrNull
+import bisq.chat.Citation as Bisq2Citation
+import bisq.chat.reactions.BisqEasyOfferbookMessageReaction as Bisq2BisqEasyOfferbookMessageReaction
 
 class Mappings {
     // account.protocol_type
@@ -233,9 +225,9 @@ class Mappings {
     }
 
     object CitationMapping {
-        fun toBisq2Model(value: CitationVO): Citation = Citation(value.authorUserProfileId, value.text, Optional.ofNullable(value.chatMessageId))
+        fun toBisq2Model(value: Citation): Bisq2Citation = Bisq2Citation(value.authorUserProfileId, value.text, Optional.ofNullable(value.chatMessageId))
 
-        fun fromBisq2Model(value: Citation): CitationVO = CitationVO(value.authorUserProfileId, value.text, value.chatMessageId.getOrNull())
+        fun fromBisq2Model(value: Bisq2Citation): Citation = Citation(value.authorUserProfileId, value.text, value.chatMessageId.getOrNull())
     }
 
     // chat.bisq_easy.offerbook
@@ -269,100 +261,8 @@ class Mappings {
             )
     }
 
-    // chat.bisq_easy.open_trades
-
-    object BisqEasyOpenTradeChannelVOMapping {
-        /* fun toBisq2Model(value: BisqEasyOpenTradeChannelVO): BisqEasyOpenTradeChannel {
-             return BisqEasyOpenTradeChannel(
-                 value.id,
-                 value.tradeId,
-                 BisqEasyOfferMapping.toBisq2Model(value.bisqEasyOffer),
-                 UserIdentityMapping.toBisq2Model(value.myUserIdentity),
-                 value.traders.map { UserProfileMapping.toBisq2Model(it) }.toSet(),
-                 Optional.ofNullable(value.mediator?.let { UserProfileMapping.toBisq2Model(it) }),
-                emptySet(),
-                 false,
-                 ChatChannelNotificationType.GLOBAL_DEFAULT,
-             )
-         }*/
-
-        fun fromBisq2Model(value: BisqEasyOpenTradeChannel): BisqEasyOpenTradeChannelDto =
-            BisqEasyOpenTradeChannelDto(
-                value.id,
-                value.tradeId,
-                BisqEasyOfferMapping.fromBisq2Model(value.bisqEasyOffer),
-                UserIdentityMapping.fromBisq2Model(value.myUserIdentity),
-                value.traders.map { UserProfileMapping.fromBisq2Model(it) }.toSet(),
-                value.mediator.getOrNull()?.let { UserProfileMapping.fromBisq2Model(it) },
-            )
-    }
-
-    object BisqEasyOpenTradeMessageModelMapping {
-        fun fromBisq2Model(
-            message: BisqEasyOpenTradeMessage,
-            citationAuthorUserProfile: UserProfile?,
-            myUserProfile: UserProfile,
-        ): BisqEasyOpenTradeMessageModel {
-            userProfileDemoObj
-            val citationAuthorUserProfileVO = citationAuthorUserProfile?.let { UserProfileMapping.fromBisq2Model(it) }
-            val bisqEasyOpenTradeMessage = BisqEasyOpenTradeMessageVOMapping.fromBisq2Model(message, citationAuthorUserProfileVO)
-            val myUserProfileVO = UserProfileMapping.fromBisq2Model(myUserProfile)
-            val chatMessageReactions: List<BisqEasyOpenTradeMessageReactionVO> =
-                message.chatMessageReactions
-                    .filter { !it.isRemoved }
-                    .map { reaction ->
-                        BisqEasyOpenTradeMessageReactionMapping.fromBisq2Model(reaction)
-                    }
-            return BisqEasyOpenTradeMessageModel(
-                bisqEasyOpenTradeMessage,
-                myUserProfileVO,
-                chatMessageReactions,
-            )
-        }
-    }
-
-    object BisqEasyOpenTradeMessageVOMapping {
-        fun toBisq2Model(value: BisqEasyOpenTradeMessageDto): BisqEasyOpenTradeMessage {
-            // citationAuthorUserProfile not required for Bisq Easy model
-            return BisqEasyOpenTradeMessage(
-                value.tradeId,
-                value.messageId,
-                value.channelId,
-                UserProfileMapping.toBisq2Model(value.senderUserProfile),
-                value.receiverUserProfileId,
-                NetworkIdMapping.toBisq2Model(value.receiverNetworkId),
-                value.text,
-                Optional.ofNullable(value.citation?.let { CitationMapping.toBisq2Model(it) }),
-                value.date,
-                false,
-                Optional.ofNullable(value.mediator?.let { UserProfileMapping.toBisq2Model(it) }),
-                ChatMessageTypeMapping.toBisq2Model(value.chatMessageType),
-                Optional.ofNullable(value.bisqEasyOffer?.let { BisqEasyOfferMapping.toBisq2Model(it) }),
-                value.chatMessageReactions.map { BisqEasyOpenTradeMessageReactionMapping.toBisq2Model(it) }.toSet(),
-            )
-        }
-
-        fun fromBisq2Model(
-            value: BisqEasyOpenTradeMessage,
-            citationAuthorUserProfileVO: UserProfileVO?,
-        ): BisqEasyOpenTradeMessageDto =
-            BisqEasyOpenTradeMessageDto(
-                value.tradeId,
-                value.id,
-                value.channelId,
-                UserProfileMapping.fromBisq2Model(value.senderUserProfile),
-                value.receiverUserProfileId,
-                NetworkIdMapping.fromBisq2Model(value.receiverNetworkId),
-                value.text.getOrNull(),
-                value.citation.getOrNull()?.let { CitationMapping.fromBisq2Model(it) },
-                value.date,
-                value.mediator.getOrNull()?.let { UserProfileMapping.fromBisq2Model(it) },
-                ChatMessageTypeMapping.fromBisq2Model(value.chatMessageType),
-                value.bisqEasyOffer.getOrNull()?.let { BisqEasyOfferMapping.fromBisq2Model(it) },
-                value.chatMessageReactions.map { BisqEasyOpenTradeMessageReactionMapping.fromBisq2Model(it) }.toSet(),
-                citationAuthorUserProfileVO,
-            )
-    }
+    // chat.bisq_easy.open_trades — see mapping/chat/BisqEasyOpenTradeChannelMapping.kt and
+    // mapping/chat/BisqEasyOpenTradeMessageMapping.kt
 
     // chat.notifications
 
@@ -384,40 +284,12 @@ class Mappings {
             }
     }
 
-    // chat.reactions
-    object BisqEasyOpenTradeMessageReactionMapping {
-        fun toBisq2Model(value: BisqEasyOpenTradeMessageReactionVO): BisqEasyOpenTradeMessageReaction =
-            BisqEasyOpenTradeMessageReaction(
-                value.id,
-                UserProfileMapping.toBisq2Model(value.senderUserProfile),
-                value.receiverUserProfileId,
-                NetworkIdMapping.toBisq2Model(value.receiverNetworkId),
-                value.chatChannelId,
-                ChatChannelDomainMapping.toBisq2Model(value.chatChannelDomain),
-                value.chatMessageId,
-                value.reactionId,
-                value.date,
-                value.isRemoved,
-            )
-
-        fun fromBisq2Model(value: BisqEasyOpenTradeMessageReaction): BisqEasyOpenTradeMessageReactionVO =
-            BisqEasyOpenTradeMessageReactionVO(
-                value.id,
-                UserProfileMapping.fromBisq2Model(value.senderUserProfile),
-                value.receiverUserProfileId,
-                NetworkIdMapping.fromBisq2Model(value.receiverNetworkId),
-                value.chatChannelId,
-                ChatChannelDomainMapping.fromBisq2Model(value.chatChannelDomain),
-                value.chatMessageId,
-                value.reactionId,
-                value.date,
-                value.isRemoved,
-            )
-    }
+    // chat.reactions — the private ones live in mapping/chat/, next to the message and channel
+    // mappings they belong with: see BisqEasyOpenTradeMessageReactionMapping.kt
 
     object BisqEasyOfferbookMessageReactionMapping {
-        fun toBisq2Model(value: BisqEasyOfferbookMessageReactionVO): BisqEasyOfferbookMessageReaction =
-            BisqEasyOfferbookMessageReaction(
+        fun toBisq2Model(value: BisqEasyOfferbookMessageReaction): Bisq2BisqEasyOfferbookMessageReaction =
+            Bisq2BisqEasyOfferbookMessageReaction(
                 value.id,
                 value.userProfileId,
                 value.chatChannelId,
@@ -427,8 +299,8 @@ class Mappings {
                 value.date,
             )
 
-        fun fromBisq2Model(value: BisqEasyOfferbookMessageReaction): BisqEasyOfferbookMessageReactionVO =
-            BisqEasyOfferbookMessageReactionVO(
+        fun fromBisq2Model(value: Bisq2BisqEasyOfferbookMessageReaction): BisqEasyOfferbookMessageReaction =
+            BisqEasyOfferbookMessageReaction(
                 value.id,
                 value.userProfileId,
                 value.chatChannelId,

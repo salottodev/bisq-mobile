@@ -71,11 +71,11 @@
  *   - `TopBarContent`        (molecules/TopBar.kt)
  *   - `BisqSearchField`      (molecules/inputfield/SearchField.kt) — for search-in-channel
  *   - `ChatInputField`       (molecules/chat/ChatInputField.kt) — its `quotedMessage` param
- *      defaults to null, so it needs no BisqEasyOpenTradeMessageModel instance to preview.
+ *      defaults to null, so it needs no BisqEasyOpenTradeMessage instance to preview.
  *
  * NOT reusable as-is in a domain-type-free PoC, but reused unchanged in PRODUCTION:
  *   - `ChatMessageList` / `ChatTextMessageBox` (organisms/chat, molecules/chat) — both
- *     require `List<BisqEasyOpenTradeMessageModel>`, a TRADE-scoped domain type. Public
+ *     require `List<BisqEasyOpenTradeMessage>`, a TRADE-scoped domain type. Public
  *     channel messages need their own adapter, analogous to the one the private-chat PoC
  *     already calls for (`TwoPartyPrivateChatMessage.toBisqEasyOpenTradeMessageModel()`
  *     in design/community/private_chat/PrivateChatScreenDesign.kt) — but NOT the same adapter, because a

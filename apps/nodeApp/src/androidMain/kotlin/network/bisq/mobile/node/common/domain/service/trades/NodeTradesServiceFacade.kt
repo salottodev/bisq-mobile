@@ -10,7 +10,6 @@ import bisq.chat.ChatChannelSelectionService
 import bisq.chat.ChatService
 import bisq.chat.bisq_easy.offerbook.BisqEasyOfferbookChannel
 import bisq.chat.bisq_easy.offerbook.BisqEasyOfferbookChannelService
-import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
 import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelService
 import bisq.chat.priv.LeavePrivateChatManager
 import bisq.common.monetary.Monetary
@@ -36,9 +35,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import network.bisq.mobile.data.replicated.common.currency.MarketVOExtensions.marketCodes
 import network.bisq.mobile.data.replicated.common.monetary.MonetaryVO
-import network.bisq.mobile.data.replicated.common.monetary.fiatToDecimal
 import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.service.trades.BaseTradesServiceFacade
@@ -53,13 +50,14 @@ import network.bisq.mobile.domain.model.trade.TradeRoleFilter
 import network.bisq.mobile.domain.model.trade.TradeSort
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.node.common.domain.mapping.Mappings
-import network.bisq.mobile.node.common.domain.mapping.TradeItemPresentationDtoFactory
+import network.bisq.mobile.node.common.domain.mapping.TradeItemPresentationModelFactory
 import network.bisq.mobile.node.common.domain.mapping.trade.toClosedTradeListItem
 import network.bisq.mobile.node.common.domain.service.AndroidApplicationService
 import network.bisq.mobile.node.common.domain.utils.bindNonNullTo
 import java.util.Optional
 import kotlin.jvm.optionals.getOrNull
 import kotlin.time.Duration.Companion.seconds
+import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel as Bisq2BisqEasyOpenTradeChannel
 
 /**
  * Node implementation of TradesServiceFacade with enhanced trade state synchronization.
@@ -160,13 +158,13 @@ class NodeTradesServiceFacade(
 
         channelsPin =
             bisqEasyOpenTradeChannelService.channels.addObserver(
-                object : CollectionObserver<BisqEasyOpenTradeChannel> {
-                    override fun onAdded(channel: BisqEasyOpenTradeChannel) {
+                object : CollectionObserver<Bisq2BisqEasyOpenTradeChannel> {
+                    override fun onAdded(channel: Bisq2BisqEasyOpenTradeChannel) {
                         handleChannelAdded(channel)
                     }
 
                     override fun onRemoved(element: Any) {
-                        if (element is BisqEasyOpenTradeChannel) {
+                        if (element is Bisq2BisqEasyOpenTradeChannel) {
                             handleChannelRemoved(element)
                         }
                     }
@@ -622,7 +620,7 @@ class NodeTradesServiceFacade(
     // Trade
     private fun handleTradeAdded(trade: BisqEasyTrade) {
         val tradeId = trade.id
-        val findChannelByTradeId: Optional<BisqEasyOpenTradeChannel> = bisqEasyOpenTradeChannelService.findChannelByTradeId(tradeId)
+        val findChannelByTradeId: Optional<Bisq2BisqEasyOpenTradeChannel> = bisqEasyOpenTradeChannelService.findChannelByTradeId(tradeId)
         if (findChannelByTradeId.isPresent) {
             handleTradeAndChannelAdded(trade, findChannelByTradeId.get())
         } else {
@@ -656,7 +654,7 @@ class NodeTradesServiceFacade(
     }
 
     // Channel
-    private fun handleChannelAdded(channel: BisqEasyOpenTradeChannel) {
+    private fun handleChannelAdded(channel: Bisq2BisqEasyOpenTradeChannel) {
         val tradeId = channel.tradeId
         val optionalTrade = bisqEasyTradeService.findTrade(tradeId)
         if (optionalTrade.isPresent) {
@@ -666,7 +664,7 @@ class NodeTradesServiceFacade(
         }
     }
 
-    private fun handleChannelRemoved(channel: BisqEasyOpenTradeChannel) {
+    private fun handleChannelRemoved(channel: Bisq2BisqEasyOpenTradeChannel) {
         val tradeId = channel.tradeId
         val optionalTrade = bisqEasyTradeService.findTrade(tradeId)
         if (optionalTrade.isPresent) {
@@ -695,7 +693,7 @@ class NodeTradesServiceFacade(
     // TradeAndChannel
     private fun handleTradeAndChannelAdded(
         trade: BisqEasyTrade,
-        channel: BisqEasyOpenTradeChannel,
+        channel: Bisq2BisqEasyOpenTradeChannel,
     ): Unit =
         synchronized(tradeItemsLock) {
             handleTradeAndChannelAddedLocked(trade, channel)
@@ -703,7 +701,7 @@ class NodeTradesServiceFacade(
 
     private fun handleTradeAndChannelAddedLocked(
         trade: BisqEasyTrade,
-        channel: BisqEasyOpenTradeChannel,
+        channel: Bisq2BisqEasyOpenTradeChannel,
     ) {
         if (findListItem(trade).isPresent) {
             log.d {
@@ -713,8 +711,7 @@ class NodeTradesServiceFacade(
             return
         }
 
-        val tradeItemPresentationVO = TradeItemPresentationDtoFactory.create(trade, channel, userProfileService, reputationService)
-        val openTradeItem = TradeItemPresentationModel.from(tradeItemPresentationVO)
+        val openTradeItem = TradeItemPresentationModelFactory.create(trade, channel, userProfileService, reputationService)
 
         // The trade is already in a final state at the time we observe it (for example, on app
         // restart when a previously closed trade is replayed). In this case we skip adding it to
@@ -819,7 +816,7 @@ class NodeTradesServiceFacade(
         }
     }
 
-    private fun getTradeChannelUserNameTriple(): Triple<BisqEasyOpenTradeChannel, BisqEasyTrade, String> {
+    private fun getTradeChannelUserNameTriple(): Triple<Bisq2BisqEasyOpenTradeChannel, BisqEasyTrade, String> {
         val tradeId = requireNotNull(selectedTrade.value) { "Selected trade must not be null" }.tradeId
         val channel =
             requireNotNull(bisqEasyOpenTradeChannelService.findChannelByTradeId(tradeId).getOrNull()) { "Channel must not be null" }

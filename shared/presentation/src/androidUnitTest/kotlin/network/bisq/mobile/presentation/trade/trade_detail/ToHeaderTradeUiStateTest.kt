@@ -2,7 +2,7 @@ package network.bisq.mobile.presentation.trade.trade_detail
 
 import io.mockk.every
 import io.mockk.mockk
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelModel
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
 import network.bisq.mobile.data.replicated.common.network.AddressByTransportTypeMapVO
 import network.bisq.mobile.data.replicated.common.network.AddressVO
 import network.bisq.mobile.data.replicated.common.network.TransportTypeEnum
@@ -196,7 +196,7 @@ class ToHeaderTradeUiStateTest {
         every { offer.market.baseCurrencyCode } returns "BTC"
         every { offer.market.quoteCurrencyCode } returns "USD"
 
-        val channel = mockk<BisqEasyOpenTradeChannelModel>(relaxed = true)
+        val channel = mockk<BisqEasyOpenTradeChannel>(relaxed = true)
         every { channel.bisqEasyOffer } returns offer
 
         val model = mockk<TradeItemPresentationModel>(relaxed = true)

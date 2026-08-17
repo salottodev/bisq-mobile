@@ -19,7 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.i18n.i18n
@@ -36,7 +36,7 @@ import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 fun TradeChatRow(
     selectedTrade: TradeItemPresentationModel?,
     onOpenChat: () -> Unit,
-    lastChatMsg: BisqEasyOpenTradeMessageModel?,
+    lastChatMsg: BisqEasyOpenTradeMessage?,
     newMsgCount: Int = 0,
     enabled: Boolean = true,
 ) {

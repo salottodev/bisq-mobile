@@ -14,7 +14,6 @@ import network.bisq.mobile.client.common.domain.websocket.subscription.Subscript
 import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
 import network.bisq.mobile.data.model.trade.ClosedTradeListItemDto
 import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO
-import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationDto
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.service.trades.BaseTradesServiceFacade
 import network.bisq.mobile.data.service.trades.TakeOfferStatus
@@ -246,7 +245,7 @@ class ClientTradesServiceFacade(
         when (modificationType) {
             ModificationType.REPLACE -> {
                 // Server is sending a full snapshot; replace our current list to avoid duplicates.
-                val newTrades = payload.map { TradeItemPresentationModel.from(it) }
+                val newTrades = payload.map { it.toDomain() }
                 newTrades.forEach { tradeModel ->
                     applyPendingTradeProperties(tradeModel)
                 }
@@ -255,7 +254,7 @@ class ClientTradesServiceFacade(
 
             ModificationType.ADDED -> {
                 payload.forEach { item ->
-                    val tradeModel = TradeItemPresentationModel.from(item)
+                    val tradeModel = item.toDomain()
                     _openTradeItems.update { current ->
                         // Remove any existing trade with the same ID to avoid duplicate keys in the UI.
                         val withoutExisting = current.filterNot { it.tradeId == tradeModel.tradeId }

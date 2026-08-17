@@ -16,28 +16,33 @@
  */
 package network.bisq.mobile.node.common.domain.mapping
 
-import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
 import bisq.contract.bisq_easy.BisqEasyContract
 import bisq.presentation.formatters.DateFormatter
 import bisq.trade.bisq_easy.BisqEasyTrade
 import bisq.trade.bisq_easy.BisqEasyTradeFormatter
 import bisq.user.profile.UserProfileService
 import bisq.user.reputation.ReputationService
-import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationDto
+import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
+import network.bisq.mobile.data.replicated.trade.bisq_easy.BisqEasyTradeModel
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
+import network.bisq.mobile.node.common.domain.mapping.chat.toDomain
+import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel as Bisq2BisqEasyOpenTradeChannel
 
-object TradeItemPresentationDtoFactory {
+/**
+ * Builds the shared model straight from the Bisq 2 types. The client reaches the same model from
+ * `TradeItemPresentationDto`, which is a transport concern and lives in `apps/clientApp`.
+ */
+object TradeItemPresentationModelFactory {
     fun create(
         trade: BisqEasyTrade,
-        channel: BisqEasyOpenTradeChannel,
+        channel: Bisq2BisqEasyOpenTradeChannel,
         userProfileService: UserProfileService,
         reputationService: ReputationService,
-    ): TradeItemPresentationDto {
+    ): TradeItemPresentationModel {
         val myUserProfile = userProfileService.getManagedUserProfile(channel.myUserIdentity.userProfile)
         val peersUserProfile = userProfileService.getManagedUserProfile(channel.peer)
         val contract: BisqEasyContract = trade.contract
         val date = contract.takeOfferDate
-        val directionalTitle: String = BisqEasyTradeFormatter.getDirectionalTitle(trade)
         val formattedDate: String = DateFormatter.formatDate(date)
         val formattedTime: String = DateFormatter.formatTime(date)
         val market: String = trade.offer.market.toString()
@@ -54,9 +59,8 @@ object TradeItemPresentationDtoFactory {
         val isFiatPaymentMethodCustom: Boolean = contract.quoteSidePaymentMethodSpec.paymentMethod.isCustomPaymentMethod
         val myRole: String = BisqEasyTradeFormatter.getMakerTakerRole(trade)
 
-        val channelVO = Mappings.BisqEasyOpenTradeChannelVOMapping.fromBisq2Model(channel)
+        val channelModel = channel.toDomain()
         val tradeVO = Mappings.BisqEasyTradeVOMapping.fromBisq2Model(trade)
-        val contractVO = Mappings.BisqEasyContractMapping.fromBisq2Model(trade.contract)
         val myUserProfileVO = Mappings.UserProfileMapping.fromBisq2Model(myUserProfile)
         val peersUserProfileVO = Mappings.UserProfileMapping.fromBisq2Model(peersUserProfile)
 
@@ -70,17 +74,14 @@ object TradeItemPresentationDtoFactory {
             takerUserProfile = myUserProfileVO
         }
 
-        val mediatorUserProfile: UserProfileVO? = contractVO.mediator
         val peersReputationScore = reputationService.getReputationScore(peersUserProfile.id)
         val peersRReputationScoreVO = Mappings.ReputationScoreMapping.fromBisq2Model(peersReputationScore)
 
-        return TradeItemPresentationDto(
-            channel = channelVO,
-            trade = tradeVO,
+        return TradeItemPresentationModel(
+            channelModel = channelModel,
+            bisqEasyTradeModel = BisqEasyTradeModel(tradeVO),
             makerUserProfile = makerUserProfile,
             takerUserProfile = takerUserProfile,
-            mediatorUserProfile = mediatorUserProfile,
-            directionalTitle = directionalTitle,
             formattedDate = formattedDate,
             formattedTime = formattedTime,
             market = market,

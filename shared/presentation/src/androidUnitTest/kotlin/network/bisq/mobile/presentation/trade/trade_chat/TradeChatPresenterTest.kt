@@ -7,6 +7,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
 import network.bisq.mobile.data.service.chat.trade.TradeChatMessagesServiceFacade
 import network.bisq.mobile.data.service.message_delivery.MessageDeliveryServiceFacade
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
@@ -75,7 +76,7 @@ class TradeChatPresenterTest : PresentationKoinTestBase() {
     @Test
     fun `sendChatMessage success clears quoted message`() =
         runTest {
-            val quoted = mockk<network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel>(relaxed = true)
+            val quoted = mockk<BisqEasyOpenTradeMessage>(relaxed = true)
             every { quoted.text } returns "quoted"
             every { quoted.id } returns "q1"
             every { quoted.senderUserProfileId } returns "sender"
