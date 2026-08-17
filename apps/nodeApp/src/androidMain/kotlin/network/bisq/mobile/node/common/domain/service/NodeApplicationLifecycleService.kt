@@ -20,6 +20,7 @@ import network.bisq.mobile.data.service.alert.AlertNotificationsServiceFacade
 import network.bisq.mobile.data.service.alert.TradeRestrictingAlertServiceFacade
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.data.service.bootstrap.ApplicationLifecycleService
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatServiceFacade
 import network.bisq.mobile.data.service.chat.trade.TradeChatMessagesServiceFacade
 import network.bisq.mobile.data.service.common.LanguageServiceFacade
 import network.bisq.mobile.data.service.explorer.ExplorerServiceFacade
@@ -43,6 +44,7 @@ import network.bisq.mobile.domain.utils.restartProcess
 import network.bisq.mobile.node.common.domain.service.network.NodeConnectivityService
 import network.bisq.mobile.node.common.domain.utils.AndroidMemoryReportService
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
+import network.bisq.mobile.presentation.common.service.PrivateChatNotificationService
 import java.io.File
 
 /**
@@ -53,6 +55,8 @@ class NodeApplicationLifecycleService(
     private val userDefinedAccountsServiceFacade: UserDefinedAccountsServiceFacade,
     private val applicationBootstrapFacade: ApplicationBootstrapFacade,
     private val tradeChatMessagesServiceFacade: TradeChatMessagesServiceFacade,
+    private val privateChatServiceFacade: PrivateChatServiceFacade,
+    private val privateChatNotificationService: PrivateChatNotificationService,
     private val languageServiceFacade: LanguageServiceFacade,
     private val explorerServiceFacade: ExplorerServiceFacade,
     private val marketPriceServiceFacade: MarketPriceServiceFacade,
@@ -154,6 +158,10 @@ class NodeApplicationLifecycleService(
         openTradesNotificationService.startService()
         launchNotificationPermissionWatchJob()
 
+        // Re-arms its lifecycle observer: deactivate() stops it, and the lifecycle-restart path
+        // deactivates then activates the same singleton.
+        privateChatNotificationService.startService()
+
         androidMemoryReportService.initialize()
         applicationBootstrapFacade.activate() // sets bootstraps states and listeners
         networkServiceFacade.activate()
@@ -172,6 +180,7 @@ class NodeApplicationLifecycleService(
         marketPriceServiceFacade.activate()
         tradesServiceFacade.activate()
         tradeChatMessagesServiceFacade.activate()
+        privateChatServiceFacade.activate()
         languageServiceFacade.activate()
 
         userDefinedAccountsServiceFacade.activate()
@@ -198,6 +207,12 @@ class NodeApplicationLifecycleService(
             log.w(e) { "Error at openTradesNotificationService.stopNotificationService" }
         }
 
+        try {
+            privateChatNotificationService.stopNotificationService()
+        } catch (e: Exception) {
+            log.w(e) { "Error at privateChatNotificationService.stopNotificationService" }
+        }
+
         // deactivate in opposite direction of activation
         messageDeliveryServiceFacade.deactivate()
         userProfileServiceFacade.deactivate()
@@ -209,6 +224,7 @@ class NodeApplicationLifecycleService(
         userDefinedAccountsServiceFacade.deactivate()
 
         languageServiceFacade.deactivate()
+        privateChatServiceFacade.deactivate()
         tradeChatMessagesServiceFacade.deactivate()
         tradesServiceFacade.deactivate()
         marketPriceServiceFacade.deactivate()
