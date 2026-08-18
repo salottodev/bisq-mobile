@@ -12,9 +12,6 @@ import kotlinx.cinterop.staticCFunction
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toInstant
 import kotlinx.serialization.Serializable
 import network.bisq.mobile.domain.model.PlatformInfo
 import network.bisq.mobile.domain.model.PlatformType
@@ -42,6 +39,7 @@ import platform.Foundation.NSNumberFormatterDecimalStyle
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSSetUncaughtExceptionHandler
 import platform.Foundation.NSString
+import platform.Foundation.NSTimeZone
 import platform.Foundation.NSURL
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.NSUserDomainMask
@@ -51,9 +49,11 @@ import platform.Foundation.create
 import platform.Foundation.currentLocale
 import platform.Foundation.dataWithContentsOfFile
 import platform.Foundation.languageCode
+import platform.Foundation.localTimeZone
 import platform.Foundation.localeWithLocaleIdentifier
 import platform.Foundation.setValue
 import platform.Foundation.stringByAddingPercentEncodingWithAllowedCharacters
+import platform.Foundation.timeZoneWithName
 import platform.UIKit.NSLineBreakByWordWrapping
 import platform.UIKit.NSTextAlignmentLeft
 import platform.UIKit.UIAlertAction
@@ -97,23 +97,75 @@ import platform.posix.memcpy
 import platform.posix.raise
 import platform.posix.signal
 import kotlin.experimental.ExperimentalNativeApi
+import kotlin.native.concurrent.ThreadLocal
 
-actual fun formatDateTime(dateTime: LocalDateTime): String {
+actual fun formatDateTime(
+    epochMillis: Long,
+    timeZoneId: String?,
+): String {
+    // Deliberately not cached: the styles resolve against the device's date and time settings, and
+    // toggling e.g. 24-Hour Time changes the output without changing the locale identifier a cache
+    // could key on. A fresh formatter always reflects the current settings.
     val formatter =
         NSDateFormatter().apply {
             dateStyle = NSDateFormatterMediumStyle
             timeStyle = NSDateFormatterShortStyle
             locale = NSLocale.currentLocale
+            timeZone = resolveTimeZone(timeZoneId)
         }
 
-    val instant = dateTime.toInstant(TimeZone.currentSystemDefault())
-    // NSDate() constructor expects seconds since Jan 1, 2001 (Apple reference date)
-    // Unix epoch is Jan 1, 1970, so we need to subtract the difference (978307200 seconds)
-    val unixEpochSeconds = instant.toEpochMilliseconds() / 1000.0
-    val appleReferenceOffset = 978307200.0 // Seconds between 1970-01-01 and 2001-01-01
-    val nsDate = NSDate(timeIntervalSinceReferenceDate = unixEpochSeconds - appleReferenceOffset)
+    return formatter.stringFromDate(epochMillis.toNSDate())
+}
 
-    return formatter.stringFromDate(nsDate)
+actual fun formatMediumDateTime(
+    epochMillis: Long,
+    timeZoneId: String?,
+    includeSeconds: Boolean,
+): String {
+    val pattern = if (includeSeconds) "MMM d, yyyy  HH:mm:ss" else "MMM d, yyyy  HH:mm"
+    val zone = resolveTimeZone(timeZoneId)
+    val formatter =
+        cachedFormatter("$pattern|${zone.name}") {
+            NSDateFormatter().apply {
+                // en_US_POSIX keeps the pattern literal and the month names English on every device
+                locale = NSLocale.localeWithLocaleIdentifier("en_US_POSIX")
+                dateFormat = pattern
+                timeZone = zone
+            }
+        }
+
+    return formatter.stringFromDate(epochMillis.toNSDate())
+}
+
+// An unknown zone id falls back to the device zone; the Android actual is written to match
+private fun resolveTimeZone(timeZoneId: String?): NSTimeZone = timeZoneId?.let { NSTimeZone.timeZoneWithName(it) } ?: NSTimeZone.localTimeZone
+
+// Constructing an NSDateFormatter dominates the cost of rendering a timestamp, and the medium format
+// runs once per visible row per recomposition. Only the fixed-pattern formatter is cached: its
+// pattern and locale are constants, so the zone is the only thing the key has to carry.
+// @ThreadLocal keeps the map free of cross-thread races. Zone ids come from callers, so the map is
+// capped rather than trusted to stay small; dropping everything on overflow costs one rebuild.
+private const val MAX_CACHED_FORMATTERS = 32
+
+@ThreadLocal
+private object DateFormatterCache {
+    val formatters = mutableMapOf<String, NSDateFormatter>()
+}
+
+private fun cachedFormatter(
+    key: String,
+    create: () -> NSDateFormatter,
+): NSDateFormatter {
+    val cache = DateFormatterCache.formatters
+    if (cache.size >= MAX_CACHED_FORMATTERS && key !in cache) cache.clear()
+    return cache.getOrPut(key, create)
+}
+
+// NSDate() constructor expects seconds since Jan 1, 2001 (Apple reference date)
+// Unix epoch is Jan 1, 1970, so we need to subtract the difference (978307200 seconds)
+private fun Long.toNSDate(): NSDate {
+    val appleReferenceOffset = 978307200.0 // Seconds between 1970-01-01 and 2001-01-01
+    return NSDate(timeIntervalSinceReferenceDate = this / 1000.0 - appleReferenceOffset)
 }
 
 @OptIn(BetaInteropApi::class)

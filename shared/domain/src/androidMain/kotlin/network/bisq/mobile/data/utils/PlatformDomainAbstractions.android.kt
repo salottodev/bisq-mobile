@@ -14,9 +14,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.net.toUri
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toInstant
 import kotlinx.serialization.Serializable
 import network.bisq.mobile.domain.model.PlatformInfo
 import network.bisq.mobile.domain.model.PlatformType
@@ -33,13 +30,60 @@ import java.util.Currency
 import java.util.Date
 import java.util.Locale
 import java.util.Properties
+import java.util.TimeZone
 
-actual fun formatDateTime(dateTime: LocalDateTime): String {
-    val timeZone = TimeZone.currentSystemDefault()
-    val instant = dateTime.toInstant(TimeZone.of(timeZone.id)) // Convert to Instant
-    val date = Date(instant.toEpochMilliseconds()) // Convert to Java Date
-    val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-    return formatter.format(date)
+actual fun formatDateTime(
+    epochMillis: Long,
+    timeZoneId: String?,
+): String = format(epochMillis, timeZoneId, "yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+
+actual fun formatMediumDateTime(
+    epochMillis: Long,
+    timeZoneId: String?,
+    includeSeconds: Boolean,
+): String {
+    val pattern = if (includeSeconds) "MMM d, yyyy  HH:mm:ss" else "MMM d, yyyy  HH:mm"
+    return format(epochMillis, timeZoneId, pattern, Locale.ENGLISH)
+}
+
+// Constructing a SimpleDateFormat dominates the cost of rendering a timestamp, and these run once
+// per visible row per recomposition. SimpleDateFormat is not thread-safe, so the cache is per
+// thread; the key carries locale and zone so an in-app language change or a device zone change is
+// still picked up. Both patterns are explicit, so unlike the iOS styled formatter nothing here
+// depends on a device date/time preference the key could miss. Zone ids come from callers, so the
+// map is capped rather than trusted to stay small; dropping everything on overflow costs one
+// rebuild.
+private const val MAX_CACHED_FORMATTERS = 32
+
+private val dateFormatters =
+    object : ThreadLocal<MutableMap<String, SimpleDateFormat>>() {
+        override fun initialValue() = mutableMapOf<String, SimpleDateFormat>()
+    }
+
+private fun format(
+    epochMillis: Long,
+    timeZoneId: String?,
+    pattern: String,
+    locale: Locale,
+): String {
+    val zone = resolveTimeZone(timeZoneId)
+    val key = "$pattern|${locale.toLanguageTag()}|${zone.id}"
+    val cache = dateFormatters.get()!!
+    if (cache.size >= MAX_CACHED_FORMATTERS && key !in cache) cache.clear()
+    val formatter =
+        cache.getOrPut(key) {
+            SimpleDateFormat(pattern, locale).apply { timeZone = zone }
+        }
+    return formatter.format(Date(epochMillis))
+}
+
+// TimeZone.getTimeZone silently answers GMT for an id it does not know, which would render a
+// different wall clock than iOS does for the same bad input. Detect that by comparing ids and fall
+// back to the device zone, matching resolveTimeZone in the iOS actual.
+private fun resolveTimeZone(timeZoneId: String?): TimeZone {
+    if (timeZoneId == null) return TimeZone.getDefault()
+    val zone = TimeZone.getTimeZone(timeZoneId)
+    return if (zone.id == timeZoneId) zone else TimeZone.getDefault()
 }
 
 actual fun encodeURIParam(param: String): String = Uri.encode(param)
