@@ -70,13 +70,12 @@
  * ======================================================================================
  * REUSE OF EXISTING COMPONENTS
  * ======================================================================================
- * - `ChatMessageList` — unchanged in production; accepts BisqEasyOpenTradeMessage
- *   list. Private chat messages (TwoPartyPrivateChatMessage) must be adapted via an
- *   extension function in the presenter: `msg.toBisqEasyOpenTradeMessageModel()`,
- *   mapping common fields (id, text, sender, date, reactions, citation) and leaving
- *   trade-specific fields null. This avoids modifying ChatMessageList. (NOTE: this is a
- *   DIFFERENT adapter from the one public channels need — see DiscussionsChannelScreen
- *   Design.kt's REUSE MAP section for why the two can't share one mapping function.)
+ * - `ChatMessageList` — SUPERSEDED. This PoC assumed an adapter in the presenter
+ *   (`msg.toBisqEasyOpenTradeMessageModel()`) that forged a trade message out of a DM.
+ *   `ChatMessageList` is now generic over `PrivateChatMessage<R>`, so a DM is passed
+ *   straight in and no adapter exists or is wanted. The one thing a non-trade caller
+ *   must supply is `leaveMessageContent`: the slot has no default, because "has left
+ *   the trade" is the wrong copy outside a trade.
  * - `ChatInputField` — reused directly in THIS PoC (see revision note above).
  * - `ConfirmationDialog` — used for leave-chat confirmation.
  * - `BisqStaticScaffold` — the layout wrapper used by TradeChatScreen, used in

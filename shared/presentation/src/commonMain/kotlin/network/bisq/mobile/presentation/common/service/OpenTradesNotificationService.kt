@@ -696,12 +696,16 @@ class OpenTradesNotificationService(
                     } else {
                         NotificationChannels.TRADE_UPDATES
                     }
+                // Every notification this service raises interpolates `trade.peersUserName` into its
+                // body, the trade updates as much as the chat copy, so neither may be shown in full.
+                // The default already redacts, so these two lines are not what makes that safe — they
+                // only buy better copy than "something arrived" on the lock screen.
                 if (isChatNotif) {
                     category = AndroidNotificationCategory.CATEGORY_MESSAGE
-                    // Only the chat copy names the peer; a trade update is already a bare summary.
                     lockScreen = NotificationRedactions.chatMessage()
                 } else {
                     category = AndroidNotificationCategory.CATEGORY_PROGRESS
+                    lockScreen = NotificationRedactions.tradeUpdate()
                 }
                 pressAction =
                     if (isChatNotif) {

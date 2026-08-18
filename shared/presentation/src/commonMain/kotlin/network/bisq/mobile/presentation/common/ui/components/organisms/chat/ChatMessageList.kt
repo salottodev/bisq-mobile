@@ -34,6 +34,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.chat.reactions.ChatMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
@@ -74,10 +75,11 @@ fun <M : PrivateChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
     onDontShowAgainChatRulesWarningBox: () -> Unit = {},
     onUpdateReadCount: (Int) -> Unit = {},
     /**
-     * Renders a [ChatMessageTypeEnum.LEAVE] message. Defaults to the trade wording, which a caller
-     * outside a trade has to override — "has left the trade" is wrong anywhere else.
+     * Renders a [ChatMessageTypeEnum.LEAVE] message. Required rather than defaulted to the trade
+     * wording: this component is generic now, and a default would let a non-trade caller compile
+     * while rendering "has left the trade" — wrong copy that only surfaces on a rare event.
      */
-    leaveMessageContent: @Composable (M, Modifier) -> Unit = { m, mod -> TradePeerLeftMessageBox(m, mod) },
+    leaveMessageContent: @Composable (M, Modifier) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     var jumpToBottomVisible by remember { mutableStateOf(false) }
@@ -333,6 +335,7 @@ private fun PreviewChatMessageList(
                 userNameProvider = { it },
                 onPeerProfileClick = {},
                 modifier = Modifier.weight(1f),
+                leaveMessageContent = { message, modifier -> TradePeerLeftMessageBox(message, modifier) },
             )
         }
     }
@@ -373,17 +376,10 @@ private fun previewMessage(
     senderName: String,
     chatMessageType: ChatMessageTypeEnum = ChatMessageTypeEnum.TEXT,
     text: String?,
-) = BisqEasyOpenTradeMessage(
+) = createMockBisqEasyOpenTradeMessage(
     id = id,
     chatMessageType = chatMessageType,
     text = text,
-    citation = null,
-    citationAuthorUserProfile = null,
-    date = 1234567890000L,
     senderUserProfile = createMockUserProfile(senderName),
     myUserProfile = createMockUserProfile(PREVIEW_MY_NAME),
-    chatReactions = emptyList(),
-    tradeId = "trade-1",
-    mediator = null,
-    bisqEasyOffer = null,
 )

@@ -2,7 +2,6 @@ package network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades
 
 import network.bisq.mobile.data.replicated.account.protocol_type.TradeProtocolTypeEnum
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
-import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory
@@ -128,18 +127,11 @@ class BisqEasyOpenTradeChannelTest {
         messageId: String,
         reactionId: Int,
     ): BisqEasyOpenTradeMessage =
-        BisqEasyOpenTradeMessage(
+        createMockBisqEasyOpenTradeMessage(
             id = messageId,
-            chatMessageType = ChatMessageTypeEnum.TEXT,
-            text = "hello",
-            citation = null,
-            citationAuthorUserProfile = null,
             date = 1234L,
             senderUserProfile = sender,
             myUserProfile = myUserProfile,
-            tradeId = "trade-1",
-            mediator = null,
-            bisqEasyOffer = null,
             chatReactions =
                 listOf(
                     BisqEasyOpenTradeMessageReaction(

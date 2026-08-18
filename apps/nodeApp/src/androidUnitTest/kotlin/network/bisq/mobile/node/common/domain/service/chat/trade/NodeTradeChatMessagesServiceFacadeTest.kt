@@ -30,6 +30,7 @@ import network.bisq.mobile.data.replicated.account.protocol_type.TradeProtocolTy
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.common.currency.MarketVO
 import network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVOFactory
 import network.bisq.mobile.data.replicated.identity.IdentityVO
@@ -342,19 +343,13 @@ class NodeTradeChatMessagesServiceFacadeTest {
         )
 
     private fun modelForMessageId(messageId: String): BisqEasyOpenTradeMessage =
-        BisqEasyOpenTradeMessage(
+        createMockBisqEasyOpenTradeMessage(
             id = messageId,
-            chatMessageType = ChatMessageTypeEnum.TEXT,
             text = "hello",
-            citation = null,
-            citationAuthorUserProfile = null,
             date = 1L,
             senderUserProfile = peerUserProfile,
             myUserProfile = myUserProfile,
-            chatReactions = emptyList(),
             tradeId = TRADE_ID,
-            mediator = null,
-            bisqEasyOffer = null,
         )
 
     private fun createBisq2Message(

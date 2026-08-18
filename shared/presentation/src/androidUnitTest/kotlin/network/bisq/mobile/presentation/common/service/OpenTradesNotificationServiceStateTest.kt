@@ -13,11 +13,12 @@ import network.bisq.mobile.data.service.trades.TradesServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.presentation.common.notification.ForegroundServiceController
 import network.bisq.mobile.presentation.common.notification.NotificationController
+import network.bisq.mobile.presentation.common.notification.NotificationRedactions
 import network.bisq.mobile.presentation.common.notification.model.NotificationBuilder
 import network.bisq.mobile.presentation.common.notification.model.NotificationConfig
-import network.bisq.mobile.presentation.common.notification.model.android.AndroidLockScreenPolicy
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
@@ -95,8 +96,14 @@ class OpenTradesNotificationServiceStateTest {
             verify(exactly = 1) { notificationController.notify(any<NotificationBuilder.() -> Unit>()) }
         }
 
+    /**
+     * Asserts the peer name and the policy together, on purpose. Pinning the policy alone says
+     * nothing about why it is the right one, and the wrong policy was held in place for a while by a
+     * test that did exactly that — "a state transition does not name a peer" read as true because
+     * nobody checked it against the copy.
+     */
     @Test
-    fun `a trade state notification is shown in full on the lock screen`() =
+    fun `a trade state notification names the peer, so it is redacted on the lock screen`() =
         runTest {
             var config: NotificationConfig? = null
             every { notificationController.notify(any<NotificationBuilder.() -> Unit>()) } answers {
@@ -108,11 +115,8 @@ class OpenTradesNotificationServiceStateTest {
                 BisqEasyTradeStateEnum.TAKER_SENT_TAKE_OFFER_REQUEST,
             )
 
-            // Redaction is for copy that names a peer. A state transition does not, so hiding it
-            // would cost the user information and protect nothing.
-            assertEquals(
-                AndroidLockScreenPolicy.ShowContent,
-                assertNotNull(config, "the service must have posted a notification").android?.lockScreen,
-            )
+            val posted = assertNotNull(config, "the service must have posted a notification")
+            assertContains(assertNotNull(posted.body, "the notification must have a body"), "PeerUser")
+            assertEquals(NotificationRedactions.tradeUpdate(), posted.android?.lockScreen)
         }
 }

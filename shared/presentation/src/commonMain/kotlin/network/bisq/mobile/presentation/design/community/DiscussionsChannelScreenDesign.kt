@@ -74,15 +74,14 @@
  *      defaults to null, so it needs no BisqEasyOpenTradeMessage instance to preview.
  *
  * NOT reusable as-is in a domain-type-free PoC, but reused unchanged in PRODUCTION:
- *   - `ChatMessageList` / `ChatTextMessageBox` (organisms/chat, molecules/chat) — both
- *     require `List<BisqEasyOpenTradeMessage>`, a TRADE-scoped domain type. Public
- *     channel messages need their own adapter, analogous to the one the private-chat PoC
- *     already calls for (`TwoPartyPrivateChatMessage.toBisqEasyOpenTradeMessageModel()`
- *     in design/community/private_chat/PrivateChatScreenDesign.kt) — but NOT the same adapter, because a
- *     public channel message has no "trade" and no single "receiver". This is NEW
- *     mapping work, not a reuse of the DM adapter.
+ *   - `ChatMessageList` / `ChatTextMessageBox` (organisms/chat, molecules/chat) — both are
+ *     now generic over `PrivateChatMessage<R>` rather than pinned to the TRADE-scoped
+ *     `BisqEasyOpenTradeMessage`, so the DM adapter this note used to call for no longer
+ *     exists. A public channel message is still NOT covered: `PrivateChatMessage` models a
+ *     conversation with one peer, and a public channel has no single "receiver". Reusing
+ *     these here needs the shared base widened, not an adapter.
  *   - `ChatMessageContextMenu` — same domain-type constraint; reused unchanged in
- *     production once the adapter above exists. Its ignore/report menu items should now
+ *     production once the base above covers public channels. Its ignore/report menu items should now
  *     route to the Peer Profile screen's canonical handlers (see peer_profile/
  *     PeerProfileScreenDesign.kt) rather than trade-chat-local ones.
  *   - `ReactionInput` / `QuoteMessageBubble` (used inside ChatTextMessageBox) — unchanged.

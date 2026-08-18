@@ -20,8 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.tooling.preview.Preview
-import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.i18n.i18n
@@ -165,17 +164,9 @@ private fun QuotedMessage_LongTextPreview() {
 private fun previewQuotedMessage(
     text: String,
     senderName: String,
-) = BisqEasyOpenTradeMessage(
+) = createMockBisqEasyOpenTradeMessage(
     id = "msg1",
-    chatMessageType = ChatMessageTypeEnum.TEXT,
     text = text,
-    citation = null,
-    citationAuthorUserProfile = null,
-    date = 1234567890000L,
     senderUserProfile = createMockUserProfile(senderName),
     myUserProfile = createMockUserProfile("Bob"),
-    chatReactions = emptyList(),
-    tradeId = "trade-1",
-    mediator = null,
-    bisqEasyOffer = null,
 )

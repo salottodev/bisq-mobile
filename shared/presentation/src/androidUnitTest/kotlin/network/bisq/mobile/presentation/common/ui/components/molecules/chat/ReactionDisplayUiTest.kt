@@ -4,8 +4,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
-import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
@@ -108,19 +107,12 @@ class ReactionDisplayUiTest : BisqComposeUiTestBase() {
     private fun pillCount() = composeTestRule.onAllNodes(hasClickAction()).fetchSemanticsNodes().size
 
     private fun createMessage(vararg reactions: BisqEasyOpenTradeMessageReaction) =
-        BisqEasyOpenTradeMessage(
+        createMockBisqEasyOpenTradeMessage(
             id = "msg-1",
-            chatMessageType = ChatMessageTypeEnum.TEXT,
             text = "Payment sent",
-            citation = null,
-            citationAuthorUserProfile = null,
-            date = 1234567890000L,
             senderUserProfile = peer,
             myUserProfile = me,
             chatReactions = reactions.toList(),
-            tradeId = "trade-1",
-            mediator = null,
-            bisqEasyOffer = null,
         )
 
     private fun reaction(

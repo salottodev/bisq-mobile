@@ -21,8 +21,12 @@ fun AndroidLockScreenPolicy.toNotificationCompat(): Int =
  * Deliberately bare: no content intent, no group, no sound — it is only ever rendered, never
  * interacted with. It must itself be PUBLIC, or there would be nothing left to fall back to.
  *
- * Shared by both delivery paths (`NotificationControllerImpl` and `BisqFirebaseMessagingService`) so
- * the same notification cannot redact differently depending on whether the app happened to be alive.
+ * Only `NotificationControllerImpl` builds one today. `BisqFirebaseMessagingService` does not consult
+ * a policy at all — it posts "Bisq" plus a bare category string and never names the peer, so there is
+ * nothing there to redact, and it leaves `visibility` at the platform default. The two paths
+ * therefore agree on what they reveal while disagreeing on how: the relayed one leans on Android's
+ * generic placeholder, this one supplies its own copy. Routing FCM through here would make the
+ * lock screen read the same either way; it is a consistency fix, not a leak.
  */
 fun AndroidLockScreenPolicy.Redact.toPublicNotification(
     context: Context,

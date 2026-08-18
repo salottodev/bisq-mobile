@@ -11,7 +11,6 @@ import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
 import network.bisq.mobile.data.service.AppForegroundController
 import network.bisq.mobile.i18n.I18nSupport
-import network.bisq.mobile.presentation.common.notification.model.NotificationBuilder
 import network.bisq.mobile.presentation.common.notification.model.android.AndroidLockScreenPolicy
 import org.junit.Before
 import org.junit.Test
@@ -19,6 +18,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
@@ -87,22 +87,41 @@ class NotificationControllerImplTest {
             body = "Trade state changed"
             android {
                 channelId = NotificationChannels.USER_MESSAGES
+                lockScreen = AndroidLockScreenPolicy.ShowContent
                 pressAction = null
             }
         }
 
         val posted = postedNotification()
-        // The DSL default, asserted here so a change to it cannot silently start hiding copy.
-        assertEquals(
-            AndroidLockScreenPolicy.ShowContent,
-            NotificationBuilder()
-                .apply { android { } }
-                .build()
-                .android
-                ?.lockScreen,
-        )
         assertEquals(Notification.VISIBILITY_PUBLIC, posted.visibility)
         assertNull(posted.publicVersion)
+    }
+
+    /**
+     * The guard on the DSL default, so a change to it cannot silently start revealing copy. Deliberately
+     * this way round: the default used to be [AndroidLockScreenPolicy.ShowContent], which is how twelve
+     * trade notifications ended up naming the peer on the lock screen without anyone deciding they
+     * should. A producer that says nothing has not opted out of privacy — it has not opted in to
+     * disclosure.
+     */
+    @Test
+    fun `a notification that sets no policy is redacted rather than shown`() {
+        controller.notify {
+            id = "unspecified-1"
+            title = "Trade [abc12345]"
+            body = "Your offer was taken by Alice"
+            android {
+                channelId = NotificationChannels.USER_MESSAGES
+                pressAction = null
+            }
+        }
+
+        val posted = postedNotification()
+        assertEquals(Notification.VISIBILITY_PRIVATE, posted.visibility)
+
+        val public = assertNotNull(posted.publicVersion, "without one, Android shows its own placeholder")
+        assertEquals("Bisq", public.title())
+        assertNotEquals("Your offer was taken by Alice", public.text(), "the stand-in must not repeat the copy")
     }
 
     private fun postedNotification(): Notification = Shadows.shadowOf(notificationManager).allNotifications.single()

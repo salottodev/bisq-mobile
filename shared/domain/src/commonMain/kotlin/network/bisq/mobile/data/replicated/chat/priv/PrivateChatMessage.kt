@@ -53,10 +53,12 @@ abstract class PrivateChatMessage<R : ChatMessageReaction>(
 
     val textString: String get() = text ?: ""
 
-    // Used for protocol log message
-    val decodedText: String get() = text?.let { I18nSupport.decode(it) } ?: ""
+    // Used for protocol log message. Eager like `citationAuthorUserName` below, and for the same
+    // reason: both are pure functions of constructor vals, and a `get()` would re-run the i18n decode
+    // and the platform date format every time a row enters composition in the chat list.
+    val decodedText: String = text?.let { I18nSupport.decode(it) } ?: ""
 
-    val dateString: String get() = DateUtils.toDateTime(date)
+    val dateString: String = DateUtils.toDateTime(date)
     val citationString: String get() = citation?.text ?: ""
     val citationAuthorUserName: String? = citationAuthorUserProfile?.userName
     val senderUserProfileId get() = senderUserProfile.id

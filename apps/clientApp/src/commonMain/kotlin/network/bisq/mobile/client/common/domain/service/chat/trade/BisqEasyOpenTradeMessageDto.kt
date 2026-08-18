@@ -22,6 +22,12 @@ data class BisqEasyOpenTradeMessageDto(
     val mediator: UserProfileVO?,
     val chatMessageType: ChatMessageTypeEnum,
     val bisqEasyOffer: BisqEasyOfferVO?,
+    /**
+     * Never read. `toDomain()` ignores it deliberately: reactions arrive on the CHAT_REACTIONS topic,
+     * which is the only source that also reports removals, so seeding a message from this field would
+     * resurrect reactions the peer already took back. Kept because it is on the wire — do not start
+     * consuming it without moving removal handling along with it.
+     */
     val chatMessageReactions: Set<BisqEasyOpenTradeMessageReaction>,
     val citationAuthorUserProfile: UserProfileVO?,
 )

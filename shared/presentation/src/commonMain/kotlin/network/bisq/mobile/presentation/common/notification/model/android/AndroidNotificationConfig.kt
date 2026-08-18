@@ -1,5 +1,6 @@
 package network.bisq.mobile.presentation.common.notification.model.android
 
+import network.bisq.mobile.presentation.common.notification.NotificationRedactions
 import network.bisq.mobile.presentation.common.notification.model.NotificationButton
 import network.bisq.mobile.presentation.common.notification.model.NotificationPressAction
 
@@ -65,12 +66,20 @@ class AndroidNotificationConfig {
 
     /**
      * What the SystemUI may reveal about this notification in untrusted situations (namely, on the
-     * secure lockscreen and during screen sharing). Set it to [AndroidLockScreenPolicy.Redact]
-     * whenever the copy names another user.
+     * secure lockscreen and during screen sharing).
+     *
+     * Redacted by default, and deliberately the strict way round. Showing content is not the neutral
+     * choice it looks like: it maps to `VISIBILITY_PUBLIC`, which overrides a lock screen the owner
+     * has set to hide sensitive content, whereas Android's own default defers to it. A notification
+     * whose copy is genuinely safe to display sets [AndroidLockScreenPolicy.ShowContent] explicitly,
+     * so revealing is the decision that shows up in review rather than the one nobody made.
+     *
+     * Override with a more specific [NotificationRedactions] stand-in when there is better copy to
+     * show than "something arrived".
      *
      * @see AndroidLockScreenPolicy for what the protection does and does not cover
      */
-    var lockScreen: AndroidLockScreenPolicy = AndroidLockScreenPolicy.ShowContent
+    var lockScreen: AndroidLockScreenPolicy = NotificationRedactions.general()
 
     /**
      * Make this notification automatically dismissed when the user touches it.

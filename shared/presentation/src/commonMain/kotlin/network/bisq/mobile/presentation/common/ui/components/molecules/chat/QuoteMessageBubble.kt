@@ -15,9 +15,9 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.Citation
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
@@ -85,9 +85,8 @@ fun QuoteMessageBubble(
 private fun previewMessage(isMyMessage: Boolean): BisqEasyOpenTradeMessage {
     val alice = createMockUserProfile("Alice")
     val bob = createMockUserProfile("Bob")
-    return BisqEasyOpenTradeMessage(
+    return createMockBisqEasyOpenTradeMessage(
         id = "msg-1",
-        chatMessageType = ChatMessageTypeEnum.TEXT,
         text = "Yes, that works for me.",
         citation =
             Citation(
@@ -96,13 +95,8 @@ private fun previewMessage(isMyMessage: Boolean): BisqEasyOpenTradeMessage {
                 chatMessageId = "msg-0",
             ),
         citationAuthorUserProfile = alice,
-        date = 1234567890000L,
         senderUserProfile = if (isMyMessage) bob else alice,
         myUserProfile = bob,
-        chatReactions = emptyList(),
-        tradeId = "trade-1",
-        mediator = null,
-        bisqEasyOffer = null,
     )
 }
 

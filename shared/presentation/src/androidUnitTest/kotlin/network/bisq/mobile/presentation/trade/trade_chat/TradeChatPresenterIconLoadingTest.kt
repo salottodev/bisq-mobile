@@ -10,9 +10,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
@@ -44,35 +43,23 @@ class TradeChatPresenterIconLoadingTest : PlatformPresentationKoinTestBase() {
             val myUserProfile = createMockUserProfile("myUser")
 
             val model1 =
-                BisqEasyOpenTradeMessage(
+                createMockBisqEasyOpenTradeMessage(
                     id = "msg1",
-                    chatMessageType = ChatMessageTypeEnum.TEXT,
                     text = "hello",
-                    citation = null,
-                    citationAuthorUserProfile = null,
                     date = 1000L,
                     senderUserProfile = userProfile1,
                     myUserProfile = myUserProfile,
-                    chatReactions = emptyList(),
                     tradeId = "trade1",
-                    mediator = null,
-                    bisqEasyOffer = null,
                 )
 
             val model2 =
-                BisqEasyOpenTradeMessage(
+                createMockBisqEasyOpenTradeMessage(
                     id = "msg2",
-                    chatMessageType = ChatMessageTypeEnum.TEXT,
                     text = "world",
-                    citation = null,
-                    citationAuthorUserProfile = null,
                     date = 2000L,
                     senderUserProfile = userProfile2,
                     myUserProfile = myUserProfile,
-                    chatReactions = emptyList(),
                     tradeId = "trade1",
-                    mediator = null,
-                    bisqEasyOffer = null,
                 )
 
             val chatMessagesFlow = MutableStateFlow(setOf(model1, model2))

@@ -11,7 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.i18n.i18n
@@ -65,19 +65,13 @@ private fun TradePeerLeftMessageBoxPreview() {
         val myUserProfile = createMockUserProfile("Bob")
 
         val message =
-            BisqEasyOpenTradeMessage(
+            createMockBisqEasyOpenTradeMessage(
                 id = "msg123",
                 chatMessageType = ChatMessageTypeEnum.LEAVE,
                 text = null,
-                citation = null,
-                citationAuthorUserProfile = null,
-                date = 1234567890000L,
                 senderUserProfile = peerUserProfile,
                 myUserProfile = myUserProfile,
-                chatReactions = emptyList(),
                 tradeId = "trade123",
-                mediator = null,
-                bisqEasyOffer = null,
             )
 
         TradePeerLeftMessageBox(message = message)

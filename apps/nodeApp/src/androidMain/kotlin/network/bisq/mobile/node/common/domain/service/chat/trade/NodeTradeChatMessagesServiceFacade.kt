@@ -10,6 +10,7 @@ import bisq.user.profile.UserProfileService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import network.bisq.mobile.data.replicated.chat.Citation
@@ -97,8 +98,8 @@ class NodeTradeChatMessagesServiceFacade(
         withContext(Dispatchers.Default) {
             // `findChannel` is a Java method, so a null id would pass through as a platform type and
             // the failure would surface as an empty Optional deep inside Bisq2. Both misses are
-            // turned into a failed Result here instead: the caller only reads `onSuccess`, so a
-            // thrown exception or an unconditional success both read as "message sent".
+            // turned into a failed Result here instead, because the caller does act on the
+            // difference: `TradeChatPresenter` clears the quoted message on success only.
             val channelId =
                 selectedTrade.value?.bisqEasyOpenTradeChannelModel?.id
                     ?: return@withContext Result.failure(IllegalStateException("No trade is selected"))
@@ -107,8 +108,11 @@ class NodeTradeChatMessagesServiceFacade(
                     ?: return@withContext Result.failure(IllegalStateException("No channel found for the selected trade"))
             val bisq2Citation =
                 Optional.ofNullable(citation?.let { Mappings.CitationMapping.toBisq2Model(it) })
-            bisqEasyOpenTradeChannelService.sendTextMessage(text, bisq2Citation, channel)
-            Result.success(Unit)
+            // Bisq2 hands back a CompletableFuture; dropping it would report every send as delivered.
+            // The client facade propagates the dispatch failure, and the delivery-status UI only
+            // covers what happens after dispatch, so this is the only place the node mode can.
+            runCatching { bisqEasyOpenTradeChannelService.sendTextMessage(text, bisq2Citation, channel).await() }
+                .map { }
         }
 
     override suspend fun addChatMessageReaction(

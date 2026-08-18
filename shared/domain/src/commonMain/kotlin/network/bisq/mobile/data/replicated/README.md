@@ -63,6 +63,11 @@ The initial value for those fields are set from value object and later updated b
 In case of the node we observe the domain observable fields and apply the changes.
 For the client we get updates via websocket events.
 
+The delegation above holds only where the value object lives in `:shared:domain` alongside the model.
+Where the Dto is a client transport type it now lives in `apps/clientApp`, which a `:shared:domain` type
+must not depend on; those models take plain constructor arguments instead, and the client destructures
+its own Dto into them. `TradeItemPresentationModel` and the `chat/` types below are the current cases.
+
 Model classes can contain also domain methods or util fields.
 
 ##### Exception: the chat types

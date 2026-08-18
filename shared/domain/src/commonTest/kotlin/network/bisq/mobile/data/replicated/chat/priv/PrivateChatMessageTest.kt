@@ -1,9 +1,9 @@
 package network.bisq.mobile.data.replicated.chat.priv
 
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
-import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.Citation
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.network.confidential.ack.MessageDeliveryInfoVO
 import network.bisq.mobile.data.replicated.network.confidential.ack.MessageDeliveryStatusEnum
@@ -125,9 +125,8 @@ class PrivateChatMessageTest {
         citationAuthorUserProfile: UserProfileVO? = null,
         sender: UserProfileVO = peer,
         reactions: List<BisqEasyOpenTradeMessageReaction> = emptyList(),
-    ) = BisqEasyOpenTradeMessage(
+    ) = createMockBisqEasyOpenTradeMessage(
         id = MESSAGE_ID,
-        chatMessageType = ChatMessageTypeEnum.TEXT,
         text = text,
         citation = citation,
         citationAuthorUserProfile = citationAuthorUserProfile,
@@ -135,9 +134,6 @@ class PrivateChatMessageTest {
         senderUserProfile = sender,
         myUserProfile = me,
         chatReactions = reactions,
-        tradeId = "trade-1",
-        mediator = null,
-        bisqEasyOffer = null,
     )
 
     private fun createReaction(

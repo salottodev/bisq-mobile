@@ -17,23 +17,3 @@ fun Bisq2BisqEasyOpenTradeMessageReaction.toDomain(): BisqEasyOpenTradeMessageRe
         date = date,
         isRemoved = isRemoved,
     )
-
-/**
- * The Bisq 2 constructor is Java, so the arguments can only be positional. Four of them are adjacent
- * `String`s, and swapping any two still compiles — the order below is
- * `id, senderUserProfile, receiverUserProfileId, receiverNetworkId, chatChannelId,
- * chatChannelDomain, chatMessageId, reactionId, date, isRemoved`.
- */
-fun BisqEasyOpenTradeMessageReaction.toBisq2(): Bisq2BisqEasyOpenTradeMessageReaction =
-    Bisq2BisqEasyOpenTradeMessageReaction(
-        id,
-        Mappings.UserProfileMapping.toBisq2Model(senderUserProfile),
-        receiverUserProfileId,
-        Mappings.NetworkIdMapping.toBisq2Model(receiverNetworkId),
-        chatChannelId,
-        Mappings.ChatChannelDomainMapping.toBisq2Model(chatChannelDomain),
-        chatMessageId,
-        reactionId,
-        date,
-        isRemoved,
-    )

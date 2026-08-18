@@ -22,9 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
-import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.Citation
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ChatMessageReaction
@@ -166,19 +165,12 @@ private fun ChatTextMessageBox_MyMessagePreview() {
         val peerUserProfile = createMockUserProfile("Alice")
 
         val message =
-            BisqEasyOpenTradeMessage(
+            createMockBisqEasyOpenTradeMessage(
                 id = "msg123",
-                chatMessageType = ChatMessageTypeEnum.TEXT,
                 text = "Hello! I'm interested in this trade.",
-                citation = null,
-                citationAuthorUserProfile = null,
-                date = 1234567890000L,
                 senderUserProfile = myUserProfile,
                 myUserProfile = myUserProfile,
-                chatReactions = emptyList(),
                 tradeId = "trade123",
-                mediator = null,
-                bisqEasyOffer = null,
             )
 
         ChatTextMessageBox(
@@ -202,19 +194,12 @@ private fun ChatTextMessageBox_PeerMessagePreview() {
         val peerUserProfile = createMockUserProfile("Alice")
 
         val message =
-            BisqEasyOpenTradeMessage(
+            createMockBisqEasyOpenTradeMessage(
                 id = "msg456",
-                chatMessageType = ChatMessageTypeEnum.TEXT,
                 text = "Sure! Let's proceed with the payment.",
-                citation = null,
-                citationAuthorUserProfile = null,
-                date = 1234567890000L,
                 senderUserProfile = peerUserProfile,
                 myUserProfile = myUserProfile,
-                chatReactions = emptyList(),
                 tradeId = "trade123",
-                mediator = null,
-                bisqEasyOffer = null,
             )
 
         ChatTextMessageBox(
@@ -285,19 +270,13 @@ private fun ChatTextMessageBox_ReactionsPreview() {
         val peerUserProfile = createMockUserProfile("Alice")
 
         val message =
-            BisqEasyOpenTradeMessage(
+            createMockBisqEasyOpenTradeMessage(
                 id = "msg-1",
-                chatMessageType = ChatMessageTypeEnum.TEXT,
                 text = "Payment sent, please confirm.",
-                citation = null,
-                citationAuthorUserProfile = null,
-                date = 1234567890000L,
                 senderUserProfile = peerUserProfile,
                 myUserProfile = myUserProfile,
                 chatReactions = previewReactions(myUserProfile, peerUserProfile),
                 tradeId = "trade123",
-                mediator = null,
-                bisqEasyOffer = null,
             )
 
         ChatTextMessageBox(
@@ -327,9 +306,8 @@ private fun ChatTextMessageBox_QuotedMessagePreview() {
         val peerUserProfile = createMockUserProfile("Alice")
 
         val message =
-            BisqEasyOpenTradeMessage(
+            createMockBisqEasyOpenTradeMessage(
                 id = "msg-1",
-                chatMessageType = ChatMessageTypeEnum.TEXT,
                 text = "Yes, that works for me.",
                 citation =
                     Citation(
@@ -338,13 +316,9 @@ private fun ChatTextMessageBox_QuotedMessagePreview() {
                         chatMessageId = "msg-0",
                     ),
                 citationAuthorUserProfile = myUserProfile,
-                date = 1234567890000L,
                 senderUserProfile = peerUserProfile,
                 myUserProfile = myUserProfile,
-                chatReactions = emptyList(),
                 tradeId = "trade123",
-                mediator = null,
-                bisqEasyOffer = null,
             )
 
         ChatTextMessageBox(
@@ -368,19 +342,12 @@ private fun ChatTextMessageBox_LongMessagePreview() {
         val peerUserProfile = createMockUserProfile("Alice")
 
         val message =
-            BisqEasyOpenTradeMessage(
+            createMockBisqEasyOpenTradeMessage(
                 id = "msg789",
-                chatMessageType = ChatMessageTypeEnum.TEXT,
                 text = "This is a longer message to demonstrate how the chat message box handles multiple lines of text. It should wrap properly and maintain good readability with proper spacing and alignment.",
-                citation = null,
-                citationAuthorUserProfile = null,
-                date = 1234567890000L,
                 senderUserProfile = peerUserProfile,
                 myUserProfile = myUserProfile,
-                chatReactions = emptyList(),
                 tradeId = "trade123",
-                mediator = null,
-                bisqEasyOffer = null,
             )
 
         ChatTextMessageBox(

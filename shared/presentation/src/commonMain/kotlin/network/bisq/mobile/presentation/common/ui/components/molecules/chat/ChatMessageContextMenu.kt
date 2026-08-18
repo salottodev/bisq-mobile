@@ -7,8 +7,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
@@ -138,18 +138,11 @@ private fun mockMessage(): BisqEasyOpenTradeMessage {
     val myUserProfile = createMockUserProfile("Bob")
     val peerUserProfile = createMockUserProfile("Alice")
 
-    return BisqEasyOpenTradeMessage(
+    return createMockBisqEasyOpenTradeMessage(
         id = "msg456",
-        chatMessageType = ChatMessageTypeEnum.TEXT,
         text = "Sure! Let's proceed with the payment.",
-        citation = null,
-        citationAuthorUserProfile = null,
-        date = 1234567890000L,
         senderUserProfile = peerUserProfile,
         myUserProfile = myUserProfile,
-        chatReactions = emptyList(),
         tradeId = "trade123",
-        mediator = null,
-        bisqEasyOffer = null,
     )
 }

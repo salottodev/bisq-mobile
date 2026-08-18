@@ -6,9 +6,9 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
-import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.Citation
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
@@ -118,19 +118,14 @@ class ChatTextMessageBoxUiTest : BisqComposeUiTestBase() {
         citation: Citation? = null,
         citationAuthorUserProfile: UserProfileVO? = null,
         reactions: List<BisqEasyOpenTradeMessageReaction> = emptyList(),
-    ) = BisqEasyOpenTradeMessage(
+    ) = createMockBisqEasyOpenTradeMessage(
         id = "msg-1",
-        chatMessageType = ChatMessageTypeEnum.TEXT,
         text = text,
         citation = citation,
         citationAuthorUserProfile = citationAuthorUserProfile,
-        date = 1234567890000L,
         senderUserProfile = sender,
         myUserProfile = me,
         chatReactions = reactions,
-        tradeId = "trade-1",
-        mediator = null,
-        bisqEasyOffer = null,
     )
 
     private fun reaction(

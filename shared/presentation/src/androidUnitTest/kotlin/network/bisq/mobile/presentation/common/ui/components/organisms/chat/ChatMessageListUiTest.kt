@@ -8,10 +8,12 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.utils.createEmptyImage
 import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.presentation.common.ui.components.molecules.chat.trade.TradePeerLeftMessageBox
 import network.bisq.mobile.test.presentation.compose.BisqComposeUiTestBase
 import org.junit.Test
 
@@ -81,6 +83,7 @@ class ChatMessageListUiTest : BisqComposeUiTestBase() {
                 userNameProvider = { it },
                 onPeerProfileClick = {},
                 modifier = Modifier.fillMaxSize(),
+                leaveMessageContent = { message, modifier -> TradePeerLeftMessageBox(message, modifier) },
             )
         }
     }
@@ -90,18 +93,11 @@ class ChatMessageListUiTest : BisqComposeUiTestBase() {
         sender: UserProfileVO,
         text: String?,
         type: ChatMessageTypeEnum = ChatMessageTypeEnum.TEXT,
-    ) = BisqEasyOpenTradeMessage(
+    ) = createMockBisqEasyOpenTradeMessage(
         id = id,
         chatMessageType = type,
         text = text,
-        citation = null,
-        citationAuthorUserProfile = null,
-        date = 1234567890000L,
         senderUserProfile = sender,
         myUserProfile = me,
-        chatReactions = emptyList(),
-        tradeId = "trade-1",
-        mediator = null,
-        bisqEasyOffer = null,
     )
 }
