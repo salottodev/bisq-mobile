@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelModel
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
 import network.bisq.mobile.i18n.i18nEncode
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
@@ -71,7 +71,7 @@ class SellerStateLightning3bPresenter(
         skipWaiting()
     }
 
-    private fun getEncodedWithNickName(bisqEasyOpenTradeChannel: BisqEasyOpenTradeChannelModel): String =
+    private fun getEncodedWithNickName(bisqEasyOpenTradeChannel: BisqEasyOpenTradeChannel): String =
         "bisqEasy.tradeState.info.buyer.phase3b.tradeLogMessage.ln".i18nEncode(
             bisqEasyOpenTradeChannel.getPeer().nickName,
         )

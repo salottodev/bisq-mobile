@@ -27,16 +27,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
+import network.bisq.mobile.data.replicated.chat.reactions.ChatMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
+import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.utils.PlatformImage
+import network.bisq.mobile.data.utils.createEmptyImage
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.molecules.JumpToBottomFloatingButton
@@ -46,10 +51,11 @@ import network.bisq.mobile.presentation.common.ui.components.molecules.chat.trad
 import network.bisq.mobile.presentation.common.ui.components.molecules.chat.trade.TradePeerLeftMessageBox
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 
 @Composable
-fun ChatMessageList(
-    messages: List<BisqEasyOpenTradeMessageModel>,
+fun <M : PrivateChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
+    messages: List<M>,
     ignoredUserIds: Set<String>,
     showChatRulesWarnBox: Boolean,
     readCount: Int,
@@ -58,16 +64,22 @@ fun ChatMessageList(
     userNameProvider: suspend (String) -> String,
     onPeerProfileClick: (String) -> Unit,
     modifier: Modifier = Modifier,
-    onAddReaction: (BisqEasyOpenTradeMessageModel, ReactionEnum) -> Unit = { message: BisqEasyOpenTradeMessageModel, reaction: ReactionEnum -> },
-    onRemoveReaction: (BisqEasyOpenTradeMessageModel, BisqEasyOpenTradeMessageReactionVO) -> Unit = { message: BisqEasyOpenTradeMessageModel, reaction: BisqEasyOpenTradeMessageReactionVO -> },
-    onReply: (BisqEasyOpenTradeMessageModel) -> Unit = {},
-    onCopy: (BisqEasyOpenTradeMessageModel) -> Unit = {},
+    onAddReaction: (M, ReactionEnum) -> Unit = { _, _ -> },
+    onRemoveReaction: (M, R) -> Unit = { _, _ -> },
+    onReply: (M) -> Unit = {},
+    onCopy: (M) -> Unit = {},
     onIgnoreUser: (String) -> Unit = {},
     onUndoIgnoreUser: (String) -> Unit = {},
-    onReportUser: (BisqEasyOpenTradeMessageModel) -> Unit = {},
+    onReportUser: (M) -> Unit = {},
     onOpenChatRules: () -> Unit = {},
     onDontShowAgainChatRulesWarningBox: () -> Unit = {},
     onUpdateReadCount: (Int) -> Unit = {},
+    /**
+     * Renders a [ChatMessageTypeEnum.LEAVE] message. Required rather than defaulted to the trade
+     * wording: this component is generic now, and a default would let a non-trade caller compile
+     * while rendering "has left the trade" — wrong copy that only surfaces on a rare event.
+     */
+    leaveMessageContent: @Composable (M, Modifier) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     var jumpToBottomVisible by remember { mutableStateOf(false) }
@@ -197,7 +209,7 @@ fun ChatMessageList(
                         }
 
                         ChatMessageTypeEnum.LEAVE -> {
-                            TradePeerLeftMessageBox(
+                            leaveMessageContent(
                                 message,
                                 Modifier.animateItem(
                                     fadeInSpec = fadeAnimSpec,
@@ -266,3 +278,108 @@ fun ChatMessageList(
         )
     }
 }
+
+// ============================================================================================
+// Previews
+// ============================================================================================
+
+@Preview(heightDp = 700)
+@Composable
+private fun ChatMessageList_ConversationPreview() {
+    val messages = previewConversation()
+    PreviewChatMessageList(messages = messages, readCount = messages.size)
+}
+
+@Preview(heightDp = 700)
+@Composable
+private fun ChatMessageList_ChatRulesWarnBoxPreview() {
+    val messages = previewConversation()
+    PreviewChatMessageList(
+        messages = messages,
+        readCount = messages.size,
+        showChatRulesWarnBox = true,
+    )
+}
+
+/**
+ * The unread divider needs `canScrollDown`, so the list has to be long enough to actually scroll —
+ * a four message conversation would render without the marker.
+ */
+@Preview(heightDp = 700)
+@Composable
+private fun ChatMessageList_UnreadMarkerPreview() {
+    PreviewChatMessageList(messages = previewLongConversation(), readCount = 3)
+}
+
+/**
+ * The production call site passes `Modifier.weight(1f)` from within a [Column]
+ * (`TradeChatScreen`). The inner `LazyColumn` fills its parent, so without a
+ * bounded height it collapses and the preview renders blank.
+ */
+@ExcludeFromCoverage
+@Composable
+private fun PreviewChatMessageList(
+    messages: List<BisqEasyOpenTradeMessage>,
+    readCount: Int,
+    showChatRulesWarnBox: Boolean = false,
+) {
+    BisqTheme.Preview {
+        Column(modifier = Modifier.fillMaxSize()) {
+            ChatMessageList(
+                messages = messages,
+                ignoredUserIds = emptySet(),
+                showChatRulesWarnBox = showChatRulesWarnBox,
+                readCount = readCount,
+                userProfileIconProvider = { previewUserProfileIconProvider() },
+                onResendMessage = {},
+                userNameProvider = { it },
+                onPeerProfileClick = {},
+                modifier = Modifier.weight(1f),
+                leaveMessageContent = { message, modifier -> TradePeerLeftMessageBox(message, modifier) },
+            )
+        }
+    }
+}
+
+@ExcludeFromCoverage
+private fun previewUserProfileIconProvider(): suspend (UserProfileVO) -> PlatformImage = { createEmptyImage() }
+
+/** `reverseLayout = true`, so index 0 renders at the bottom — newest message first. */
+@ExcludeFromCoverage
+private fun previewConversation() =
+    listOf(
+        previewMessage("msg4", "Alice", ChatMessageTypeEnum.LEAVE, text = null),
+        previewMessage("msg3", "Alice", text = "Payment received, thanks!"),
+        previewMessage("msg2", PREVIEW_MY_NAME, text = "Just sent it over."),
+        previewMessage("msg1", "Alice", ChatMessageTypeEnum.PROTOCOL_LOG_MESSAGE, text = "Trade started"),
+    )
+
+@ExcludeFromCoverage
+private fun previewLongConversation() =
+    List(12) { i ->
+        previewMessage(
+            id = "msg$i",
+            senderName = if (i % 2 == 0) "Alice" else PREVIEW_MY_NAME,
+            text = "Message number ${12 - i}",
+        )
+    }
+
+private const val PREVIEW_MY_NAME = "Bob"
+
+/**
+ * [id] must be unique per list — the `LazyColumn` keys on it. `isMyMessage` is derived from the
+ * sender, so [senderName] of [PREVIEW_MY_NAME] yields an own message and anything else a peer one.
+ */
+@ExcludeFromCoverage
+private fun previewMessage(
+    id: String,
+    senderName: String,
+    chatMessageType: ChatMessageTypeEnum = ChatMessageTypeEnum.TEXT,
+    text: String?,
+) = createMockBisqEasyOpenTradeMessage(
+    id = id,
+    chatMessageType = chatMessageType,
+    text = text,
+    senderUserProfile = createMockUserProfile(senderName),
+    myUserProfile = createMockUserProfile(PREVIEW_MY_NAME),
+)

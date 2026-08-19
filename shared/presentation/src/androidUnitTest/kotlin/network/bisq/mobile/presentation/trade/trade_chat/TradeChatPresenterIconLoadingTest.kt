@@ -10,10 +10,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelModel
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageDto
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
@@ -44,34 +42,28 @@ class TradeChatPresenterIconLoadingTest : PlatformPresentationKoinTestBase() {
             val userProfile2 = createMockUserProfile("sender2")
             val myUserProfile = createMockUserProfile("myUser")
 
-            val dto1 = mockk<BisqEasyOpenTradeMessageDto>()
-            every { dto1.chatMessageType } returns ChatMessageTypeEnum.TEXT
-            every { dto1.senderUserProfile } returns userProfile1
-            every { dto1.messageId } returns "msg1"
-            every { dto1.text } returns "hello"
-            every { dto1.citation } returns null
-            every { dto1.date } returns 1000L
-            every { dto1.tradeId } returns "trade1"
-            every { dto1.mediator } returns null
-            every { dto1.bisqEasyOffer } returns null
-            every { dto1.citationAuthorUserProfile } returns null
-            val model1 = BisqEasyOpenTradeMessageModel(dto1, myUserProfile, emptyList())
+            val model1 =
+                createMockBisqEasyOpenTradeMessage(
+                    id = "msg1",
+                    text = "hello",
+                    date = 1000L,
+                    senderUserProfile = userProfile1,
+                    myUserProfile = myUserProfile,
+                    tradeId = "trade1",
+                )
 
-            val dto2 = mockk<BisqEasyOpenTradeMessageDto>()
-            every { dto2.chatMessageType } returns ChatMessageTypeEnum.TEXT
-            every { dto2.senderUserProfile } returns userProfile2
-            every { dto2.messageId } returns "msg2"
-            every { dto2.text } returns "world"
-            every { dto2.citation } returns null
-            every { dto2.date } returns 2000L
-            every { dto2.tradeId } returns "trade1"
-            every { dto2.mediator } returns null
-            every { dto2.bisqEasyOffer } returns null
-            every { dto2.citationAuthorUserProfile } returns null
-            val model2 = BisqEasyOpenTradeMessageModel(dto2, myUserProfile, emptyList())
+            val model2 =
+                createMockBisqEasyOpenTradeMessage(
+                    id = "msg2",
+                    text = "world",
+                    date = 2000L,
+                    senderUserProfile = userProfile2,
+                    myUserProfile = myUserProfile,
+                    tradeId = "trade1",
+                )
 
             val chatMessagesFlow = MutableStateFlow(setOf(model1, model2))
-            val channelModel = mockk<BisqEasyOpenTradeChannelModel>()
+            val channelModel = mockk<BisqEasyOpenTradeChannel>()
             every { channelModel.chatMessages } returns chatMessagesFlow
 
             val trade = mockk<TradeItemPresentationModel>()

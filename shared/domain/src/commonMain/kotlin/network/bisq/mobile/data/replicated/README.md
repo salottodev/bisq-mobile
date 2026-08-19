@@ -63,7 +63,32 @@ The initial value for those fields are set from value object and later updated b
 In case of the node we observe the domain observable fields and apply the changes.
 For the client we get updates via websocket events.
 
+The delegation above holds only where the value object lives in `:shared:domain` alongside the model.
+Where the Dto is a client transport type it now lives in `apps/clientApp`, which a `:shared:domain` type
+must not depend on; those models take plain constructor arguments instead, and the client destructures
+its own Dto into them. `TradeItemPresentationModel` and the `chat/` types below are the current cases.
+
 Model classes can contain also domain methods or util fields.
+
+##### Exception: the chat types
+
+The classes under `chat/` deliberately drop their postfix and mirror the Bisq Easy class names one to
+one, together with the class hierarchy and package layout:
+
+- messages and channels drop `Model` — `PrivateChatMessage`, `BisqEasyOpenTradeMessage`,
+  `BisqEasyOpenTradeChannel`
+- reactions drop `VO` — `ChatMessageReaction`, `PrivateChatMessageReaction`,
+  `BisqEasyOpenTradeMessageReaction`, `BisqEasyOfferbookMessageReaction`
+- `Citation` drops `VO` for the same reason, being a chat type carried by every message
+
+The messages and channels are still models in the sense above — mutability is the `StateFlow` fields,
+not the name — and the reactions are still immutable value objects. Only the naming changes, so that
+a reader can put a mobile type next to its Bisq Easy counterpart without translating the name.
+
+The trade-off is that their names now collide with the Bisq Easy classes in node mode, which is what
+the postfix conventions otherwise avoid. Only the node app has those classes on its classpath, so the
+collision is resolved there with `import bisq.chat… as Bisq2…` aliases; `shared` and the client app
+are unaffected.
 
 #### Data types
 

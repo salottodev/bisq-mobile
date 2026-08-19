@@ -19,7 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
+import androidx.compose.ui.tooling.preview.Preview
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
+import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqTextFieldV0
@@ -29,6 +32,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.icons.SendIco
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.EMPTY_STRING
+import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 
 private const val MAX_CHAT_INPUT_LENGTH = 10_000
 
@@ -36,7 +40,7 @@ private const val MAX_CHAT_INPUT_LENGTH = 10_000
 fun ChatInputField(
     onMessageSend: (String) -> Unit,
     modifier: Modifier = Modifier,
-    quotedMessage: BisqEasyOpenTradeMessageModel? = null,
+    quotedMessage: PrivateChatMessage<*>? = null,
     placeholder: String = EMPTY_STRING,
     resetScroll: () -> Unit = {},
     onCloseReply: () -> Unit = {},
@@ -81,7 +85,7 @@ fun ChatInputField(
 
 @Composable
 fun QuotedMessage(
-    quotedMessage: BisqEasyOpenTradeMessageModel,
+    quotedMessage: PrivateChatMessage<*>,
     onCloseReply: () -> Unit = {},
 ) {
     AnimatedVisibility(visible = quotedMessage.text != null) {
@@ -116,3 +120,53 @@ fun QuotedMessage(
         }
     }
 }
+
+@Preview
+@Composable
+private fun ChatInputField_EmptyPreview() {
+    BisqTheme.Preview {
+        ChatInputField(
+            onMessageSend = {},
+            placeholder = "chat.message.input.prompt".i18n(),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ChatInputField_WithQuotedMessagePreview() {
+    BisqTheme.Preview {
+        ChatInputField(
+            onMessageSend = {},
+            quotedMessage = previewQuotedMessage("Sure! Let's proceed with the payment.", "Alice"),
+            placeholder = "chat.message.input.prompt".i18n(),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun QuotedMessage_LongTextPreview() {
+    BisqTheme.Preview {
+        QuotedMessage(
+            quotedMessage =
+                previewQuotedMessage(
+                    text =
+                        "I sent the payment a few minutes ago, the reference should show up on your " +
+                            "statement as the trade id. Let me know once you see it and I will confirm here.",
+                    senderName = "SatoshiNakamotoLongNickname",
+                ),
+        )
+    }
+}
+
+@ExcludeFromCoverage
+private fun previewQuotedMessage(
+    text: String,
+    senderName: String,
+) = createMockBisqEasyOpenTradeMessage(
+    id = "msg1",
+    text = text,
+    senderUserProfile = createMockUserProfile(senderName),
+    myUserProfile = createMockUserProfile("Bob"),
+)

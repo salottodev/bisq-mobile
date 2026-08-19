@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
 import network.bisq.mobile.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum.BTC_CONFIRMED
@@ -76,9 +76,9 @@ class OpenTradePresenter(
                 initialValue = 0,
             )
 
-    private val _lastChatMsg: MutableStateFlow<BisqEasyOpenTradeMessageModel?> =
+    private val _lastChatMsg: MutableStateFlow<BisqEasyOpenTradeMessage?> =
         MutableStateFlow(null)
-    val lastChatMsg: StateFlow<BisqEasyOpenTradeMessageModel?> = _lastChatMsg.asStateFlow()
+    val lastChatMsg: StateFlow<BisqEasyOpenTradeMessage?> = _lastChatMsg.asStateFlow()
 
     private val _tradePaneScrollState: MutableStateFlow<ScrollState?> = MutableStateFlow(null)
 

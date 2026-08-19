@@ -17,6 +17,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.icons.Warning
 import network.bisq.mobile.presentation.common.ui.components.layout.BisqStaticScaffold
 import network.bisq.mobile.presentation.common.ui.components.molecules.TopBar
 import network.bisq.mobile.presentation.common.ui.components.molecules.chat.ChatInputField
+import network.bisq.mobile.presentation.common.ui.components.molecules.chat.trade.TradePeerLeftMessageBox
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.ConfirmationDialog
 import network.bisq.mobile.presentation.common.ui.components.organisms.chat.ChatMessageList
 import network.bisq.mobile.presentation.common.ui.components.organisms.chat.UndoIgnoreDialog
@@ -124,6 +125,7 @@ fun TradeChatScreen(tradeId: String) {
                 modifier = Modifier.weight(1f),
                 onResendMessage = { messageId -> presenter.onResendMessage(messageId) },
                 userNameProvider = { messageId -> presenter.getUserName(messageId) },
+                leaveMessageContent = { message, modifier -> TradePeerLeftMessageBox(message, modifier) },
             )
         }
 

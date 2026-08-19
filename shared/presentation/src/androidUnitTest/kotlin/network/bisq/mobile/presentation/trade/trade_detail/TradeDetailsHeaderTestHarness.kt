@@ -3,7 +3,7 @@ package network.bisq.mobile.presentation.trade.trade_detail
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelModel
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
 import network.bisq.mobile.data.replicated.common.network.AddressByTransportTypeMapVO
 import network.bisq.mobile.data.replicated.common.network.AddressVO
 import network.bisq.mobile.data.replicated.common.network.TransportTypeEnum
@@ -66,7 +66,7 @@ internal fun createTradeDetailsHeaderTestHarness(isSeller: Boolean): TradeDetail
     every { offer.market.baseCurrencyCode } returns "BTC"
     every { offer.market.quoteCurrencyCode } returns "USD"
 
-    val channelModel = mockk<BisqEasyOpenTradeChannelModel>(relaxed = true)
+    val channelModel = mockk<BisqEasyOpenTradeChannel>(relaxed = true)
     every { channelModel.bisqEasyOffer } returns offer
     every { channelModel.isInMediation } returns isInMediationFlow
 

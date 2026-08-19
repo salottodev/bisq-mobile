@@ -13,22 +13,19 @@ import network.bisq.mobile.domain.utils.Logging
 import network.bisq.mobile.i18n.i18n
 
 // todo will get completed with work on chat
-class BisqEasyOpenTradeChannelModel(
-    bisqEasyOpenTradeChannelDto: BisqEasyOpenTradeChannelDto,
+class BisqEasyOpenTradeChannel(
+    val id: String,
+    val tradeId: String,
+    val bisqEasyOffer: BisqEasyOfferVO,
+    val myUserIdentity: UserIdentityVO,
+    val traders: Set<UserProfileVO>,
+    val mediator: UserProfileVO?,
 ) : Logging {
-    // Delegates of bisqEasyOpenTradeChannelVO
-    val id: String = bisqEasyOpenTradeChannelDto.id
-    val tradeId: String = bisqEasyOpenTradeChannelDto.tradeId
-    val bisqEasyOffer: BisqEasyOfferVO = bisqEasyOpenTradeChannelDto.bisqEasyOffer
-    val myUserIdentity: UserIdentityVO = bisqEasyOpenTradeChannelDto.myUserIdentity
-    val traders: Set<UserProfileVO> = bisqEasyOpenTradeChannelDto.traders
-    val mediator: UserProfileVO? = bisqEasyOpenTradeChannelDto.mediator
-
     // Mutable properties
     private val _isInMediation: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isInMediation: StateFlow<Boolean> = _isInMediation.asStateFlow()
-    private val _chatMessages: MutableStateFlow<Set<BisqEasyOpenTradeMessageModel>> = MutableStateFlow(emptySet())
-    val chatMessages: StateFlow<Set<BisqEasyOpenTradeMessageModel>> = _chatMessages.asStateFlow()
+    private val _chatMessages: MutableStateFlow<Set<BisqEasyOpenTradeMessage>> = MutableStateFlow(emptySet())
+    val chatMessages: StateFlow<Set<BisqEasyOpenTradeMessage>> = _chatMessages.asStateFlow()
     val chatChannelNotificationType: MutableStateFlow<ChatChannelNotificationTypeEnum> =
         MutableStateFlow(ChatChannelNotificationTypeEnum.ALL)
     val userProfileIdsOfActiveParticipants: MutableSet<String> = mutableSetOf()
@@ -67,7 +64,7 @@ class BisqEasyOpenTradeChannelModel(
         return traders.iterator().next()
     }
 
-    fun addChatMessages(message: BisqEasyOpenTradeMessageModel) {
+    fun addChatMessages(message: BisqEasyOpenTradeMessage) {
         // last write wins
         // relying on equals and hashcode is not enough for us
         // because while the message id can stay the same, reactions and messageDeliveryStatus can be updated
@@ -78,7 +75,7 @@ class BisqEasyOpenTradeChannelModel(
         }
     }
 
-    fun setAllChatMessages(messages: Set<BisqEasyOpenTradeMessageModel>) {
+    fun setAllChatMessages(messages: Set<BisqEasyOpenTradeMessage>) {
         _chatMessages.value = messages.associateBy { it.id }.values.toSet()
     }
 }

@@ -1,9 +1,7 @@
 package network.bisq.mobile.node.common.domain.service.chat.trade
 
 import bisq.chat.ChatMessageType
-import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
 import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannelService
-import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
 import bisq.common.observable.Pin
 import bisq.common.observable.collection.CollectionObserver
 import bisq.user.identity.UserIdentityService
@@ -12,11 +10,12 @@ import bisq.user.profile.UserProfileService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import network.bisq.mobile.data.replicated.chat.CitationVO
-import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessageModel
-import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReactionVO
+import network.bisq.mobile.data.replicated.chat.Citation
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
@@ -25,9 +24,12 @@ import network.bisq.mobile.data.service.chat.trade.TradeChatMessagesServiceFacad
 import network.bisq.mobile.data.service.message_delivery.MessageDeliveryServiceFacade
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
 import network.bisq.mobile.node.common.domain.mapping.Mappings
+import network.bisq.mobile.node.common.domain.mapping.chat.toDomain
 import network.bisq.mobile.node.common.domain.service.AndroidApplicationService
 import java.util.Optional
 import kotlin.jvm.optionals.getOrNull
+import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel as Bisq2BisqEasyOpenTradeChannel
+import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage as Bisq2BisqEasyOpenTradeMessage
 
 // When we add other chat types we will refactor that class to provide a base class for the common areas.
 class NodeTradeChatMessagesServiceFacade(
@@ -62,13 +64,13 @@ class NodeTradeChatMessagesServiceFacade(
 
         channelsPin =
             bisqEasyOpenTradeChannelService.channels.addObserver(
-                object : CollectionObserver<BisqEasyOpenTradeChannel> {
-                    override fun onAdded(channel: BisqEasyOpenTradeChannel) {
+                object : CollectionObserver<Bisq2BisqEasyOpenTradeChannel> {
+                    override fun onAdded(channel: Bisq2BisqEasyOpenTradeChannel) {
                         handleChannelAdded(channel)
                     }
 
                     override fun onRemoved(element: Any) {
-                        if (element is BisqEasyOpenTradeChannel) {
+                        if (element is Bisq2BisqEasyOpenTradeChannel) {
                             handleChannelRemoved(element)
                         }
                     }
@@ -91,16 +93,26 @@ class NodeTradeChatMessagesServiceFacade(
 
     override suspend fun sendChatMessage(
         text: String,
-        citationVO: CitationVO?,
+        citation: Citation?,
     ): Result<Unit> =
         withContext(Dispatchers.Default) {
-            selectedTrade.value?.bisqEasyOpenTradeChannelModel?.id.let { id ->
-                val citation =
-                    Optional.ofNullable(citationVO?.let { Mappings.CitationMapping.toBisq2Model(it) })
-                val channel = bisqEasyOpenTradeChannelService.findChannel(id).get()
-                bisqEasyOpenTradeChannelService.sendTextMessage(text, citation, channel)
-            }
-            Result.success(Unit)
+            // `findChannel` is a Java method, so a null id would pass through as a platform type and
+            // the failure would surface as an empty Optional deep inside Bisq2. Both misses are
+            // turned into a failed Result here instead, because the caller does act on the
+            // difference: `TradeChatPresenter` clears the quoted message on success only.
+            val channelId =
+                selectedTrade.value?.bisqEasyOpenTradeChannelModel?.id
+                    ?: return@withContext Result.failure(IllegalStateException("No trade is selected"))
+            val channel =
+                bisqEasyOpenTradeChannelService.findChannel(channelId).getOrNull()
+                    ?: return@withContext Result.failure(IllegalStateException("No channel found for the selected trade"))
+            val bisq2Citation =
+                Optional.ofNullable(citation?.let { Mappings.CitationMapping.toBisq2Model(it) })
+            // Bisq2 hands back a CompletableFuture; dropping it would report every send as delivered.
+            // The client facade propagates the dispatch failure, and the delivery-status UI only
+            // covers what happens after dispatch, so this is the only place the node mode can.
+            runCatching { bisqEasyOpenTradeChannelService.sendTextMessage(text, bisq2Citation, channel).await() }
+                .map { }
         }
 
     override suspend fun addChatMessageReaction(
@@ -110,11 +122,11 @@ class NodeTradeChatMessagesServiceFacade(
 
     override suspend fun removeChatMessageReaction(
         messageId: String,
-        reactionVO: BisqEasyOpenTradeMessageReactionVO,
+        reaction: BisqEasyOpenTradeMessageReaction,
     ): Result<Boolean> =
-        if (userIdentityService.findUserIdentity(reactionVO.senderUserProfile.id).isPresent) {
-            val reaction = ReactionEnum.entries[reactionVO.reactionId]
-            val result = addOrRemoveChatMessageReaction(messageId, reaction, true)
+        if (userIdentityService.findUserIdentity(reaction.senderUserProfile.id).isPresent) {
+            val reactionEnum = ReactionEnum.entries[reaction.reactionId]
+            val result = addOrRemoveChatMessageReaction(messageId, reactionEnum, true)
             if (result.isSuccess) {
                 Result.success(true)
             } else {
@@ -126,7 +138,7 @@ class NodeTradeChatMessagesServiceFacade(
         }
 
     // Private
-    private fun handleChannelAdded(channel: BisqEasyOpenTradeChannel) {
+    private fun handleChannelAdded(channel: Bisq2BisqEasyOpenTradeChannel) {
         val tradeId = channel.tradeId
         pinsByTradeId[tradeId]?.forEach { it.unbind() }
         val pins = mutableSetOf<Pin>()
@@ -135,10 +147,10 @@ class NodeTradeChatMessagesServiceFacade(
         unbindAllReactionsPins()
         pins +=
             channel.chatMessages.addObserver(
-                object : CollectionObserver<BisqEasyOpenTradeMessage> {
+                object : CollectionObserver<Bisq2BisqEasyOpenTradeMessage> {
                     // INVARIANT: persist=false/onAllAdded vs persist=true/onAdded assumes Bisq2 replays
                     // existing messages only in onAllAdded; live messages always arrive via onAdded.
-                    override fun onAllAdded(values: Collection<BisqEasyOpenTradeMessage>) {
+                    override fun onAllAdded(values: Collection<out Bisq2BisqEasyOpenTradeMessage>) {
                         // Override the default (which calls onAdded per element) solely to pass
                         // persist=false, preventing a delayed persist job from being scheduled
                         // for every historical PROTOCOL_LOG_MESSAGE replayed at startup.
@@ -147,7 +159,7 @@ class NodeTradeChatMessagesServiceFacade(
                         }
                     }
 
-                    override fun onAdded(message: BisqEasyOpenTradeMessage) {
+                    override fun onAdded(message: Bisq2BisqEasyOpenTradeMessage) {
                         addMessageToModel(tradeId, message, persist = true)
                     }
 
@@ -156,6 +168,7 @@ class NodeTradeChatMessagesServiceFacade(
                     }
 
                     override fun onCleared() {
+                        // Private messages cannot be removed
                     }
                 },
             )
@@ -172,7 +185,7 @@ class NodeTradeChatMessagesServiceFacade(
      */
     private fun addMessageToModel(
         tradeId: String,
-        message: BisqEasyOpenTradeMessage,
+        message: Bisq2BisqEasyOpenTradeMessage,
         persist: Boolean,
     ) {
         if (message.chatMessageType == ChatMessageType.TAKE_BISQ_EASY_OFFER) {
@@ -194,11 +207,7 @@ class NodeTradeChatMessagesServiceFacade(
                             val chatMessageReactions =
                                 message.chatMessageReactions
                                     .filter { !it.isRemoved }
-                                    .map { reaction ->
-                                        Mappings.BisqEasyOpenTradeMessageReactionMapping.fromBisq2Model(
-                                            reaction,
-                                        )
-                                    }
+                                    .map { reaction -> reaction.toDomain() }
                             model.setReactions(chatMessageReactions)
                         }
                 }
@@ -210,9 +219,8 @@ class NodeTradeChatMessagesServiceFacade(
                 .flatMap { citation -> userProfileService.findUserProfile(citation.authorUserProfileId) }
                 .orElse(null)
         val myUserProfile = userIdentityService.selectedUserIdentity.userProfile
-        val model: BisqEasyOpenTradeMessageModel =
-            Mappings.BisqEasyOpenTradeMessageModelMapping.fromBisq2Model(
-                message,
+        val model: BisqEasyOpenTradeMessage =
+            message.toDomain(
                 citationAuthorUserProfile,
                 myUserProfile,
             )
@@ -228,7 +236,7 @@ class NodeTradeChatMessagesServiceFacade(
         }
     }
 
-    private fun handleChannelRemoved(channel: BisqEasyOpenTradeChannel) {
+    private fun handleChannelRemoved(channel: Bisq2BisqEasyOpenTradeChannel) {
         unbindPinByTradeId(channel.tradeId)
         unbindAllReactionsPins()
     }
