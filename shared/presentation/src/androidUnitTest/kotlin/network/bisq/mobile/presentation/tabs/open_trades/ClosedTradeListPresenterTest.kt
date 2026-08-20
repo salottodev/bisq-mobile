@@ -3,6 +3,7 @@ package network.bisq.mobile.presentation.tabs.open_trades
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceTimeBy
@@ -15,6 +16,7 @@ import network.bisq.mobile.domain.model.trade.TradeSort
 import network.bisq.mobile.domain.usecase.trade.GetPaginatedClosedTradesUseCase
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 import network.bisq.mobile.presentation.common.ui.error.GenericErrorHandler
+import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.presentation.tabs.my_trades.closed.ClosedTradeListPresenter
 import network.bisq.mobile.presentation.tabs.my_trades.closed.ClosedTradeListUiAction
@@ -194,5 +196,16 @@ class ClosedTradeListPresenterTest : PresentationKoinTestBase() {
         // State update is immediate — the debounce only affects pager requery
         presenter.onAction(ClosedTradeListUiAction.OnSortChange(TradeSort.AMOUNT_HIGH_LOW))
         assertEquals(TradeSort.AMOUNT_HIGH_LOW, presenter.uiState.value.sortBy)
+    }
+
+    // -----------------------------------------------------------------------
+    // OnPeerProfileClick
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun `OnPeerProfileClick navigates to PeerProfile`() {
+        presenter.onAction(ClosedTradeListUiAction.OnPeerProfileClick("peer-1"))
+
+        verify { navigationManager.navigate(NavRoute.PeerProfile("peer-1"), any(), any()) }
     }
 }
