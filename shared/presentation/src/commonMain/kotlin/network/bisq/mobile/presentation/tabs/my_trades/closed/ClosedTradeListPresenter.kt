@@ -121,6 +121,9 @@ class ClosedTradeListPresenter(
             is ClosedTradeListUiAction.OnSelectTrade ->
                 _uiState.update { it.copy(selectedTradeForDetails = action.item) }
 
+            is ClosedTradeListUiAction.OnPeerProfileClick ->
+                navigateTo(NavRoute.PeerProfile(action.profileId))
+
             ClosedTradeListUiAction.OnDismissDetails ->
                 _uiState.update { it.copy(selectedTradeForDetails = null) }
 

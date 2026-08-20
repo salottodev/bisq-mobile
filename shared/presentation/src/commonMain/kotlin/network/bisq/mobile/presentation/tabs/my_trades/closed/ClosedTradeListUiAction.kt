@@ -14,6 +14,10 @@ sealed interface ClosedTradeListUiAction {
         val item: ClosedTradeListItem,
     ) : ClosedTradeListUiAction
 
+    data class OnPeerProfileClick(
+        val profileId: String,
+    ) : ClosedTradeListUiAction
+
     data object OnDismissDetails : ClosedTradeListUiAction
 
     data object OnShowFilterSheet : ClosedTradeListUiAction
