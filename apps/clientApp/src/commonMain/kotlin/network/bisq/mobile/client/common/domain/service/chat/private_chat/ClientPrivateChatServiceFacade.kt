@@ -184,7 +184,7 @@ class ClientPrivateChatServiceFacade(
      *
      * Applied to every REST call, not just channel creation, because a pairing that lost the
      * permission still reaches this screen: DMs keep arriving over the `PRIVATE_CHAT_*` topics, which
-     * bisq2 never authorises (see [PrivateChatServiceFacade.isSupported]). Opening an existing
+     * no released node authorises (see [PrivateChatServiceFacade.isSupported]). Opening an existing
      * conversation therefore skips [findOrCreateChannel] entirely, and the first send would have been
      * the first 403 — reported as a dropped connection, which sends the user off to retry something
      * only a re-pairing can fix.

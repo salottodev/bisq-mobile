@@ -477,9 +477,9 @@ class PrivateChatPresenter(
      * ("something went wrong, try again") sends the user in circles — only a re-pairing fixes it.
      *
      * This screen is reachable without ever calling `findOrCreateChannel`: a pairing that lost the
-     * permission still receives the DMs over the `PRIVATE_CHAT_*` topics, which bisq 2 authenticates
-     * but never authorises, so a notification tap opens the conversation and the first send is the
-     * first 403. `PeerProfilePresenter` says the same thing on the entry-point path.
+     * permission still receives the DMs over the `PRIVATE_CHAT_*` topics, which every released bisq 2
+     * authenticates but does not authorise, so a notification tap opens the conversation and the first
+     * send is the first 403. `PeerProfilePresenter` says the same thing on the entry-point path.
      *
      * @return true when it handled the failure, which is what suppresses `handleError`'s own snackbar.
      */

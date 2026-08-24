@@ -535,8 +535,8 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
 
     /**
      * The screen is reachable without ever calling `findOrCreateChannel` — a notification tap opens a
-     * conversation whose DMs keep arriving over the `PRIVATE_CHAT_*` topics, which bisq 2
-     * authenticates but never authorises. So the first 403 lands on the send, and `handleError`'s
+     * conversation whose DMs keep arriving over the `PRIVATE_CHAT_*` topics, which every released
+     * bisq 2 authenticates but does not authorise. So the first 403 lands on the send, and `handleError`'s
      * default copy would tell the user to check their connection about a problem only a re-pairing
      * fixes. `PeerProfilePresenter` already says the right thing on the entry-point path.
      */

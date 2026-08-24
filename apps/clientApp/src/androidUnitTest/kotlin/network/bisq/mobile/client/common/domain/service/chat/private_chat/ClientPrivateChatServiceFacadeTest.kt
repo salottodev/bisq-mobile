@@ -271,7 +271,8 @@ class ClientPrivateChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
     /**
      * The contract in `PrivateChatServiceFacade` is that a pairing without the permission is refused
      * *every* call, not only channel creation — and a pairing that lost it still reaches this screen,
-     * because the DMs keep arriving over the `PRIVATE_CHAT_*` topics, which bisq 2 never authorises.
+     * because the DMs keep arriving over the `PRIVATE_CHAT_*` topics, which no released bisq 2
+     * authorises.
      * Opening an existing conversation therefore skips `findOrCreateChannel` entirely, so the first
      * send used to be the first 403 and it surfaced as a generic connection error.
      *

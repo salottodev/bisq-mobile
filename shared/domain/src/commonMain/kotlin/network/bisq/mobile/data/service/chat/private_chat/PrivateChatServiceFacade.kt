@@ -26,11 +26,15 @@ interface PrivateChatServiceFacade : LifeCycleAware {
      * endpoint, so this can be true while the pairing withheld the private-chat permission. The calls
      * below then fail with [PrivateChatNotPermittedException], not here.
      *
-     * That permission covers the REST routes and nothing else. Bisq 2 authenticates a WebSocket at the
-     * handshake but never authorises it — `SubscriptionService` has no permission check and there is no
-     * WebSocket counterpart to `RestApiAuthorizationFilter` — so a pairing without the permission is
-     * refused every call below and still receives the DMs themselves over the `PRIVATE_CHAT_*` topics.
-     * Pre-existing and true of every topic, trade chat included.
+     * On every node released so far that permission covers the REST routes and nothing else. Bisq 2
+     * authenticates a WebSocket at the handshake but does not authorise it — `SubscriptionService` has
+     * no permission check and there is no WebSocket counterpart to `RestApiAuthorizationFilter` — so a
+     * pairing without the permission is refused every call below and still receives the DMs themselves
+     * over the `PRIVATE_CHAT_*` topics. Pre-existing and true of every topic, trade chat included.
+     * bisq2#4961 (`Authorize WebSocket subscriptions without breaking existing pairings`) closes it by
+     * requiring a permission per topic: against a node carrying that fix the subscription is refused
+     * outright, so the DMs stop arriving instead of arriving unasked. Both behaviours have to be
+     * assumed until it ships and the paired nodes catch up — the app cannot tell which node it has.
      *
      * Nothing this layer can close, and gating on the permission here would make it worse. The app does
      * not keep the granted set at all — `PairingCode.grantedPermissions` is decoded at pairing and never
@@ -38,6 +42,11 @@ interface PrivateChatServiceFacade : LifeCycleAware {
      * delivering either way. The 403 is the authoritative signal, which is why every call below
      * translates it: a pairing that lost the permission still reaches the chat screen through the
      * topics, so hiding the entry point would trade that message for silent failures.
+     *
+     * Presenters observe this instead of reading `BackendCapabilitiesService` themselves — the exception
+     * documented in `docs/architecture.md` § Feature availability services. The facade has to gate its
+     * own activation on the same capability, so a second reading in a presenter would be a copy of an
+     * answer that already lives here, free to drift from it.
      *
      * A flow rather than a snapshot: on Bisq Connect the capability set starts at the legacy baseline
      * and only becomes accurate once the node's manifest lands, so a caller that reads it once can

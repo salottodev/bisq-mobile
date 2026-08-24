@@ -84,6 +84,14 @@ such as a top-bar icon). Then that answer lives in a domain-level service under
 Current instance: `CommunityHubService`. If a second composite appears (e.g. MuSig-on-Connect
 gating), extract the shared core then — not before.
 
+One case sits between the two, and it is not an escalation: a facade that has to gate its **own**
+activation on the capability already holds the answer, so it exposes it
+(`PrivateChatServiceFacade.isSupported`, awaited by `ClientPrivateChatServiceFacade.activate` before
+it subscribes) and presenters observe the facade. Reading `BackendCapabilitiesService` in the presenter as well would
+copy an answer that already exists and let the two drift. It also keeps the client/node difference
+in the one place that has it: the node facade returns `flowOf(true)`, the client one maps the
+capability. No new type either way — the facade is one the presenter already depends on.
+
 ---
 
 ## Presenter lifecycle modes
