@@ -129,6 +129,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
             assertEquals(
                 listOf(
                     "notification.start",
+                    "privateChatNotification.start",
                     "apiAccess.activate",
                     "bootstrap.activate",
                     "network.activate",
@@ -138,6 +139,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
                     "marketPrice.activate",
                     "trades.activate",
                     "tradeChat.activate",
+                    "privateChat.activate",
                     "language.activate",
                     "fiat.activate",
                     "explorer.activate",
@@ -170,8 +172,10 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
             // service should never even briefly start (battery + risk of
             // ForegroundServiceDidNotStartInTimeException).
             assertEquals(false, order.contains("notification.start"))
-            // Sanity check: the rest of the activation chain still runs.
-            assertEquals("apiAccess.activate", order.first())
+            // Sanity check: the rest of the activation chain still runs. The private-chat
+            // notification service is not part of the FG-service decision — it holds no
+            // foreground service — so it starts first regardless of the delivery mode.
+            assertEquals(listOf("privateChatNotification.start", "apiAccess.activate"), order.take(2))
             assertEquals("push.activate", order.last())
         }
 
@@ -213,8 +217,10 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
             service.activate()
 
             assertEquals(false, order.contains("notification.start"))
-            // Sanity check: the rest of the activation chain still runs.
-            assertEquals("apiAccess.activate", order.first())
+            // Sanity check: the rest of the activation chain still runs. The private-chat
+            // notification service is not part of the FG-service decision — it holds no
+            // foreground service — so it starts first regardless of the delivery mode.
+            assertEquals(listOf("privateChatNotification.start", "apiAccess.activate"), order.take(2))
             assertEquals("push.activate", order.last())
         }
 
@@ -431,6 +437,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
             assertEquals(
                 listOf(
                     "notification.stop",
+                    "privateChatNotification.stop",
                     "push.deactivate",
                     "messageDelivery.deactivate",
                     "userProfile.deactivate",
@@ -442,6 +449,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
                     "explorer.deactivate",
                     "fiat.deactivate",
                     "language.deactivate",
+                    "privateChat.deactivate",
                     "tradeChat.deactivate",
                     "trades.deactivate",
                     "marketPrice.deactivate",
@@ -472,6 +480,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
             assertEquals(
                 listOf(
                     "notification.stop",
+                    "privateChatNotification.stop",
                     "push.deactivate",
                     "messageDelivery.deactivate",
                     "userProfile.deactivate",
@@ -483,6 +492,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
                     "explorer.deactivate",
                     "fiat.deactivate",
                     "language.deactivate",
+                    "privateChat.deactivate",
                     "tradeChat.deactivate",
                     "trades.deactivate",
                     "marketPrice.deactivate",
@@ -505,6 +515,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
         // via `order.contains("notification.start") == false`.
         io.mockk.every { openTradesNotificationService.setKeepProcessAlive(true) } answers { order += "notification.start" }
         io.mockk.every { openTradesNotificationService.startService() } answers { order += "notification.start" }
+        every { privateChatNotificationService.startService() } answers { order += "privateChatNotification.start" }
         coEvery { apiAccessService.activate() } answers { order += "apiAccess.activate" }
         coEvery { applicationBootstrapFacade.activate() } answers { order += "bootstrap.activate" }
         coEvery { networkServiceFacade.activate() } answers { order += "network.activate" }
@@ -514,6 +525,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
         coEvery { marketPriceServiceFacade.activate() } answers { order += "marketPrice.activate" }
         coEvery { tradesServiceFacade.activate() } answers { order += "trades.activate" }
         coEvery { tradeChatMessagesServiceFacade.activate() } answers { order += "tradeChat.activate" }
+        coEvery { privateChatServiceFacade.activate() } answers { order += "privateChat.activate" }
         coEvery { languageServiceFacade.activate() } answers { order += "language.activate" }
         coEvery { userDefinedAccountsServiceFacade.activate() } answers { order += "fiat.activate" }
         coEvery { explorerServiceFacade.activate() } answers { order += "explorer.activate" }
@@ -529,6 +541,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
 
     private fun configureDeactivationTracking() {
         io.mockk.coEvery { openTradesNotificationService.stopNotificationService() } answers { order += "notification.stop" }
+        coEvery { privateChatNotificationService.stopNotificationService() } answers { order += "privateChatNotification.stop" }
         coEvery { pushNotificationServiceFacade.deactivate() } answers { order += "push.deactivate" }
         coEvery { messageDeliveryServiceFacade.deactivate() } answers { order += "messageDelivery.deactivate" }
         coEvery { userProfileServiceFacade.deactivate() } answers { order += "userProfile.deactivate" }
@@ -540,6 +553,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
         coEvery { explorerServiceFacade.deactivate() } answers { order += "explorer.deactivate" }
         coEvery { userDefinedAccountsServiceFacade.deactivate() } answers { order += "fiat.deactivate" }
         coEvery { languageServiceFacade.deactivate() } answers { order += "language.deactivate" }
+        coEvery { privateChatServiceFacade.deactivate() } answers { order += "privateChat.deactivate" }
         coEvery { tradeChatMessagesServiceFacade.deactivate() } answers { order += "tradeChat.deactivate" }
         coEvery { tradesServiceFacade.deactivate() } answers { order += "trades.deactivate" }
         coEvery { marketPriceServiceFacade.deactivate() } answers { order += "marketPrice.deactivate" }
