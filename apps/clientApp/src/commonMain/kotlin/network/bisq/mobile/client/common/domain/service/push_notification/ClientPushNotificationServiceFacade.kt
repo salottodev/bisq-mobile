@@ -1,12 +1,17 @@
 package network.bisq.mobile.client.common.domain.service.push_notification
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepository
 import network.bisq.mobile.data.crypto.getOrCreatePushNotificationKeyBase64
@@ -55,6 +60,16 @@ class ClientPushNotificationServiceFacade(
     private val _deviceId = MutableStateFlow<String?>(null)
     private val deviceId: StateFlow<String?> = _deviceId.asStateFlow()
 
+    // Registering is not idempotent: every run rotates the symmetric key and sends the new one
+    // to the trusted node. Two overlapping runs can interleave as rotate(k1), rotate(k2),
+    // register(k1), register(k2), leaving the node with a key the device no longer holds, which
+    // silently breaks decryption of every push until the next registration. Opting out has the
+    // same problem in reverse: a registration landing after it would leave the device registered
+    // at the node while the user believes they are off. The triggers are independent
+    // (auto-registration, Settings toggle, Support screen, FCM token refresh), so serialize them
+    // rather than assume they never overlap.
+    private val registrationMutex = Mutex()
+
     override suspend fun activate() {
         super<ServiceFacade>.activate()
 
@@ -63,17 +78,32 @@ class ClientPushNotificationServiceFacade(
         // Load saved push notification preference
         serviceScope.launch {
             settingsRepository.data.collect { settings ->
-                val wasEnabled = _isPushNotificationsEnabled.value
                 _isPushNotificationsEnabled.value = settings.pushNotificationsEnabled
-
-                // Only auto-register if:
-                // 1. Push notifications are enabled in settings
-                // 2. Device is not already registered
-                // 3. User has completed onboarding (has a trusted node configured)
-                if (settings.pushNotificationsEnabled && !_isDeviceRegistered.value && !wasEnabled) {
-                    tryAutoRegisterIfOnboarded()
-                }
             }
+        }
+
+        // Auto-register once the opt-in AND a selected user profile are both present, and the
+        // device is not registered yet. Waiting for the profile is load-bearing: on a cold start
+        // it arrives from the trusted node seconds after the settings do, so registering on the
+        // settings emission alone aborted with "no user profile selected" and never retried,
+        // leaving the remaining paths manual (Settings toggle, Support screen) or an FCM token
+        // refresh. On Android that also skipped the key rotation registration performs, which
+        // silently breaks push decryption after the Keystore migration.
+        // Collecting the mirrored StateFlow rather than settingsRepository.data avoids a second
+        // DataStore read, and keeping this in its own coroutine keeps the mirror above
+        // responsive while a (slow, networked) registration is in flight.
+        serviceScope.launch {
+            combine(
+                _isPushNotificationsEnabled,
+                userProfileServiceFacade.selectedUserProfile,
+            ) { pushEnabled, userProfile ->
+                pushEnabled && userProfile != null
+            }.distinctUntilChanged()
+                .collect { canAutoRegister ->
+                    if (canAutoRegister && !_isDeviceRegistered.value) {
+                        tryAutoRegisterIfOnboarded()
+                    }
+                }
         }
     }
 
@@ -97,6 +127,11 @@ class ClientPushNotificationServiceFacade(
             } else {
                 log.w { "Auto-registration failed: ${result.exceptionOrNull()?.message}" }
             }
+        } catch (e: CancellationException) {
+            // deactivate() cancels serviceScope while this may be suspended in fetch() or the
+            // registration network call. CancellationException is an Exception on JVM, so the
+            // handler below would swallow it and report a shutdown as a registration error.
+            throw e
         } catch (e: Exception) {
             log.e(e) { "Error during auto-registration" }
         }
@@ -151,7 +186,9 @@ class ClientPushNotificationServiceFacade(
             Result.failure(PushNotificationException("Device identifier temporarily unavailable", e))
         }
 
-    private suspend fun registerTokenWithTrustedNode(token: String): Result<Unit> {
+    private suspend fun registerTokenWithTrustedNode(token: String): Result<Unit> = registrationMutex.withLock { registerTokenWithTrustedNodeLocked(token) }
+
+    private suspend fun registerTokenWithTrustedNodeLocked(token: String): Result<Unit> {
         // Get the current user profile (needed for publicKeyBase64)
         val userProfile = userProfileServiceFacade.selectedUserProfile.value
         if (userProfile == null) {
@@ -209,7 +246,9 @@ class ClientPushNotificationServiceFacade(
         return result
     }
 
-    override suspend fun unregisterFromPushNotifications(): Result<Unit> {
+    override suspend fun unregisterFromPushNotifications(): Result<Unit> = registrationMutex.withLock { unregisterFromPushNotificationsLocked() }
+
+    private suspend fun unregisterFromPushNotificationsLocked(): Result<Unit> {
         log.i { "Unregistering from push notifications..." }
 
         // deviceId tells the server which device to unregister. On iOS it can be transiently
