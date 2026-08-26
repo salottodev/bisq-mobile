@@ -25,6 +25,8 @@ import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatNotPermittedException
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRefusedException
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRejection
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatServiceFacade
 import network.bisq.mobile.data.service.reputation.ReputationServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
@@ -384,7 +386,7 @@ class PrivateChatPresenter(
                 // Surfaced, not just logged: `ChatInputField` clears its text as soon as it hands the
                 // message over, so a failure here silently loses what the user typed. The snackbar is
                 // the only signal they get. handleError, so a timeout reads as a timeout.
-                .onFailure { handleError(it, customHandler = ::showIfNotPermitted) }
+                .onFailure { handleError(it, customHandler = ::showPrivateChatFailure) }
         }
     }
 
@@ -405,7 +407,7 @@ class PrivateChatPresenter(
                     _uiState.value.channelId,
                     action.message.id,
                     action.reaction,
-                ).onFailure { handleError(it, customHandler = ::showIfNotPermitted) }
+                ).onFailure { handleError(it, customHandler = ::showPrivateChatFailure) }
         }
     }
 
@@ -416,7 +418,7 @@ class PrivateChatPresenter(
                     _uiState.value.channelId,
                     action.message.id,
                     action.reaction,
-                ).onFailure { handleError(it, customHandler = ::showIfNotPermitted) }
+                ).onFailure { handleError(it, customHandler = ::showPrivateChatFailure) }
         }
     }
 
@@ -467,7 +469,7 @@ class PrivateChatPresenter(
                 }.onFailure {
                     log.e(it) { "Failed to leave private chat channel" }
                     _uiState.update { state -> state.copy(showLeaveConfirmDialog = false) }
-                    handleError(it, customHandler = ::showIfNotPermitted)
+                    handleError(it, customHandler = ::showPrivateChatFailure)
                 }
         }
     }
@@ -481,11 +483,25 @@ class PrivateChatPresenter(
      * authenticates but does not authorise, so a notification tap opens the conversation and the first
      * send is the first 403. `PeerProfilePresenter` says the same thing on the entry-point path.
      *
+     * The same goes for a send the node refused outright because a profile in the conversation is
+     * banned ([PrivateChatSendRefusedException]): nothing was stored, so a retry changes nothing, and
+     * the copy has to say which side is banned — that is the one thing the user can act on.
+     *
      * @return true when it handled the failure, which is what suppresses `handleError`'s own snackbar.
      */
-    private fun showIfNotPermitted(exception: Throwable): Boolean {
-        if (exception !is PrivateChatNotPermittedException) return false
-        showSnackbar("mobile.privateChats.notPermitted".i18n(), type = SnackbarType.ERROR)
+    private fun showPrivateChatFailure(exception: Throwable): Boolean {
+        val message =
+            when (exception) {
+                is PrivateChatNotPermittedException -> "mobile.privateChats.notPermitted".i18n()
+                is PrivateChatSendRefusedException ->
+                    when (exception.rejection) {
+                        PrivateChatSendRejection.MY_PROFILE_BANNED -> "mobile.privateChats.sendRefused.myProfileBanned".i18n()
+                        PrivateChatSendRejection.PEER_BANNED -> "mobile.privateChats.sendRefused.peerBanned".i18n(_uiState.value.peerName)
+                        PrivateChatSendRejection.UNKNOWN -> "mobile.privateChats.sendRefused".i18n()
+                    }
+                else -> return false
+            }
+        showSnackbar(message, type = SnackbarType.ERROR)
         return true
     }
 

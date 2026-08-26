@@ -4,6 +4,8 @@ import bisq.chat.ChatChannelDomain
 import bisq.chat.ChatService
 import bisq.chat.notifications.ChatNotificationService
 import bisq.chat.priv.LeavePrivateChatManager
+import bisq.chat.priv.SendOutcome
+import bisq.chat.priv.SendRejection
 import bisq.chat.two_party.TwoPartyPrivateChatChannelService
 import bisq.common.observable.Pin
 import bisq.common.observable.collection.CollectionObserver
@@ -27,6 +29,8 @@ import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatChannel
 import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatMessageReaction
 import network.bisq.mobile.data.service.ServiceFacade
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRefusedException
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRejection
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatServiceFacade
 import network.bisq.mobile.node.common.domain.mapping.Mappings
 import network.bisq.mobile.node.common.domain.mapping.chat.toDomain
@@ -35,15 +39,24 @@ import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.jvm.optionals.getOrNull
 import bisq.chat.two_party.TwoPartyPrivateChatChannel as Bisq2TwoPartyPrivateChatChannel
+import bisq.chat.reactions.TwoPartyPrivateChatMessageReaction as Bisq2TwoPartyPrivateChatMessageReaction
 import bisq.chat.two_party.TwoPartyPrivateChatMessage as Bisq2TwoPartyPrivateChatMessage
 
 /**
  * Private chat (DM) backed by Bisq 2's `TwoPartyPrivateChatChannelService`.
  *
- * Mirrors what Bisq 2 desktop does, which is not always what the trade chat facade does:
- *  - channels are created through [ChatService.createAndSelectTwoPartyPrivateChatChannel], not the
- *    channel service directly, because the "select" half binds the user identity the next DM will use
- *  - leaving goes through [LeavePrivateChatManager], which also clears notifications and selection
+ * Mirrors Bisq 2's own REST API (`PrivateChatRestApi`) rather than the desktop, so that the two
+ * mobile flavours behave the same:
+ *  - channels are created through [TwoPartyPrivateChatChannelService.findOrCreateChannel], never the
+ *    [ChatService.createAndSelectTwoPartyPrivateChatChannel] wrapper the desktop uses: its "select"
+ *    half persists a change of the globally selected user identity
+ *    (`CommonChannelSelectionService.selectChannel` → `selectChatUserIdentity`) underneath
+ *    `NodeUserProfileServiceFacade`, whose cached `selectedUserProfile` would not see it. A new channel
+ *    is bound to whichever identity is selected at that moment, the same known limitation the REST
+ *    API documents
+ *  - sends report the node's own decision: a refusal for a banned profile surfaces as
+ *    [PrivateChatSendRefusedException], as the REST API's 409 does
+ *  - leaving goes through [LeavePrivateChatManager], which also clears notifications
  *  - unread state comes from Bisq 2's persisted [ChatNotificationService] rather than a local count
  */
 class NodePrivateChatServiceFacade(
@@ -129,11 +142,9 @@ class NodePrivateChatServiceFacade(
                 val peer =
                     userProfileService.findUserProfile(peerProfileId).getOrNull()
                         ?: error("No user profile found for the requested peer")
-                // Desktop always goes through this wrapper rather than findOrCreateChannel: it also
-                // selects the channel, which switches the globally selected identity to the one this
-                // channel is bound to. Skipping that misbinds the *next* DM for multi-identity users.
+                // Not the ChatService wrapper, which would also select the channel; see the class KDoc.
                 val channel =
-                    chatService.createAndSelectTwoPartyPrivateChatChannel(ChatChannelDomain.DISCUSSION, peer).getOrNull()
+                    channelService.findOrCreateChannel(ChatChannelDomain.DISCUSSION, peer).getOrNull()
                         ?: error("Could not create a private chat channel with the requested peer")
                 channel.id
             }
@@ -158,11 +169,18 @@ class NodePrivateChatServiceFacade(
             runCatching {
                 val channel = requireChannel(channelId)
                 val bisq2Citation = Optional.ofNullable(citation?.let { Mappings.CitationMapping.toBisq2Model(it) })
-                // Awaited, mirroring `NodeTradeChatMessagesServiceFacade.sendChatMessage` — the two
-                // chats make this call the same way, and neither is the place to change it alone.
+                // trySendTextMessage rather than sendTextMessage: the node decides locally, before
+                // storing anything, whether it refuses the send (my profile or the peer banned), and
+                // only this variant reports that decision. `sendTextMessage` folds it into the delivery
+                // future as a generic failure, which is what the REST API answers 409 for.
+                val outcome = channelService.trySendTextMessage(text, bisq2Citation, channel)
+                throwIfRefused(outcome)
+                // The delivery is awaited, mirroring `NodeTradeChatMessagesServiceFacade.sendChatMessage`
+                // — the two chats make this call the same way, and neither is the place to change it
+                // alone.
                 //
                 // Worth knowing what is being awaited, because the name suggests less than it does:
-                // `PrivateChatChannelService.sendMessage` adds the message to the channel first and
+                // `PrivateChatChannelService.trySendMessage` adds the message to the channel first and
                 // only then returns `networkService.confidentialSend(...)`, so this future is about
                 // DELIVERY, not local acceptance. Bisq 2's own REST API does not await it —
                 // `PrivateChatRestApi.sendTextMessage` fires and answers 204, and its OpenAPI text says
@@ -172,7 +190,7 @@ class NodePrivateChatServiceFacade(
                 // the two flavours differ at all.
                 //
                 // See addOrRemoveChatMessageReaction, which does NOT await the same future, and why.
-                channelService.sendTextMessage(text, bisq2Citation, channel).await()
+                outcome.delivery.await()
                 Unit
             }.onFailure { currentCoroutineContext().ensureActive() }
         }
@@ -209,8 +227,9 @@ class NodePrivateChatServiceFacade(
         withContext(Dispatchers.Default) {
             runCatching {
                 val channel = requireChannel(channelId)
-                // Not channelService.leaveChannel: the manager additionally re-selects the next
-                // channel and consumes the departed channel's notifications, as desktop does.
+                // Not channelService.leaveChannel: the manager consumes the departed channel's
+                // notifications and, only if that channel was the selected one, re-selects the
+                // next — as desktop does.
                 leavePrivateChatManager.leaveChannel(channel)
             }
         }
@@ -303,9 +322,26 @@ class NodePrivateChatServiceFacade(
             message.toDomain(
                 citationAuthorUserProfile,
                 myUserProfile,
+                visibleReactionsOf(message),
             ),
         )
     }
+
+    private fun visibleReactionsOf(message: Bisq2TwoPartyPrivateChatMessage): List<Bisq2TwoPartyPrivateChatMessageReaction> =
+        message.chatMessageReactions.filter { isVisible(message, it) }
+
+    /**
+     * bisq2's `PrivateChatReactionsWebSocketService.isVisible`, re-evaluated on every push: the observer
+     * in [observeReactions] runs long after [addMessageToModel] admitted the message, and either side
+     * may have been banned since.
+     */
+    private fun isVisible(
+        message: Bisq2TwoPartyPrivateChatMessage,
+        reaction: Bisq2TwoPartyPrivateChatMessageReaction,
+    ): Boolean =
+        !reaction.isRemoved &&
+            !bannedUserService.isUserProfileBanned(message.senderUserProfile) &&
+            !bannedUserService.isUserProfileBanned(reaction.senderUserProfile)
 
     private fun observeReactions(
         channel: Bisq2TwoPartyPrivateChatChannel,
@@ -322,11 +358,7 @@ class NodePrivateChatServiceFacade(
             message.chatMessageReactions.addObserver {
                 model.chatMessages.value
                     .find { it.id == messageId }
-                    ?.setReactions(
-                        message.chatMessageReactions
-                            .filter { !it.isRemoved }
-                            .map { it.toDomain() },
-                    )
+                    ?.setReactions(visibleReactionsOf(message).map { it.toDomain() })
             }
         }
     }
@@ -394,16 +426,29 @@ class NodePrivateChatServiceFacade(
                 // and answers 204 exactly as it does for a message.
                 //
                 // What still reaches the caller: a missing channel or message, both raised above inside
-                // this runCatching, and on Connect the whole REST failure including the 403 for a
-                // withheld permission. What does not: a banned sender or peer, which
-                // `PrivateChatChannelService` reports as an already-failed future rather than a throw.
-                channelService.sendTextMessageReaction(
-                    message,
-                    channel,
-                    Mappings.ReactionMapping.toBisq2Model(reactionEnum),
-                    isRemoved,
-                )
-                Unit
+                // this runCatching, and a refusal for a banned profile, which trySendTextMessageReaction
+                // reports on the outcome before anything is stored — the same thing the REST API
+                // answers 409 for. Only delivery is left unobserved.
+                val outcome =
+                    channelService.trySendTextMessageReaction(
+                        message,
+                        channel,
+                        Mappings.ReactionMapping.toBisq2Model(reactionEnum),
+                        isRemoved,
+                    )
+                throwIfRefused(outcome)
             }
+        }
+
+    /** Call from inside a `runCatching`, where the throw becomes the `Result.failure` the presenter reads. */
+    private fun throwIfRefused(outcome: SendOutcome) {
+        val rejection = outcome.rejection.getOrNull() ?: return
+        throw PrivateChatSendRefusedException(rejection.toDomain())
+    }
+
+    private fun SendRejection.toDomain(): PrivateChatSendRejection =
+        when (this) {
+            SendRejection.MY_PROFILE_BANNED -> PrivateChatSendRejection.MY_PROFILE_BANNED
+            SendRejection.PEER_BANNED -> PrivateChatSendRejection.PEER_BANNED
         }
 }

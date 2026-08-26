@@ -3,6 +3,7 @@ package network.bisq.mobile.client.common.domain.service.chat.private_chat
 import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatChannel
 import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatMessage
 import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatMessageReaction
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRejection
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 
 /**
@@ -44,6 +45,12 @@ fun TwoPartyPrivateChatMessageDto.toDomain(
         myUserProfile = myUserProfile,
         chatReactions = chatReactions,
     )
+
+fun SendRejectionDto.toDomain(): PrivateChatSendRejection =
+    when (this) {
+        SendRejectionDto.MY_PROFILE_BANNED -> PrivateChatSendRejection.MY_PROFILE_BANNED
+        SendRejectionDto.PEER_BANNED -> PrivateChatSendRejection.PEER_BANNED
+    }
 
 /** Does not carry [TwoPartyPrivateChatChannelDto.unreadCount] over; the caller sets it on the model. */
 fun TwoPartyPrivateChatChannelDto.toDomain(): TwoPartyPrivateChatChannel =

@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.serialization.json.Json
+import network.bisq.mobile.client.common.di.clientJson
 import network.bisq.mobile.client.common.domain.websocket.api_proxy.WebSocketRestApiException
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEvent
 import network.bisq.mobile.client.common.domain.websocket.subscription.ModificationType
@@ -20,9 +20,12 @@ import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBas
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
+import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatMessageReaction
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatNotPermittedException
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRefusedException
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRejection
 import network.bisq.mobile.domain.service.capabilities.BackendCapabilities
 import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesService
 import network.bisq.mobile.domain.service.capabilities.Feature
@@ -30,6 +33,8 @@ import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -39,7 +44,7 @@ class ClientPrivateChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
     private val capabilities = MutableStateFlow(BackendCapabilities(setOf(Feature.PRIVATE_CHAT.key)))
     private val backendCapabilitiesService: BackendCapabilitiesService =
         mockk { every { this@mockk.capabilities } returns this@ClientPrivateChatServiceFacadeTest.capabilities }
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = clientJson
 
     private val channelsObserver = WebSocketEventObserver()
     private val messagesObserver = WebSocketEventObserver()
@@ -118,15 +123,19 @@ class ClientPrivateChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
             assertTrue(result.exceptionOrNull() is PrivateChatNotPermittedException)
         }
 
+    /** bisq2 builds its 404/400 bodies with the channel or profile id inside, and `handleError` logs `message`. */
     @Test
-    fun `other channel creation failures keep their original cause`() =
+    fun `other failures keep the status but not the node's body`() =
         runTest {
-            val cause = WebSocketRestApiException(HttpStatusCode.NotFound, "No user profile found")
-            coEvery { apiGateway.findOrCreateChannel(any()) } returns Result.failure(cause)
+            coEvery { apiGateway.findOrCreateChannel(any()) } returns
+                Result.failure(WebSocketRestApiException(HttpStatusCode.NotFound, "No user profile found for profile ID peer-profile-id"))
 
-            val result = facade.findOrCreateChannel("peer-profile-id")
+            val exception = facade.findOrCreateChannel("peer-profile-id").exceptionOrNull()
 
-            assertTrue(result.exceptionOrNull() === cause, "only 403 means the permission was withheld")
+            assertNotNull(exception)
+            assertFalse(exception.message.orEmpty().contains("peer-profile-id"), "the node's body names the peer")
+            assertTrue(exception.message.orEmpty().contains("404"))
+            assertNull(exception.cause, "the original exception would carry the body into the log through the cause chain")
         }
 
     @Test
@@ -302,17 +311,109 @@ class ClientPrivateChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
             }
         }
 
-    /** The other direction, so the translation cannot widen into "any failure is a permission problem". */
+    /**
+     * A 409 is the node refusing the send outright for a banned profile, and its body names the
+     * `SendRejection`. It reaches here as the raw body: `WebSocketApiClient` only unwraps an
+     * `{"error": …}` envelope, and this is not one.
+     */
     @Test
-    fun `other private-chat failures keep their original cause`() =
+    fun `a refused send names which profile is banned, whichever call it is`() =
         runTest {
-            val cause = WebSocketRestApiException(HttpStatusCode.NotFound, "No channel")
-            coEvery { apiGateway.sendTextMessage(any(), any(), any()) } returns Result.failure(cause)
+            val refused = {
+                Result.failure<Unit>(
+                    WebSocketRestApiException(
+                        HttpStatusCode.Conflict,
+                        """{"rejection":"PEER_BANNED","message":"The peer's user profile is banned."}""",
+                    ),
+                )
+            }
+            coEvery { apiGateway.sendTextMessage(any(), any(), any()) } answers { refused() }
+            coEvery { apiGateway.addChatMessageReaction(any(), any(), any()) } answers { refused() }
+            coEvery { apiGateway.removeChatMessageReaction(any(), any(), any()) } answers { refused() }
+            activateAndSettle()
+            emitChannel(unreadCount = 0)
+            advanceUntilIdle()
 
-            val result = facade.sendChatMessage(CHANNEL_ID, "hello", null)
+            val results =
+                listOf(
+                    "sendChatMessage" to facade.sendChatMessage(CHANNEL_ID, "hello", null),
+                    "addChatMessageReaction" to facade.addChatMessageReaction(CHANNEL_ID, "m1", ReactionEnum.THUMBS_UP),
+                    "removeChatMessageReaction" to facade.removeChatMessageReaction(CHANNEL_ID, "m1", myReaction),
+                )
 
-            assertTrue(result.exceptionOrNull() === cause, "only 403 means the permission was withheld")
+            results.forEach { (name, result) ->
+                val exception = result.exceptionOrNull()
+                assertTrue(exception is PrivateChatSendRefusedException, "$name must translate the 409")
+                assertEquals(PrivateChatSendRejection.PEER_BANNED, exception.rejection, name)
+            }
         }
+
+    @Test
+    fun `a refused send reports my own ban apart from the peer's`() =
+        runTest {
+            coEvery { apiGateway.sendTextMessage(any(), any(), any()) } returns
+                Result.failure(
+                    WebSocketRestApiException(
+                        HttpStatusCode.Conflict,
+                        """{"rejection":"MY_PROFILE_BANNED","message":"Your user profile is banned."}""",
+                    ),
+                )
+
+            val exception = facade.sendChatMessage(CHANNEL_ID, "hello", null).exceptionOrNull()
+
+            assertEquals(PrivateChatSendRejection.MY_PROFILE_BANNED, (exception as PrivateChatSendRefusedException).rejection)
+        }
+
+    /**
+     * A node that still answers the 409 with prose, or with a rejection this build does not know, is
+     * still a refusal — just one whose reason is unknown. The prose is deliberately not matched.
+     */
+    @Test
+    fun `a refusal without a known rejection code is still reported as a refusal`() =
+        runTest {
+            coEvery { apiGateway.sendTextMessage(any(), any(), any()) } returnsMany
+                listOf(
+                    Result.failure(WebSocketRestApiException(HttpStatusCode.Conflict, "The peer's user profile is banned.")),
+                    Result.failure(WebSocketRestApiException(HttpStatusCode.Conflict, """{"rejection":"SOMETHING_NEW","message":"x"}""")),
+                )
+
+            repeat(2) {
+                val exception = facade.sendChatMessage(CHANNEL_ID, "hello", null).exceptionOrNull()
+                assertEquals(PrivateChatSendRejection.UNKNOWN, (exception as PrivateChatSendRefusedException).rejection)
+            }
+        }
+
+    /**
+     * The other direction, so the translation cannot widen into "any failure is a permission problem"
+     * — and the node's body stays out of it: a 404 here names the channel, i.e. both participants.
+     */
+    @Test
+    fun `other private-chat failures keep the status but not the node's body`() =
+        runTest {
+            coEvery { apiGateway.sendTextMessage(any(), any(), any()) } returns
+                Result.failure(WebSocketRestApiException(HttpStatusCode.NotFound, "No channel found for channel ID $CHANNEL_ID"))
+
+            val exception = facade.sendChatMessage(CHANNEL_ID, "hello", null).exceptionOrNull()
+
+            assertNotNull(exception)
+            assertFalse(exception is PrivateChatNotPermittedException || exception is PrivateChatSendRefusedException)
+            assertFalse(exception.message.orEmpty().contains(CHANNEL_ID))
+            assertTrue(exception.message.orEmpty().contains("404"))
+        }
+
+    private val myReaction =
+        TwoPartyPrivateChatMessageReaction(
+            id = "reaction-mine",
+            senderUserProfile = me,
+            receiverUserProfileId = "receiver-1",
+            receiverNetworkId = me.networkId,
+            chatChannelId = CHANNEL_ID,
+            chatChannelDomain = ChatChannelDomainEnum.DISCUSSION,
+            chatMessageId = "m1",
+            reactionId = ReactionEnum.THUMBS_UP.ordinal,
+            date = 1234L,
+            isRemoved = false,
+        )
 
     private fun singleMessageReactions() =
         facade.channels.value

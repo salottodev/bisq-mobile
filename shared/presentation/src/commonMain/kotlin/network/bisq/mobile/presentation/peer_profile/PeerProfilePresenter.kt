@@ -341,7 +341,7 @@ class PeerProfilePresenter(
      *
      * [PeerProfileUiState.isOwnProfile] is part of it even though `loadProfile` returns early for
      * own profiles: without it, this would depend on that early return to stay correct, and opening
-     * a DM with yourself creates a `sorted(me, me)` channel that Bisq 2 then selects on the node.
+     * a DM with yourself would create a `sorted(me, me)` channel.
      */
     private fun canSendPrivateMessage(state: PeerProfileUiState): Boolean =
         isPrivateChatSupported &&

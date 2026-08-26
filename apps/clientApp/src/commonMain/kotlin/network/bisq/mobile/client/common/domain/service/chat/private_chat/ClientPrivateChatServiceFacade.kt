@@ -25,6 +25,8 @@ import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatMes
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.data.service.ServiceFacade
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatNotPermittedException
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRefusedException
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRejection
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatServiceFacade
 import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesService
 import network.bisq.mobile.domain.service.capabilities.Feature
@@ -175,7 +177,8 @@ class ClientPrivateChatServiceFacade(
     // Private
 
     /**
-     * Translates a 403 into [PrivateChatNotPermittedException].
+     * Translates a 403 into [PrivateChatNotPermittedException] and a 409 into
+     * [PrivateChatSendRefusedException].
      *
      * The node advertises the private-chat capability from `/config/capabilities`, which is public and
      * deliberately not permission-filtered, so [isSupported] can be true for a pairing that was never
@@ -188,12 +191,33 @@ class ClientPrivateChatServiceFacade(
      * conversation therefore skips [findOrCreateChannel] entirely, and the first send would have been
      * the first 403 — reported as a dropped connection, which sends the user off to retry something
      * only a re-pairing can fix.
+     *
+     * Every other status is reduced to its code, without the original as cause: the node's 404/400
+     * bodies embed the channel id — which names both participants — or the peer's profile id, and
+     * `handleError` logs `message`. Same scrubbing as the node facade's `error(...)` messages.
      */
     private fun asDomainFailure(cause: Throwable): Throwable =
-        if (cause is WebSocketRestApiException && cause.httpStatusCode == HttpStatusCode.Forbidden) {
-            PrivateChatNotPermittedException()
-        } else {
-            cause
+        when {
+            cause !is WebSocketRestApiException -> cause
+            cause.httpStatusCode == HttpStatusCode.Forbidden -> PrivateChatNotPermittedException()
+            cause.httpStatusCode == HttpStatusCode.Conflict -> PrivateChatSendRefusedException(parseRejection(cause))
+            else -> IllegalStateException("Private chat request failed with HTTP ${cause.httpStatusCode.value}")
+        }
+
+    /**
+     * The 409 body arrives as [WebSocketRestApiException.message] verbatim: `WebSocketApiClient` only
+     * unwraps an `{"error": …}` envelope, and this body is a `SendRefusedResponse` instead. A node that
+     * still answers with prose, or with a [SendRejectionDto] value this build does not know (the decode
+     * fails on it), maps to [PrivateChatSendRejection.UNKNOWN] rather than to a guess — the prose is
+     * deliberately not matched.
+     */
+    private fun parseRejection(cause: WebSocketRestApiException): PrivateChatSendRejection =
+        runCatching {
+            json.decodeFromString<SendRefusedResponse>(cause.message.orEmpty()).rejection.toDomain()
+        }.getOrElse {
+            // The exception is not logged: kotlinx quotes the input, i.e. the raw body.
+            log.w { "Could not parse the 409 refusal body; reporting UNKNOWN" }
+            PrivateChatSendRejection.UNKNOWN
         }
 
     private suspend fun subscribeChannels() {

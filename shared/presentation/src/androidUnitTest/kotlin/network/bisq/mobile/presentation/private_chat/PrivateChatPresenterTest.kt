@@ -19,6 +19,8 @@ import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.i
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatNotPermittedException
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRefusedException
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRejection
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatServiceFacade
 import network.bisq.mobile.data.service.reputation.ReputationServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
@@ -554,6 +556,68 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             verify { globalUiManager.showSnackbar("mobile.privateChats.notPermitted".i18n(), any(), any(), any()) }
+            verify(exactly = 0) { globalUiManager.showSnackbar("mobile.error.generic".i18n(), any(), any(), any()) }
+        }
+
+    /**
+     * A send the node refused for a banned profile is not a connection problem either: nothing was
+     * stored, a retry changes nothing, and the one useful thing to say is which side is banned.
+     */
+    @Test
+    fun `a send refused for a banned peer names the peer instead of blaming the connection`() =
+        runTest {
+            channels.value = listOf(channel())
+            presenter.initialize(CHANNEL_ID)
+            advanceUntilIdle()
+            coEvery {
+                privateChatServiceFacade.sendChatMessage(any(), any(), any())
+            } returns Result.failure(PrivateChatSendRefusedException(PrivateChatSendRejection.PEER_BANNED))
+
+            presenter.onAction(PrivateChatUiAction.OnSendMessage("hello"))
+            advanceUntilIdle()
+
+            verify {
+                globalUiManager.showSnackbar(
+                    "mobile.privateChats.sendRefused.peerBanned".i18n(presenter.uiState.value.peerName),
+                    any(),
+                    any(),
+                    any(),
+                )
+            }
+            verify(exactly = 0) { globalUiManager.showSnackbar("mobile.error.generic".i18n(), any(), any(), any()) }
+        }
+
+    @Test
+    fun `a reaction refused for my own ban says so`() =
+        runTest {
+            channels.value = listOf(channel())
+            presenter.initialize(CHANNEL_ID)
+            advanceUntilIdle()
+            coEvery {
+                privateChatServiceFacade.addChatMessageReaction(any(), any(), any())
+            } returns Result.failure(PrivateChatSendRefusedException(PrivateChatSendRejection.MY_PROFILE_BANNED))
+
+            presenter.onAction(PrivateChatUiAction.OnAddReaction(message("m1", peer, date = 1L), ReactionEnum.THUMBS_UP))
+            advanceUntilIdle()
+
+            verify { globalUiManager.showSnackbar("mobile.privateChats.sendRefused.myProfileBanned".i18n(), any(), any(), any()) }
+        }
+
+    /** The branch that fires when node and mobile have drifted: it must still say something sensible. */
+    @Test
+    fun `a refusal this build cannot name falls back to the generic refusal copy`() =
+        runTest {
+            channels.value = listOf(channel())
+            presenter.initialize(CHANNEL_ID)
+            advanceUntilIdle()
+            coEvery {
+                privateChatServiceFacade.sendChatMessage(any(), any(), any())
+            } returns Result.failure(PrivateChatSendRefusedException(PrivateChatSendRejection.UNKNOWN))
+
+            presenter.onAction(PrivateChatUiAction.OnSendMessage("hello"))
+            advanceUntilIdle()
+
+            verify { globalUiManager.showSnackbar("mobile.privateChats.sendRefused".i18n(), any(), any(), any()) }
             verify(exactly = 0) { globalUiManager.showSnackbar("mobile.error.generic".i18n(), any(), any(), any()) }
         }
 
