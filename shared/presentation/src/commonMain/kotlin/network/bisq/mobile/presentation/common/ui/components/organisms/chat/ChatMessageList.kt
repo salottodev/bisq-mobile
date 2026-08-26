@@ -28,7 +28,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -147,12 +146,10 @@ fun <M : PrivateChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
                 )
             }
 
-            val placementAnimSpec: FiniteAnimationSpec<IntOffset> =
-                tween(
-                    durationMillis = 100,
-                    easing = FastOutSlowInEasing,
-                )
-
+            // No placement animation: the list is reverseLayout and the scaffold's imePadding
+            // resizes it every frame of the keyboard animation, and in reverse layout that shifts
+            // every item's raw offset — a placement spec would animate the chase and read as a
+            // bounce. New messages still fade in.
             val fadeAnimSpec: FiniteAnimationSpec<Float> =
                 tween(
                     durationMillis = 100,
@@ -201,7 +198,7 @@ fun <M : PrivateChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
                                     Modifier.animateItem(
                                         fadeInSpec = fadeAnimSpec,
                                         fadeOutSpec = fadeAnimSpec,
-                                        placementSpec = placementAnimSpec,
+                                        placementSpec = null,
                                     ),
                                 onResendMessage = onResendMessage,
                                 userNameProvider = userNameProvider,
@@ -214,7 +211,7 @@ fun <M : PrivateChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
                                 Modifier.animateItem(
                                     fadeInSpec = fadeAnimSpec,
                                     fadeOutSpec = fadeAnimSpec,
-                                    placementSpec = placementAnimSpec,
+                                    placementSpec = null,
                                 ),
                             )
                         }
@@ -250,7 +247,7 @@ fun <M : PrivateChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
                                     Modifier.animateItem(
                                         fadeInSpec = fadeAnimSpec,
                                         fadeOutSpec = fadeAnimSpec,
-                                        placementSpec = placementAnimSpec,
+                                        placementSpec = null,
                                     ),
                                 onResendMessage = onResendMessage,
                                 userNameProvider = userNameProvider,
