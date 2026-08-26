@@ -4,6 +4,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -43,6 +44,7 @@ import network.bisq.mobile.presentation.common.service.OpenTradesNotificationSer
 import network.bisq.mobile.presentation.common.service.PrivateChatNotificationService
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
     private val order = mutableListOf<String>()
@@ -505,6 +507,17 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
                 ),
                 order,
             )
+        }
+
+    /** A cancelled deactivation is not a shutdown failure: the base class must let it through instead of logging it. */
+    @Test
+    fun `deactivate propagates cancellation instead of reporting it as a failure`() =
+        runTest {
+            io.mockk.coEvery {
+                privateChatNotificationService.stopNotificationService()
+            } throws CancellationException("deactivation cancelled")
+
+            assertFailsWith<CancellationException> { service.deactivate() }
         }
 
     private fun configureActivationTracking() {
