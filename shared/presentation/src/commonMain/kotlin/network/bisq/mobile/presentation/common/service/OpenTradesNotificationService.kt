@@ -725,6 +725,12 @@ class OpenTradesNotificationService(
                 group = trade.shortTradeId
             }
             ios {
+                categoryId =
+                    if (isChatNotif) {
+                        NotificationRedactions.CHAT_MESSAGE_CATEGORY
+                    } else {
+                        NotificationRedactions.TRADE_UPDATE_CATEGORY
+                    }
                 pressAction =
                     if (isChatNotif) {
                         NotificationPressAction.Route(NavRoute.TradeChat(trade.tradeId))

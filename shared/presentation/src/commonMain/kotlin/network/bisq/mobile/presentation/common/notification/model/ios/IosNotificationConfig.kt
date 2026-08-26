@@ -34,7 +34,8 @@ class IosNotificationConfig {
     var actions: List<NotificationButton>? = null
 
     /**
-     * actions must be provided to set correct userInfo for category
+     * A category registered by `NotificationControllerImpl.setup`. Needed for [actions], and on its
+     * own for the lock-screen placeholder — see `NotificationRedactions`.
      */
     var categoryId: String? = null
 }

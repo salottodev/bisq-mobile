@@ -11,8 +11,10 @@ import os.log
 /// Privacy: the banner names the counterparty for a chat message but never quotes it, and never
 /// shows amounts or offer details. That is the same line the main app's locally raised
 /// notifications draw, which `PushNotification` deliberately matches. Everything else stays a
-/// category summary (e.g. "Trade update"). Full decrypted content is stored in the shared app
-/// group container for the main app to display after unlock.
+/// category summary (e.g. "Trade update"). While previews are hidden, iOS replaces the body with
+/// the placeholder of the category set below, which the main app registers with that same summary —
+/// the counterpart of Android's lock-screen redaction. Full decrypted content is stored in the
+/// shared app group container for the main app to display after unlock.
 ///
 /// Requirements:
 /// - The relay server must set `mutable-content: 1` in the APNs payload
@@ -84,6 +86,10 @@ class NotificationService: UNNotificationServiceExtension {
             let summary = notification.category
             bestAttemptContent.title = notification.banner.title
             bestAttemptContent.body = notification.banner.body
+            // The main app registers a UNNotificationCategory per wire category with the category
+            // summary as hiddenPreviewsBodyPlaceholder (NotificationControllerImpl.ios.kt), so a
+            // banner that names the counterparty shows "New message" while previews are hidden.
+            bestAttemptContent.categoryIdentifier = summary.rawValue
 
             // Pass opaque identifiers only — no human-readable trade details in userInfo.
             // `nse_decrypted` is what `NotificationControllerImpl.ios` filters pre-rendered

@@ -17,6 +17,18 @@ import network.bisq.mobile.presentation.common.notification.model.android.Androi
 object NotificationRedactions {
     private const val APP_NAME = "Bisq"
 
+    /**
+     * Category ids, shared by three readers: the relay's wire `category` field, the Android
+     * `BisqFirebaseMessagingService.NotificationCategory`, and the iOS `UNNotificationCategory` the
+     * main app registers with the matching redaction as `hiddenPreviewsBodyPlaceholder` — which is
+     * how iOS gets the lock-screen stand-in Android gets from `AndroidLockScreenPolicy.Redact`. The
+     * NSE sets the same id on a relayed push, so both paths redact through one registration.
+     */
+    const val CHAT_MESSAGE_CATEGORY = "chat_message"
+    const val TRADE_UPDATE_CATEGORY = "trade_update"
+    const val OFFER_UPDATE_CATEGORY = "offer_update"
+    const val GENERAL_CATEGORY = "general"
+
     const val CHAT_MESSAGE_KEY = "mobile.pushNotifications.category.chatMessage"
     const val TRADE_UPDATE_KEY = "mobile.pushNotifications.category.tradeUpdate"
     const val OFFER_UPDATE_KEY = "mobile.pushNotifications.category.offerUpdate"

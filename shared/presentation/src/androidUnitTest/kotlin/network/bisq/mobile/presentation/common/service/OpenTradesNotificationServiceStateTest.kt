@@ -118,5 +118,6 @@ class OpenTradesNotificationServiceStateTest {
             val posted = assertNotNull(config, "the service must have posted a notification")
             assertContains(assertNotNull(posted.body, "the notification must have a body"), "PeerUser")
             assertEquals(NotificationRedactions.tradeUpdate(), posted.android?.lockScreen)
+            assertEquals(NotificationRedactions.TRADE_UPDATE_CATEGORY, posted.ios?.categoryId, "iOS redacts through the category's placeholder")
         }
 }

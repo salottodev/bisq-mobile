@@ -128,6 +128,11 @@ class PrivateChatNotificationServiceTest : PresentationKoinTestBase() {
                 config.android?.lockScreen,
                 "the body names the peer, so a secure lock screen must see the summary instead",
             )
+            assertEquals(
+                NotificationRedactions.CHAT_MESSAGE_CATEGORY,
+                config.ios?.categoryId,
+                "iOS redacts through the category's hiddenPreviewsBodyPlaceholder, so the notification must carry it",
+            )
         }
 
     /**

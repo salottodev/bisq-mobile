@@ -254,6 +254,7 @@ class PrivateChatNotificationService(
                 group = NotificationIds.getNewPrivateChatMessageId(chatChannelId)
             }
             ios {
+                categoryId = NotificationRedactions.CHAT_MESSAGE_CATEGORY
                 pressAction = NotificationPressAction.Route(NavRoute.PrivateChat(chatChannelId))
             }
         }

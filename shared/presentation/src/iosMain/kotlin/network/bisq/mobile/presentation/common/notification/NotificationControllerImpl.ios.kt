@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import network.bisq.mobile.data.service.AppForegroundController
 import network.bisq.mobile.domain.utils.Logging
+import network.bisq.mobile.presentation.common.notification.NotificationRedactions
 import network.bisq.mobile.presentation.common.notification.model.NotificationButton
 import network.bisq.mobile.presentation.common.notification.model.NotificationConfig
 import network.bisq.mobile.presentation.common.notification.model.NotificationPressAction
@@ -64,12 +65,8 @@ class NotificationControllerImpl(
                     setInterruptionLevel(it.toPlatformEnum())
                 }
                 config.ios?.categoryId?.let {
-                    val actions = config.ios.actions
-                    if (actions.isNullOrEmpty()) {
-                        throw IllegalArgumentException("When setting categoryId, notification actions must be provided to behave correctly")
-                    }
                     setCategoryIdentifier(it)
-                    configureActions(this, actions)
+                    config.ios.actions?.takeIf { actions -> actions.isNotEmpty() }?.let { actions -> configureActions(this, actions) }
                 }
                 config.ios?.actions?.let {
                     if (config.ios.categoryId == null) {
@@ -272,13 +269,14 @@ class NotificationControllerImpl(
                     }
                 }
             }
-            if (actions.isNotEmpty()) {
-                // create category with actions
+            if (actions.isNotEmpty() || cat.hiddenPreviewsBodyPlaceholder != null) {
                 val category =
                     UNNotificationCategory.categoryWithIdentifier(
                         cat.id,
                         actions,
                         emptyList<String>(),
+                        // Empty is iOS's own default ("Notification"), so an actions-only category loses nothing.
+                        cat.hiddenPreviewsBodyPlaceholder.orEmpty(),
                         UNNotificationCategoryOptionNone,
                     )
                 resultCategories.add(category)
@@ -299,21 +297,27 @@ class NotificationControllerImpl(
     // to be silently dropped. The Swift delegate handles both didReceiveNotificationResponse
     // (deep linking via ExternalUriHandler) and willPresent (foreground presentation).
 
+    /**
+     * One category per lock-screen stand-in, so a notification whose body names a peer shows the
+     * category summary while previews are hidden — the iOS side of `AndroidLockScreenPolicy.Redact`.
+     * Registered by the main app but keyed by the wire category id, so the NSE's relayed pushes use
+     * them too; iOS keeps the registration across launches. Actions would go here as well.
+     */
     private fun setupNotificationCategories() {
         setNotificationCategories(
-            // theres no need for this right now but I'm leaving it here as an example
             setOf(
-//                IosNotificationCategory(
-//                    id = NotificationChannels.TRADE_UPDATES,
-//                    actions = listOf(
-//                        NotificationButton(
-//                            title = "mobile.action.notifications.openTrade".i18n(),
-//                            // the actual route here doesn't matter, but it will matter
-//                            // when actions are passed to notify()
-//                            pressAction = NotificationPressAction.Route(Routes.TabHome)
-//                        )
-//                    )
-//                ),
+                IosNotificationCategory(
+                    id = NotificationRedactions.CHAT_MESSAGE_CATEGORY,
+                    hiddenPreviewsBodyPlaceholder = NotificationRedactions.chatMessage().body,
+                ),
+                IosNotificationCategory(
+                    id = NotificationRedactions.TRADE_UPDATE_CATEGORY,
+                    hiddenPreviewsBodyPlaceholder = NotificationRedactions.tradeUpdate().body,
+                ),
+                IosNotificationCategory(
+                    id = NotificationRedactions.OFFER_UPDATE_CATEGORY,
+                    hiddenPreviewsBodyPlaceholder = NotificationRedactions.offerUpdate().body,
+                ),
             ),
         )
     }

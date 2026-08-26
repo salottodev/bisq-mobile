@@ -50,7 +50,8 @@ import javax.crypto.spec.SecretKeySpec
  * - The banner names the counterparty but never quotes the message. That is the same line
  *   the local path draws (`PrivateChatNotificationService`, `OpenTradesNotificationService`),
  *   which [PushNotification] deliberately matches. `payload.message` carries the chat message
- *   body and is never displayed. Same posture as the iOS NSE.
+ *   body and is never displayed. Same posture as the iOS NSE, which redacts on the lock screen
+ *   through the category's `hiddenPreviewsBodyPlaceholder` instead of [AndroidLockScreenPolicy].
  */
 class BisqFirebaseMessagingService :
     FirebaseMessagingService(),
@@ -541,10 +542,10 @@ class BisqFirebaseMessagingService :
         val id: String,
         val displayTextKey: String,
     ) {
-        TRADE_UPDATE("trade_update", NotificationRedactions.TRADE_UPDATE_KEY),
-        CHAT_MESSAGE("chat_message", NotificationRedactions.CHAT_MESSAGE_KEY),
-        OFFER_UPDATE("offer_update", NotificationRedactions.OFFER_UPDATE_KEY),
-        GENERAL("general", NotificationRedactions.GENERAL_KEY),
+        TRADE_UPDATE(NotificationRedactions.TRADE_UPDATE_CATEGORY, NotificationRedactions.TRADE_UPDATE_KEY),
+        CHAT_MESSAGE(NotificationRedactions.CHAT_MESSAGE_CATEGORY, NotificationRedactions.CHAT_MESSAGE_KEY),
+        OFFER_UPDATE(NotificationRedactions.OFFER_UPDATE_CATEGORY, NotificationRedactions.OFFER_UPDATE_KEY),
+        GENERAL(NotificationRedactions.GENERAL_CATEGORY, NotificationRedactions.GENERAL_KEY),
         ;
 
         /**
