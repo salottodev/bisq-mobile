@@ -22,7 +22,8 @@ object NotificationIds {
      * sinks on both platforms ([NotificationController] implementations log the id they post and
      * cancel), and logs persist to disk and ride along in bug reports, so only a digest of the
      * channel id leaves this function. The trade ids above are already shortened for the same
-     * reason.
+     * reason. The digest covers the id and the group, not the press intent: navigating needs the
+     * raw channel id, so `PrivateChatNotificationService`'s `pressAction` carries it in the route.
      *
      * Stability within a process is what matters here, not a value that agrees across platforms:
      * the id is produced, posted and cancelled by the same app, and iOS' NSE deliberately keys its

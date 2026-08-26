@@ -66,7 +66,8 @@ class NotificationControllerImpl(
                 }
                 config.ios?.categoryId?.let {
                     setCategoryIdentifier(it)
-                    config.ios.actions?.takeIf { actions -> actions.isNotEmpty() }?.let { actions -> configureActions(this, actions) }
+                    val actions = config.ios.actions.orEmpty()
+                    if (actions.isNotEmpty()) configureActions(this, actions)
                 }
                 config.ios?.actions?.let {
                     if (config.ios.categoryId == null) {
@@ -270,15 +271,14 @@ class NotificationControllerImpl(
                 }
             }
             if (actions.isNotEmpty() || cat.hiddenPreviewsBodyPlaceholder != null) {
+                val placeholder = cat.hiddenPreviewsBodyPlaceholder
                 val category =
-                    UNNotificationCategory.categoryWithIdentifier(
-                        cat.id,
-                        actions,
-                        emptyList<String>(),
-                        // Empty is iOS's own default ("Notification"), so an actions-only category loses nothing.
-                        cat.hiddenPreviewsBodyPlaceholder.orEmpty(),
-                        UNNotificationCategoryOptionNone,
-                    )
+                    if (placeholder == null) {
+                        // Absent, not "": iOS falls back to its own "Notification" only when no placeholder is set.
+                        UNNotificationCategory.categoryWithIdentifier(cat.id, actions, emptyList<String>(), UNNotificationCategoryOptionNone)
+                    } else {
+                        UNNotificationCategory.categoryWithIdentifier(cat.id, actions, emptyList<String>(), placeholder, UNNotificationCategoryOptionNone)
+                    }
                 resultCategories.add(category)
             }
         }

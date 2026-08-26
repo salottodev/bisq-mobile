@@ -108,15 +108,9 @@ enum class Topic(
     // funds, so "Affects core features" in SubscriptionsFailedDialog would rank them above the trade
     // chat they are not. TRADE_CHAT_MESSAGES stays CRITICAL because a payment is coordinated there.
     //
-    // The capability gate cannot land a topic in that list: a node that does not advertise
-    // private chat is never subscribed to at all (ClientPrivateChatServiceFacade.activate waits for
-    // it). The permission gate can, but only against a node new enough to enforce it. Every node
-    // released so far authorises its REST routes and not its topics, so a pairing that was never
-    // granted PRIVATE_CHAT_CHANNELS subscribes just fine and these fail on transport trouble alone;
-    // bisq2#4961 makes the node refuse such a subscription, and then the three of them show up in
-    // the dialog together — under a heading about connection problems, for what is a withheld
-    // permission. Revisit the grouping when a node carrying that fix is out; see
-    // PrivateChatServiceFacade.isSupported for the whole picture.
+    // Against a node carrying bisq2#4961 a withheld permission also lands them in that dialog, under
+    // a heading about connection problems; revisit the grouping when such a node is out. See
+    // PrivateChatServiceFacade.isSupported.
     PRIVATE_CHAT_CHANNELS(
         typeOf<List<TwoPartyPrivateChatChannelDto>>(),
         TopicImportance.COSMETIC,

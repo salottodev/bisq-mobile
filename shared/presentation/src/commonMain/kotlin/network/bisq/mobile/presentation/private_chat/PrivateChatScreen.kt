@@ -65,8 +65,7 @@ fun PrivateChatScreen(channelId: String) {
     val uiState by presenter.uiState.collectAsState()
     val isSendChatMessageEnabled by presenter.isSendChatMessageEnabled.collectAsState()
     val isLeaveChatEnabled by presenter.isLeaveChatEnabled.collectAsState()
-    val isConfirmIgnoreUserEnabled by presenter.isConfirmIgnoreUserEnabled.collectAsState()
-    val isConfirmUndoIgnoreUserEnabled by presenter.isConfirmUndoIgnoreUserEnabled.collectAsState()
+    val isIgnoreActionEnabled by presenter.isIgnoreActionEnabled.collectAsState()
 
     LaunchedEffect(presenter, channelId) {
         presenter.initialize(channelId)
@@ -79,27 +78,21 @@ fun PrivateChatScreen(channelId: String) {
         userNameProvider = { profileId -> presenter.getUserName(profileId) },
         isSendChatMessageEnabled = isSendChatMessageEnabled,
         isLeaveChatEnabled = isLeaveChatEnabled,
-        isConfirmIgnoreUserEnabled = isConfirmIgnoreUserEnabled,
-        isConfirmUndoIgnoreUserEnabled = isConfirmUndoIgnoreUserEnabled,
+        isIgnoreActionEnabled = isIgnoreActionEnabled,
         topBar = {
             TopBar(
-                // Gated on the peer, like the header below: peerName is "" until loadPeer resolves,
-                // and the format string renders a trailing-space "Chat with " for that whole window —
-                // permanently so on the not-found path, where the peer never arrives.
-                title =
-                    if (uiState.peerUserProfile != null) {
-                        i18nText("mobile.privateChats.peer.header", uiState.peerName)
-                    } else {
-                        EMPTY_STRING
-                    },
+                title = privateChatTitle(uiState),
                 showUserAvatar = false,
                 extraActions = {
-                    LeaveChatIconButton(onClick = { presenter.onAction(PrivateChatUiAction.OnLeaveChatClick) })
+                    // Only once the peer is known: the leave dialog names them.
+                    if (uiState.peerUserProfile != null) {
+                        LeaveChatIconButton(onClick = { presenter.onAction(PrivateChatUiAction.OnLeaveChatClick) })
+                    }
                 },
             )
         },
         reportDialog = {
-            val target = uiState.reportTargetProfile
+            val target = uiState.peerUserProfile
             if (uiState.showReportDialog && target != null) {
                 ReportUserDialog(
                     accusedUserProfile = target,
@@ -114,6 +107,13 @@ fun PrivateChatScreen(channelId: String) {
     )
 }
 
+/** Gated on the peer: the format string would render a trailing-space "Chat with " until it resolves. */
+@Composable
+private fun privateChatTitle(uiState: PrivateChatUiState): String {
+    val peer = uiState.peerUserProfile ?: return EMPTY_STRING
+    return i18nText("mobile.privateChats.peer.header", peer.userName)
+}
+
 @Composable
 internal fun PrivateChatScreenContent(
     uiState: PrivateChatUiState,
@@ -122,8 +122,7 @@ internal fun PrivateChatScreenContent(
     userNameProvider: suspend (String) -> String,
     isSendChatMessageEnabled: Boolean = true,
     isLeaveChatEnabled: Boolean = true,
-    isConfirmIgnoreUserEnabled: Boolean = true,
-    isConfirmUndoIgnoreUserEnabled: Boolean = true,
+    isIgnoreActionEnabled: Boolean = true,
     topBar: @Composable () -> Unit = {},
     reportDialog: @Composable () -> Unit = {},
 ) {
@@ -142,11 +141,10 @@ internal fun PrivateChatScreenContent(
             uiState.peerUserProfile?.let { peer ->
                 PrivateChatPeerHeader(
                     peerUserProfile = peer,
-                    peerName = uiState.peerName,
                     peerStarRating = uiState.peerStarRating,
                     isPeerReputationUnknown = uiState.isPeerReputationUnknown,
                     userProfileIconProvider = userProfileIconProvider,
-                    onClick = { onAction(PrivateChatUiAction.OnPeerHeaderClick) },
+                    onClick = { onAction(PrivateChatUiAction.OnPeerClick) },
                 )
             }
 
@@ -177,7 +175,7 @@ internal fun PrivateChatScreenContent(
                         // depends on one is never rendered — see PrivateChatPresenter.observeMessages.
                         onResendMessage = {},
                         userNameProvider = userNameProvider,
-                        onPeerProfileClick = { onAction(PrivateChatUiAction.OnPeerProfileClick(it)) },
+                        onPeerProfileClick = { onAction(PrivateChatUiAction.OnPeerClick) },
                         modifier = Modifier.weight(1f).padding(horizontal = BisqUIConstants.ScreenPadding),
                         onAddReaction = { message, reaction ->
                             onAction(PrivateChatUiAction.OnAddReaction(message, reaction))
@@ -191,9 +189,9 @@ internal fun PrivateChatScreenContent(
                                 clipboard.setClipEntry(AnnotatedString(message.textString).toClipEntry())
                             }
                         },
-                        onIgnoreUser = { onAction(PrivateChatUiAction.OnIgnoreUserClick(it)) },
-                        onUndoIgnoreUser = { onAction(PrivateChatUiAction.OnUndoIgnoreUserClick(it)) },
-                        onReportUser = { onAction(PrivateChatUiAction.OnReportUserClick(it)) },
+                        onIgnoreUser = { onAction(PrivateChatUiAction.OnIgnoreUserClick) },
+                        onUndoIgnoreUser = { onAction(PrivateChatUiAction.OnUndoIgnoreUserClick) },
+                        onReportUser = { onAction(PrivateChatUiAction.OnReportUserClick) },
                         onOpenChatRules = { onAction(PrivateChatUiAction.OnOpenChatRules) },
                         onDontShowAgainChatRulesWarningBox = {
                             onAction(PrivateChatUiAction.OnDontShowAgainChatRulesWarningBox)
@@ -225,7 +223,7 @@ internal fun PrivateChatScreenContent(
                     headline = "mobile.privateChats.chat.leaveChat".i18n(),
                     headlineColor = BisqTheme.colors.warning,
                     headlineLeftIcon = { WarningIcon() },
-                    message = "mobile.privateChats.chat.leaveConfirm".i18n(uiState.peerName),
+                    message = "mobile.privateChats.chat.leaveConfirm".i18n(uiState.peerUserProfile?.userName.orEmpty()),
                     confirmButtonText = "mobile.privateChats.chat.leaveConfirm.confirm".i18n(),
                     dismissButtonText = "action.cancel".i18n(),
                     verticalButtonPlacement = true,
@@ -235,7 +233,7 @@ internal fun PrivateChatScreenContent(
                 )
             }
 
-            if (uiState.ignoreUserId.isNotBlank()) {
+            if (uiState.showIgnoreDialog) {
                 ConfirmationDialog(
                     headline = "mobile.error.warning".i18n(),
                     headlineColor = BisqTheme.colors.warning,
@@ -244,17 +242,17 @@ internal fun PrivateChatScreenContent(
                     confirmButtonText = "chat.ignoreUser.confirm".i18n(),
                     dismissButtonText = "action.cancel".i18n(),
                     verticalButtonPlacement = true,
-                    confirmButtonLoading = !isConfirmIgnoreUserEnabled,
+                    confirmButtonLoading = !isIgnoreActionEnabled,
                     onConfirm = { onAction(PrivateChatUiAction.OnConfirmIgnore) },
                     onDismiss = { onAction(PrivateChatUiAction.OnDismissIgnoreDialog) },
                 )
             }
 
-            if (uiState.undoIgnoreUserId.isNotBlank()) {
+            if (uiState.showUndoIgnoreDialog) {
                 UndoIgnoreDialog(
                     onConfirm = { onAction(PrivateChatUiAction.OnConfirmUndoIgnore) },
                     onDismiss = { onAction(PrivateChatUiAction.OnDismissUndoIgnoreDialog) },
-                    confirmButtonLoading = !isConfirmUndoIgnoreUserEnabled,
+                    confirmButtonLoading = !isIgnoreActionEnabled,
                 )
             }
 
@@ -299,7 +297,7 @@ private val previewUserProfileIconProvider: suspend (UserProfileVO) -> PlatformI
 @Composable
 private fun PreviewTopBar(uiState: PrivateChatUiState) {
     TopBarContent(
-        title = "mobile.privateChats.peer.header".i18n(uiState.peerName),
+        title = privateChatTitle(uiState),
         showBackButton = true,
         showUserAvatar = false,
     )
@@ -311,7 +309,6 @@ private fun previewUiState(
 ) = PrivateChatUiState(
     channelId = "discussion.a-b",
     peerUserProfile = createMockUserProfile(peerName),
-    peerName = peerName,
     peerStarRating = 4.5,
     readCount = readCount,
     isLoading = false,

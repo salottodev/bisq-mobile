@@ -3,8 +3,8 @@ package network.bisq.mobile.client.common.domain.service.chat.private_chat
 import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatChannel
 import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatMessage
 import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatMessageReaction
-import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRejection
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRejection
 
 /**
  * The transport types are a client concern; the shared models below are what both apps present. The

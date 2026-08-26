@@ -66,7 +66,6 @@ class ClientPrivateChatServiceFacade(
     // every one of them recomputes a channel's message set from all three sources.
     private val stateMutex = Mutex()
     private val channelModelsById: MutableMap<String, TwoPartyPrivateChatChannel> = linkedMapOf()
-    private val myUserProfileIdsByChannelId: MutableMap<String, String> = mutableMapOf()
     private val messageDtosById: MutableMap<String, TwoPartyPrivateChatMessageDto> = mutableMapOf()
     private val reactionDtos: MutableSet<TwoPartyPrivateChatMessageReactionDto> = mutableSetOf()
 
@@ -97,7 +96,6 @@ class ClientPrivateChatServiceFacade(
         super<ServiceFacade>.deactivate()
         stateMutex.withLock {
             channelModelsById.clear()
-            myUserProfileIdsByChannelId.clear()
             messageDtosById.clear()
             reactionDtos.clear()
             _channels.value = emptyList()
@@ -146,7 +144,7 @@ class ClientPrivateChatServiceFacade(
         // Under the lock like every other access to this map: the three subscription collectors write
         // it, and an unguarded read racing a rehash can come back null — which here is indistinguishable
         // from "not our reaction" and would swallow the removal.
-        val myUserProfileId = stateMutex.withLock { myUserProfileIdsByChannelId[channelId] }
+        val myUserProfileId = stateMutex.withLock { channelModelsById[channelId]?.myUserProfile?.id }
         if (myUserProfileId == null || reaction.senderUserProfile.id != myUserProfileId) {
             // Not our reaction, so we cannot remove it.
             return Result.success(false)
@@ -178,19 +176,11 @@ class ClientPrivateChatServiceFacade(
 
     /**
      * Translates a 403 into [PrivateChatNotPermittedException] and a 409 into
-     * [PrivateChatSendRefusedException].
+     * [PrivateChatSendRefusedException], so neither reaches the UI as a connection problem.
      *
-     * The node advertises the private-chat capability from `/config/capabilities`, which is public and
-     * deliberately not permission-filtered, so [isSupported] can be true for a pairing that was never
-     * granted `PRIVATE_CHAT_CHANNELS`. Without this the failure reaches the UI as a generic error and
-     * gets reported as a connection problem, which it is not.
-     *
-     * Applied to every REST call, not just channel creation, because a pairing that lost the
-     * permission still reaches this screen: DMs keep arriving over the `PRIVATE_CHAT_*` topics, which
-     * no released node authorises (see [PrivateChatServiceFacade.isSupported]). Opening an existing
-     * conversation therefore skips [findOrCreateChannel] entirely, and the first send would have been
-     * the first 403 — reported as a dropped connection, which sends the user off to retry something
-     * only a re-pairing can fix.
+     * Applied to every REST call, not just channel creation: the DMs keep arriving over the topics for
+     * a pairing without the permission (see [PrivateChatServiceFacade.isSupported]), so a conversation
+     * opened from a notification skips [findOrCreateChannel] and its first send is the first 403.
      *
      * Every other status is reduced to its code, without the original as cause: the node's 404/400
      * bodies embed the channel id — which names both participants — or the peer's profile id, and
@@ -330,7 +320,6 @@ class ClientPrivateChatServiceFacade(
      */
     private fun upsertChannel(dto: TwoPartyPrivateChatChannelDto) {
         val model = channelModelsById.getOrPut(dto.id) { dto.toDomain() }
-        myUserProfileIdsByChannelId[dto.id] = dto.myUserProfile.id
         model.setUnreadCount(dto.unreadCount)
         rebuildMessages(dto.id)
     }
@@ -363,7 +352,6 @@ class ClientPrivateChatServiceFacade(
 
     private fun forgetChannel(channelId: String) {
         channelModelsById.remove(channelId)
-        myUserProfileIdsByChannelId.remove(channelId)
         val messageIds =
             messageDtosById.values
                 .filter { it.channelId == channelId }

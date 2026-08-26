@@ -62,7 +62,7 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
     private val ignoredProfileIds = MutableStateFlow<Set<String>>(emptySet())
 
     /**
-     * Never left to the relaxed mock: `loadReputation` reads it to tell an unresolved score apart
+     * Never left to the relaxed mock: `resolveReputation` reads it to tell an unresolved score apart
      * from a real zero, and empty is the "nothing has loaded yet" case the default here wants.
      */
     private val reputationScores = MutableStateFlow<Map<String, Long>>(emptyMap())
@@ -106,7 +106,7 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             assertFalse(presenter.uiState.value.isChannelNotFound)
-            assertEquals("peer", presenter.uiState.value.peerName)
+            assertEquals(peer, presenter.uiState.value.peerUserProfile)
         }
 
     @Test
@@ -209,7 +209,7 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             presenter.initialize(CHANNEL_ID)
             advanceUntilIdle()
 
-            presenter.onAction(PrivateChatUiAction.OnReportUserClick(message("m1", peer, date = 1L)))
+            presenter.onAction(PrivateChatUiAction.OnReportUserClick)
             presenter.onAction(PrivateChatUiAction.OnReportFailure("they scammed me"))
 
             val state = presenter.uiState.value
@@ -376,14 +376,14 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             presenter.initialize(CHANNEL_ID)
             advanceUntilIdle()
 
-            presenter.onAction(PrivateChatUiAction.OnIgnoreUserClick(peer.id))
-            assertEquals(peer.id, presenter.uiState.value.ignoreUserId)
+            presenter.onAction(PrivateChatUiAction.OnIgnoreUserClick)
+            assertTrue(presenter.uiState.value.showIgnoreDialog)
 
             presenter.onAction(PrivateChatUiAction.OnConfirmIgnore)
             advanceUntilIdle()
 
             coVerify { userProfileServiceFacade.ignoreUserProfile(peer.id) }
-            assertEquals("", presenter.uiState.value.ignoreUserId, "the dialog must close")
+            assertFalse(presenter.uiState.value.showIgnoreDialog, "the dialog must close")
         }
 
     @Test
@@ -393,12 +393,12 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             presenter.initialize(CHANNEL_ID)
             advanceUntilIdle()
 
-            presenter.onAction(PrivateChatUiAction.OnUndoIgnoreUserClick(peer.id))
+            presenter.onAction(PrivateChatUiAction.OnUndoIgnoreUserClick)
             presenter.onAction(PrivateChatUiAction.OnConfirmUndoIgnore)
             advanceUntilIdle()
 
             coVerify { userProfileServiceFacade.undoIgnoreUserProfile(peer.id) }
-            assertEquals("", presenter.uiState.value.undoIgnoreUserId)
+            assertFalse(presenter.uiState.value.showUndoIgnoreDialog)
         }
 
     @Test
@@ -460,7 +460,7 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             presenter.initialize(CHANNEL_ID)
             advanceUntilIdle()
 
-            presenter.onAction(PrivateChatUiAction.OnPeerHeaderClick)
+            presenter.onAction(PrivateChatUiAction.OnPeerClick)
 
             verify { navigationManager.navigate(NavRoute.PeerProfile(peer.id), any(), any()) }
         }
@@ -470,7 +470,7 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
         runTest {
             presenter.initialize(CHANNEL_ID)
 
-            presenter.onAction(PrivateChatUiAction.OnPeerHeaderClick)
+            presenter.onAction(PrivateChatUiAction.OnPeerClick)
 
             // No peer yet, so there is no profile to open — tapping must not navigate to a blank one.
             verify(exactly = 0) { navigationManager.navigate(any(), any(), any()) }
@@ -483,7 +483,7 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             presenter.initialize(CHANNEL_ID)
             advanceUntilIdle()
 
-            presenter.onAction(PrivateChatUiAction.OnReportUserClick(message("m1", peer, date = 1L)))
+            presenter.onAction(PrivateChatUiAction.OnReportUserClick)
             presenter.onAction(PrivateChatUiAction.OnReportFailure("half-typed"))
             presenter.onAction(PrivateChatUiAction.OnDismissReportDialog)
 
@@ -526,13 +526,13 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
             coEvery { userProfileServiceFacade.ignoreUserProfile(peer.id) } throws IllegalStateException("boom")
 
-            presenter.onAction(PrivateChatUiAction.OnIgnoreUserClick(peer.id))
+            presenter.onAction(PrivateChatUiAction.OnIgnoreUserClick)
             presenter.onAction(PrivateChatUiAction.OnConfirmIgnore)
             advanceUntilIdle()
 
             // Same reasoning as the leave failure: a dialog that cannot be dismissed is worse than a
             // silently failed ignore, and the guard flag would stay held otherwise.
-            assertEquals("", presenter.uiState.value.ignoreUserId)
+            assertFalse(presenter.uiState.value.showIgnoreDialog)
         }
 
     @Test
@@ -543,11 +543,11 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
             coEvery { userProfileServiceFacade.undoIgnoreUserProfile(peer.id) } throws IllegalStateException("boom")
 
-            presenter.onAction(PrivateChatUiAction.OnUndoIgnoreUserClick(peer.id))
+            presenter.onAction(PrivateChatUiAction.OnUndoIgnoreUserClick)
             presenter.onAction(PrivateChatUiAction.OnConfirmUndoIgnore)
             advanceUntilIdle()
 
-            assertEquals("", presenter.uiState.value.undoIgnoreUserId)
+            assertFalse(presenter.uiState.value.showUndoIgnoreDialog)
         }
 
     /**
@@ -633,7 +633,7 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
 
             verify {
                 globalUiManager.showSnackbar(
-                    "mobile.privateChats.sendRefused.peerBanned".i18n(presenter.uiState.value.peerName),
+                    "mobile.privateChats.sendRefused.peerBanned".i18n(peer.userName),
                     any(),
                     any(),
                     any(),
@@ -710,11 +710,9 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
         }
 
     /**
-     * The peer header must not assert a rating it does not have. `?: ZERO_REPUTATION` used to collapse
-     * "could not resolve" into a real zero, and on Bisq Connect `getReputation` reads a cache filled
-     * asynchronously — so opening a DM before the first payload landed showed no stars for a peer
-     * whose offerbook card had just shown 4.5. Mirrors `PeerProfilePresenter`, which the header is one
-     * tap away from.
+     * The peer header must not assert a rating it does not have: on Bisq Connect `getReputation` reads
+     * a cache filled asynchronously, so an unresolved score is "unknown", not zero. The zero-vs-unknown
+     * rule itself is covered on `PeerProfilePresenterTest`; this pins the header's wiring to it.
      */
     @Test
     fun `an unresolved reputation is not a zero rating`() =
@@ -725,20 +723,6 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             assertTrue(presenter.uiState.value.isPeerReputationUnknown, "the cache never filled")
-            assertEquals(0.0, presenter.uiState.value.peerStarRating)
-        }
-
-    /** The other half: once the cache holds scores, a peer missing from it really is a zero. */
-    @Test
-    fun `a peer absent from a populated reputation cache rates zero`() =
-        runTest {
-            reputationScores.value = mapOf("someone-else" to 120L)
-            channels.value = listOf(channel())
-
-            presenter.initialize(CHANNEL_ID)
-            advanceUntilIdle()
-
-            assertFalse(presenter.uiState.value.isPeerReputationUnknown)
             assertEquals(0.0, presenter.uiState.value.peerStarRating)
         }
 

@@ -14,7 +14,6 @@ import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 data class PrivateChatUiState(
     val channelId: String = "",
     val peerUserProfile: UserProfileVO? = null,
-    val peerName: String = "",
     val peerStarRating: Double = 0.0,
     /**
      * True while the peer's score could not be resolved, which is not the same as a score of zero —
@@ -35,11 +34,10 @@ data class PrivateChatUiState(
     val isLoading: Boolean = true,
     val isChannelNotFound: Boolean = false,
     val showLeaveConfirmDialog: Boolean = false,
-    /** Non-blank shows the corresponding confirmation dialog, mirroring `TradeChatPresenter`. */
-    val ignoreUserId: String = "",
-    val undoIgnoreUserId: String = "",
+    /** The subject of both dialogs is always the peer, so a flag is all the screen needs. */
+    val showIgnoreDialog: Boolean = false,
+    val showUndoIgnoreDialog: Boolean = false,
     val showReportDialog: Boolean = false,
-    val reportTargetProfile: UserProfileVO? = null,
     /** Survives a failed report so reopening the dialog restores what the user typed. */
     val reportDraft: String? = null,
 )

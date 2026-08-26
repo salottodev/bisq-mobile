@@ -35,7 +35,7 @@ import org.koin.dsl.module
  * Tests for [PrivateChatScreen] (issue #590).
  *
  * Drives the stateful screen against a real [PrivateChatPresenter] with mocked facades, so the
- * `LaunchedEffect` → `initialize` seam and the report slot's `reportTargetProfile != null` gate are
+ * `LaunchedEffect` → `initialize` seam and the report slot's `peerUserProfile != null` gate are
  * covered too. Same base as `PeerProfileScreenUiTest`, for the same reason: the screen resolves its
  * presenter through `RememberPresenterLifecycleBackStackAware`.
  */
@@ -90,7 +90,7 @@ class PrivateChatScreenTest : PresentationInjectComposeUiTestBase() {
 
         privateChatServiceFacade = mockk(relaxed = true)
         userProfileServiceFacade = mockk(relaxed = true)
-        // Explicit rather than relaxed: `loadReputation` reads this to tell an unresolved score apart
+        // Explicit rather than relaxed: `resolveReputation` reads this to tell an unresolved score apart
         // from a real zero, and a relaxed mock cannot fabricate the map.
         reputationServiceFacade = mockk(relaxed = true) { every { scoreByUserProfileId } returns MutableStateFlow(emptyMap()) }
         notificationController = mockk(relaxed = true)

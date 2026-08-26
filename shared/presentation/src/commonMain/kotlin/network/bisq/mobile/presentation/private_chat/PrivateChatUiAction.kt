@@ -24,33 +24,22 @@ sealed interface PrivateChatUiAction {
         val message: TwoPartyPrivateChatMessage?,
     ) : PrivateChatUiAction
 
-    /** Opens the peer profile from the header. */
-    data object OnPeerHeaderClick : PrivateChatUiAction
+    /** Opens the peer profile — from the header, or from a message avatar, which is only tappable on the peer's. */
+    data object OnPeerClick : PrivateChatUiAction
 
-    /** Opens the peer profile from a message avatar or username. */
-    data class OnPeerProfileClick(
-        val profileId: String,
-    ) : PrivateChatUiAction
-
-    data class OnIgnoreUserClick(
-        val profileId: String,
-    ) : PrivateChatUiAction
+    data object OnIgnoreUserClick : PrivateChatUiAction
 
     data object OnConfirmIgnore : PrivateChatUiAction
 
     data object OnDismissIgnoreDialog : PrivateChatUiAction
 
-    data class OnUndoIgnoreUserClick(
-        val profileId: String,
-    ) : PrivateChatUiAction
+    data object OnUndoIgnoreUserClick : PrivateChatUiAction
 
     data object OnConfirmUndoIgnore : PrivateChatUiAction
 
     data object OnDismissUndoIgnoreDialog : PrivateChatUiAction
 
-    data class OnReportUserClick(
-        val message: TwoPartyPrivateChatMessage,
-    ) : PrivateChatUiAction
+    data object OnReportUserClick : PrivateChatUiAction
 
     data object OnDismissReportDialog : PrivateChatUiAction
 

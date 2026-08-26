@@ -86,8 +86,8 @@ gating), extract the shared core then — not before.
 
 One case sits between the two, and it is not an escalation: a facade that has to gate its **own**
 activation on the capability already holds the answer, so it exposes it
-(`PrivateChatServiceFacade.isSupported`, awaited by `ClientPrivateChatServiceFacade.activate` before
-it subscribes) and presenters observe the facade. Reading `BackendCapabilitiesService` in the presenter as well would
+(`PrivateChatServiceFacade.isSupported`, the same capability `ClientPrivateChatServiceFacade.activate`
+awaits before it subscribes) and presenters observe the facade. Reading `BackendCapabilitiesService` in the presenter as well would
 copy an answer that already exists and let the two drift. It also keeps the client/node difference
 in the one place that has it: the node facade returns `flowOf(true)`, the client one maps the
 capability. No new type either way — the facade is one the presenter already depends on.

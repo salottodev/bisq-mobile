@@ -10,14 +10,14 @@ import bisq.chat.reactions.TwoPartyPrivateChatMessageReaction as Bisq2TwoPartyPr
  */
 fun Bisq2TwoPartyPrivateChatMessageReaction.toDomain(): TwoPartyPrivateChatMessageReaction =
     TwoPartyPrivateChatMessageReaction(
-        id,
-        Mappings.UserProfileMapping.fromBisq2Model(senderUserProfile),
-        receiverUserProfileId,
-        Mappings.NetworkIdMapping.fromBisq2Model(receiverNetworkId),
-        chatChannelId,
-        Mappings.ChatChannelDomainMapping.fromBisq2Model(chatChannelDomain),
-        chatMessageId,
-        reactionId,
-        date,
-        isRemoved,
+        id = id,
+        senderUserProfile = Mappings.UserProfileMapping.fromBisq2Model(senderUserProfile),
+        receiverUserProfileId = receiverUserProfileId,
+        receiverNetworkId = Mappings.NetworkIdMapping.fromBisq2Model(receiverNetworkId),
+        chatChannelId = chatChannelId,
+        chatChannelDomain = Mappings.ChatChannelDomainMapping.fromBisq2Model(chatChannelDomain),
+        chatMessageId = chatMessageId,
+        reactionId = reactionId,
+        date = date,
+        isRemoved = isRemoved,
     )

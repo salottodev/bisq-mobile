@@ -7,19 +7,18 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
-import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatNotPermittedException
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatServiceFacade
 import network.bisq.mobile.data.service.reputation.ReputationServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.data.utils.PlatformImage
 import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.presentation.common.reputation.observeReputation
+import network.bisq.mobile.presentation.common.reputation.resolveReputation
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
@@ -31,17 +30,6 @@ class PeerProfilePresenter(
     private val privateChatServiceFacade: PrivateChatServiceFacade,
     mainPresenter: MainPresenter,
 ) : BasePresenter(mainPresenter) {
-    private companion object {
-        /**
-         * `ClientReputationServiceFacade.getReputation` returns a failure — not a zero score — for
-         * any peer with no reputation yet, and only in release builds. Surfacing that as an error
-         * would break the screen for exactly the peers a user most wants to inspect, so it is
-         * mapped to this instead. See [loadReputation] for when a failure means zero and when it
-         * means "not known yet".
-         */
-        val ZERO_REPUTATION = ReputationScoreVO(totalScore = 0L, fiveSystemScore = 0.0, ranking = 0)
-    }
-
     private val _uiState = MutableStateFlow(PeerProfileUiState())
     val uiState: StateFlow<PeerProfileUiState> = _uiState.asStateFlow()
 
@@ -142,7 +130,7 @@ class PeerProfilePresenter(
                         return@launch
                     }
 
-                    val reputation = loadReputation(profileId)
+                    val reputation = reputationServiceFacade.resolveReputation(profileId)
 
                     _uiState.update {
                         it
@@ -156,7 +144,7 @@ class PeerProfilePresenter(
                             ).let { updated -> updated.copy(canSendPrivateMessage = canSendPrivateMessage(updated)) }
                     }
 
-                    observeReputation(profileId)
+                    observePeerReputation(profileId)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -191,76 +179,19 @@ class PeerProfilePresenter(
         }
     }
 
-    /**
-     * Returns null when the score is not known yet, as opposed to known-and-zero.
-     *
-     * The two failure shapes are not interchangeable. The client facade returns `Result.failure` for
-     * an unknown peer in release builds, while in debug it calls the API and can throw instead.
-     *
-     * A *completed* failure is ambiguous but recoverable: `ClientReputationServiceFacade.getReputation`
-     * reads a local snapshot filled asynchronously by `subscribeUserReputation()`, so "absent" means
-     * either the peer has no reputation or nothing has loaded yet.
-     * [ReputationServiceFacade.scoreByUserProfileId] separates the two — it starts empty and is only
-     * ever replaced wholesale by a payload, so a non-empty map proves a snapshot arrived and this
-     * peer is genuinely unscored.
-     *
-     * A *thrown* lookup carries no such information: the call never reached a verdict, so the
-     * snapshot says nothing about this peer and the result stays unknown. Feeding it through the
-     * fallback would render a transport error as a confident zero, which is exactly what this
-     * function exists to prevent — the offerbook card the user tapped through may be showing 4.5
-     * stars for the same peer.
-     *
-     * Both verdicts are re-taken whenever the snapshot changes — see [observeReputation].
-     */
-    private suspend fun loadReputation(profileId: String): ReputationScoreVO? {
-        val result =
-            try {
-                reputationServiceFacade.getReputation(profileId)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                log.w(e) { "Failed to load reputation for peer" }
-                return null
-            }
-        result.getOrNull()?.let { return it }
-        return if (reputationServiceFacade.scoreByUserProfileId.value.isNotEmpty()) ZERO_REPUTATION else null
-    }
-
-    /**
-     * Keeps the score current after the first paint. On the client flavour `getReputation` reads a
-     * local cache filled asynchronously by the `REPUTATION` subscription, so opening this screen
-     * before the first payload lands resolves to "unknown" — and without this, it would stay that way
-     * for as long as the screen is open. The node fills its own map from the network just the same.
-     *
-     * The snapshot is the trigger, not the source: it carries scores, while the screen needs the whole
-     * score object, so each pass re-asks [loadReputation] for this one peer. Narrowed to the two facts
-     * that can change this peer's verdict — its own score, and whether anything has arrived at all,
-     * which is what flips "unknown" to a real zero — because on the node that re-ask is not a lookup:
-     * Bisq2 ranks a peer by sorting every score it holds, and every other peer's update would pay for
-     * it.
-     *
-     * The first emission is deliberately not dropped: a `StateFlow` replays the current value, which
-     * re-resolves to what [loadProfile] just wrote, and `_uiState` conflates the identical copy. That
-     * closes the gap between that read and this subscription, where a dropped emission would
-     * otherwise be lost for good.
-     */
-    private fun observeReputation(profileId: String) {
+    private fun observePeerReputation(profileId: String) {
         reputationJob?.cancel()
         reputationJob =
             presenterScope.launch {
-                reputationServiceFacade.scoreByUserProfileId
-                    .map { scores -> scores[profileId] to scores.isNotEmpty() }
-                    .distinctUntilChanged()
-                    .collect {
-                        val reputation = loadReputation(profileId)
-                        _uiState.update {
-                            it.copy(
-                                starRating = reputation?.fiveSystemScore ?: 0.0,
-                                reputationScore = reputation?.totalScore ?: 0L,
-                                isReputationUnknown = reputation == null,
-                            )
-                        }
+                reputationServiceFacade.observeReputation(profileId).collect { reputation ->
+                    _uiState.update {
+                        it.copy(
+                            starRating = reputation?.fiveSystemScore ?: 0.0,
+                            reputationScore = reputation?.totalScore ?: 0L,
+                            isReputationUnknown = reputation == null,
+                        )
                     }
+                }
             }
     }
 

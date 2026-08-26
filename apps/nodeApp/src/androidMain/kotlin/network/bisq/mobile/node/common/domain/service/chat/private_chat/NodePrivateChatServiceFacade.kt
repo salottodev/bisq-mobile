@@ -39,7 +39,6 @@ import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.jvm.optionals.getOrNull
 import bisq.chat.two_party.TwoPartyPrivateChatChannel as Bisq2TwoPartyPrivateChatChannel
-import bisq.chat.reactions.TwoPartyPrivateChatMessageReaction as Bisq2TwoPartyPrivateChatMessageReaction
 import bisq.chat.two_party.TwoPartyPrivateChatMessage as Bisq2TwoPartyPrivateChatMessage
 
 /**
@@ -175,21 +174,11 @@ class NodePrivateChatServiceFacade(
                 // future as a generic failure, which is what the REST API answers 409 for.
                 val outcome = channelService.trySendTextMessage(text, bisq2Citation, channel)
                 throwIfRefused(outcome)
-                // The delivery is awaited, mirroring `NodeTradeChatMessagesServiceFacade.sendChatMessage`
-                // — the two chats make this call the same way, and neither is the place to change it
-                // alone.
-                //
-                // Worth knowing what is being awaited, because the name suggests less than it does:
-                // `PrivateChatChannelService.trySendMessage` adds the message to the channel first and
-                // only then returns `networkService.confidentialSend(...)`, so this future is about
-                // DELIVERY, not local acceptance. Bisq 2's own REST API does not await it —
-                // `PrivateChatRestApi.sendTextMessage` fires and answers 204, and its OpenAPI text says
-                // outright that "a 204 confirms local acceptance rather than delivery to the peer" — so
-                // Bisq Connect never reports a delivery failure for a send, and the node flavour is the
-                // stricter of the two. Awaiting costs a Tor round trip behind the send, which is why
-                // the two flavours differ at all.
-                //
-                // See addOrRemoveChatMessageReaction, which does NOT await the same future, and why.
+                // Awaited, mirroring `NodeTradeChatMessagesServiceFacade.sendChatMessage`. This future is
+                // DELIVERY, not local acceptance (`trySendMessage` stores the message first), and Bisq
+                // Connect never awaits it — `PrivateChatRestApi` fires and answers 204 — so the node
+                // flavour is the stricter of the two, at the cost of a Tor round trip behind the send.
+                // See addOrRemoveChatMessageReaction for why the reaction's future is not awaited.
                 outcome.delivery.await()
                 Unit
             }.onFailure { currentCoroutineContext().ensureActive() }
@@ -327,21 +316,17 @@ class NodePrivateChatServiceFacade(
         )
     }
 
-    private fun visibleReactionsOf(message: Bisq2TwoPartyPrivateChatMessage): List<Bisq2TwoPartyPrivateChatMessageReaction> =
-        message.chatMessageReactions.filter { isVisible(message, it) }
-
     /**
      * bisq2's `PrivateChatReactionsWebSocketService.isVisible`, re-evaluated on every push: the observer
      * in [observeReactions] runs long after [addMessageToModel] admitted the message, and either side
      * may have been banned since.
      */
-    private fun isVisible(
-        message: Bisq2TwoPartyPrivateChatMessage,
-        reaction: Bisq2TwoPartyPrivateChatMessageReaction,
-    ): Boolean =
-        !reaction.isRemoved &&
-            !bannedUserService.isUserProfileBanned(message.senderUserProfile) &&
-            !bannedUserService.isUserProfileBanned(reaction.senderUserProfile)
+    private fun visibleReactionsOf(message: Bisq2TwoPartyPrivateChatMessage) =
+        message.chatMessageReactions.filter { reaction ->
+            !reaction.isRemoved &&
+                !bannedUserService.isUserProfileBanned(message.senderUserProfile) &&
+                !bannedUserService.isUserProfileBanned(reaction.senderUserProfile)
+        }
 
     private fun observeReactions(
         channel: Bisq2TwoPartyPrivateChatChannel,
@@ -418,12 +403,6 @@ class NodePrivateChatServiceFacade(
                 // Deliberately NOT awaited, unlike sendChatMessage above. The asymmetry is inherited,
                 // not invented here: `NodeTradeChatMessagesServiceFacade` awaits its `sendTextMessage`
                 // and drops the future of its `sendTextMessageReaction` in exactly the same way.
-                //
-                // It also holds up on its own. `sendMessageReaction` is structurally identical to
-                // `sendMessage` — adds the reaction locally, then returns the `confidentialSend`
-                // future — so awaiting it would put a Tor round trip behind every emoji tap, to buy a
-                // signal Bisq Connect cannot produce anyway, since `PrivateChatRestApi` fires this one
-                // and answers 204 exactly as it does for a message.
                 //
                 // What still reaches the caller: a missing channel or message, both raised above inside
                 // this runCatching, and a refusal for a banned profile, which trySendTextMessageReaction

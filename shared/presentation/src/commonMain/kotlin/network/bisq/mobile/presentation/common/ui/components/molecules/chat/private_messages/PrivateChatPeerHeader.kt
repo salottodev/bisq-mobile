@@ -20,6 +20,7 @@ import network.bisq.mobile.data.utils.PlatformImage
 import network.bisq.mobile.data.utils.createEmptyImage
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.StarRating
+import network.bisq.mobile.presentation.common.ui.components.atoms.rememberDebouncedClick
 import network.bisq.mobile.presentation.common.ui.components.molecules.UserProfileIcon
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
@@ -32,7 +33,6 @@ import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 @Composable
 fun PrivateChatPeerHeader(
     peerUserProfile: UserProfileVO,
-    peerName: String,
     peerStarRating: Double,
     isPeerReputationUnknown: Boolean,
     userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage,
@@ -43,7 +43,7 @@ fun PrivateChatPeerHeader(
             Modifier
                 .fillMaxWidth()
                 .background(BisqTheme.colors.dark_grey40)
-                .clickable(onClick = onClick)
+                .clickable(onClick = rememberDebouncedClick { onClick() })
                 .padding(BisqUIConstants.ScreenPadding)
                 .testTag("private_chat_peer_header"),
         horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPadding),
@@ -57,7 +57,7 @@ fun PrivateChatPeerHeader(
             verticalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingQuarter),
         ) {
             BisqText.StyledText(
-                text = peerName,
+                text = peerUserProfile.userName,
                 style = BisqTheme.typography.baseMedium,
                 color = BisqTheme.colors.white,
                 maxLines = 1,
@@ -79,7 +79,6 @@ private fun PrivateChatPeerHeaderPreview() {
     BisqTheme.Preview {
         PrivateChatPeerHeader(
             peerUserProfile = createMockUserProfile("SatoshiFan"),
-            peerName = "SatoshiFan",
             peerStarRating = 4.5,
             isPeerReputationUnknown = false,
             userProfileIconProvider = { createEmptyImage() },
@@ -96,7 +95,6 @@ private fun PrivateChatPeerHeaderLongNamePreview() {
     BisqTheme.Preview {
         PrivateChatPeerHeader(
             peerUserProfile = createMockUserProfile("AVeryLongNicknameThatSomeoneActuallyPicked"),
-            peerName = "AVeryLongNicknameThatSomeoneActuallyPicked",
             peerStarRating = 3.0,
             isPeerReputationUnknown = false,
             userProfileIconProvider = { createEmptyImage() },

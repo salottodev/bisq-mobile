@@ -128,85 +128,86 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
+/** The one `Json` the client app talks to the node with; tests that exercise decoding use it too. */
+val clientJson: Json =
+    Json {
+        prettyPrint = true
+        encodeDefaults = true
+        serializersModule =
+            SerializersModule {
+                polymorphic(MonetaryVO::class) {
+                    subclass(CoinVO::class, CoinVO.serializer())
+                    subclass(FiatVO::class, FiatVO.serializer())
+                }
+                polymorphic(PriceSpecVO::class) {
+                    subclass(
+                        FixPriceSpecVO::class,
+                        FixPriceSpecVO.serializer(),
+                    )
+                    subclass(
+                        FloatPriceSpecVO::class,
+                        FloatPriceSpecVO.serializer(),
+                    )
+                    subclass(
+                        MarketPriceSpecVO::class,
+                        MarketPriceSpecVO.serializer(),
+                    )
+                }
+                polymorphic(AmountSpecVO::class) {
+                    subclass(
+                        QuoteSideFixedAmountSpecVO::class,
+                        QuoteSideFixedAmountSpecVO.serializer(),
+                    )
+                    subclass(
+                        QuoteSideRangeAmountSpecVO::class,
+                        QuoteSideRangeAmountSpecVO.serializer(),
+                    )
+                    subclass(
+                        BaseSideFixedAmountSpecVO::class,
+                        BaseSideFixedAmountSpecVO.serializer(),
+                    )
+                    subclass(
+                        BaseSideRangeAmountSpecVO::class,
+                        BaseSideRangeAmountSpecVO.serializer(),
+                    )
+                }
+                polymorphic(OfferOptionVO::class) {
+                    subclass(
+                        ReputationOptionVO::class,
+                        ReputationOptionVO.serializer(),
+                    )
+                    subclass(
+                        TradeTermsOptionVO::class,
+                        TradeTermsOptionVO.serializer(),
+                    )
+                }
+                polymorphic(PaymentMethodSpecVO::class) {
+                    subclass(
+                        BitcoinPaymentMethodSpecVO::class,
+                        BitcoinPaymentMethodSpecVO.serializer(),
+                    )
+                    subclass(
+                        FiatPaymentMethodSpecVO::class,
+                        FiatPaymentMethodSpecVO.serializer(),
+                    )
+                }
+
+                polymorphic(WebSocketMessage::class) {
+                    subclass(WebSocketRestApiRequest::class)
+                    subclass(WebSocketRestApiResponse::class)
+                    subclass(SubscriptionRequest::class)
+                    subclass(SubscriptionResponse::class)
+                    subclass(WebSocketEvent::class)
+                }
+            }
+        classDiscriminator = "type"
+        ignoreUnknownKeys = true
+    }
+
 // networking and services dependencies
 val clientDomainModule =
     module {
-        val json =
-            Json {
-                prettyPrint = true
-                encodeDefaults = true
-                serializersModule =
-                    SerializersModule {
-                        polymorphic(MonetaryVO::class) {
-                            subclass(CoinVO::class, CoinVO.serializer())
-                            subclass(FiatVO::class, FiatVO.serializer())
-                        }
-                        polymorphic(PriceSpecVO::class) {
-                            subclass(
-                                FixPriceSpecVO::class,
-                                FixPriceSpecVO.serializer(),
-                            )
-                            subclass(
-                                FloatPriceSpecVO::class,
-                                FloatPriceSpecVO.serializer(),
-                            )
-                            subclass(
-                                MarketPriceSpecVO::class,
-                                MarketPriceSpecVO.serializer(),
-                            )
-                        }
-                        polymorphic(AmountSpecVO::class) {
-                            subclass(
-                                QuoteSideFixedAmountSpecVO::class,
-                                QuoteSideFixedAmountSpecVO.serializer(),
-                            )
-                            subclass(
-                                QuoteSideRangeAmountSpecVO::class,
-                                QuoteSideRangeAmountSpecVO.serializer(),
-                            )
-                            subclass(
-                                BaseSideFixedAmountSpecVO::class,
-                                BaseSideFixedAmountSpecVO.serializer(),
-                            )
-                            subclass(
-                                BaseSideRangeAmountSpecVO::class,
-                                BaseSideRangeAmountSpecVO.serializer(),
-                            )
-                        }
-                        polymorphic(OfferOptionVO::class) {
-                            subclass(
-                                ReputationOptionVO::class,
-                                ReputationOptionVO.serializer(),
-                            )
-                            subclass(
-                                TradeTermsOptionVO::class,
-                                TradeTermsOptionVO.serializer(),
-                            )
-                        }
-                        polymorphic(PaymentMethodSpecVO::class) {
-                            subclass(
-                                BitcoinPaymentMethodSpecVO::class,
-                                BitcoinPaymentMethodSpecVO.serializer(),
-                            )
-                            subclass(
-                                FiatPaymentMethodSpecVO::class,
-                                FiatPaymentMethodSpecVO.serializer(),
-                            )
-                        }
-
-                        polymorphic(WebSocketMessage::class) {
-                            subclass(WebSocketRestApiRequest::class)
-                            subclass(WebSocketRestApiResponse::class)
-                            subclass(SubscriptionRequest::class)
-                            subclass(SubscriptionResponse::class)
-                            subclass(WebSocketEvent::class)
-                        }
-                    }
-                classDiscriminator = "type"
-                ignoreUnknownKeys = true
-            }
-
-        single { json }
+        single { clientJson }
 
         single {
             ClientApplicationBootstrapFacade(

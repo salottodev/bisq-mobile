@@ -11,19 +11,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import network.bisq.mobile.data.replicated.chat.Citation
 import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatChannel
-import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatMessage
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
-import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatNotPermittedException
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRefusedException
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatSendRejection
@@ -35,6 +31,8 @@ import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.notification.NotificationController
 import network.bisq.mobile.presentation.common.notification.NotificationIds
+import network.bisq.mobile.presentation.common.reputation.observeReputation
+import network.bisq.mobile.presentation.common.reputation.resolveReputation
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.common.ui.components.organisms.SnackbarType
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
@@ -50,8 +48,6 @@ class PrivateChatPresenter(
     private val settingsRepository: SettingsRepository,
 ) : BasePresenter(mainPresenter) {
     private companion object {
-        val ZERO_REPUTATION = ReputationScoreVO(totalScore = 0L, fiveSystemScore = 0.0, ranking = 0)
-
         /** Covers a subscription round-trip over Tor without leaving the screen blank on a real miss. */
         const val CHANNEL_WAIT_TIMEOUT_MS = 5_000L
 
@@ -71,11 +67,9 @@ class PrivateChatPresenter(
     private val _isLeaveChatEnabled = MutableStateFlow(true)
     val isLeaveChatEnabled: StateFlow<Boolean> = _isLeaveChatEnabled.asStateFlow()
 
-    private val _isConfirmIgnoreUserEnabled = MutableStateFlow(true)
-    val isConfirmIgnoreUserEnabled: StateFlow<Boolean> = _isConfirmIgnoreUserEnabled.asStateFlow()
-
-    private val _isConfirmUndoIgnoreUserEnabled = MutableStateFlow(true)
-    val isConfirmUndoIgnoreUserEnabled: StateFlow<Boolean> = _isConfirmUndoIgnoreUserEnabled.asStateFlow()
+    /** One guard for both dialogs: the message menu offers ignore or undo, never both. */
+    private val _isIgnoreActionEnabled = MutableStateFlow(true)
+    val isIgnoreActionEnabled: StateFlow<Boolean> = _isIgnoreActionEnabled.asStateFlow()
 
     val userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage
         get() = userProfileServiceFacade::getUserProfileIcon
@@ -146,7 +140,7 @@ class PrivateChatPresenter(
                 // consumeNotifications returns Unit and reports failure by throwing, so on the node
                 // flavour a failed round-trip would otherwise reach the jobs manager's handler as a
                 // bare "Uncaught coroutine exception" with nothing saying what did not happen.
-                presenterScope.launch {
+                launch {
                     try {
                         privateChatServiceFacade.consumeNotifications(channelId)
                     } catch (e: CancellationException) {
@@ -158,7 +152,7 @@ class PrivateChatPresenter(
                 loadPeer(channel)
                 // A child of this job, so it belongs to the channel that owns the peer and is taken
                 // down with it — presenterScope.launch would outlive both.
-                launch { observeReputation(channel.peer.id) }
+                launch { observePeerReputation(channel.peer.id) }
                 observeMessages(channel, unreadOnOpen)
             }
     }
@@ -183,23 +177,18 @@ class PrivateChatPresenter(
             is PrivateChatUiAction.OnRemoveReaction -> onRemoveReaction(action)
             is PrivateChatUiAction.OnReply -> _uiState.update { it.copy(quotedMessage = action.message) }
 
-            PrivateChatUiAction.OnPeerHeaderClick ->
+            PrivateChatUiAction.OnPeerClick ->
                 _uiState.value.peerUserProfile?.let { navigateTo(NavRoute.PeerProfile(it.id)) }
 
-            is PrivateChatUiAction.OnPeerProfileClick -> navigateTo(NavRoute.PeerProfile(action.profileId))
-
-            is PrivateChatUiAction.OnIgnoreUserClick -> _uiState.update { it.copy(ignoreUserId = action.profileId) }
+            PrivateChatUiAction.OnIgnoreUserClick -> _uiState.update { it.copy(showIgnoreDialog = true) }
             PrivateChatUiAction.OnConfirmIgnore -> onConfirmIgnore()
-            PrivateChatUiAction.OnDismissIgnoreDialog -> _uiState.update { it.copy(ignoreUserId = "") }
+            PrivateChatUiAction.OnDismissIgnoreDialog -> _uiState.update { it.copy(showIgnoreDialog = false) }
 
-            is PrivateChatUiAction.OnUndoIgnoreUserClick -> _uiState.update { it.copy(undoIgnoreUserId = action.profileId) }
+            PrivateChatUiAction.OnUndoIgnoreUserClick -> _uiState.update { it.copy(showUndoIgnoreDialog = true) }
             PrivateChatUiAction.OnConfirmUndoIgnore -> onConfirmUndoIgnore()
-            PrivateChatUiAction.OnDismissUndoIgnoreDialog -> _uiState.update { it.copy(undoIgnoreUserId = "") }
+            PrivateChatUiAction.OnDismissUndoIgnoreDialog -> _uiState.update { it.copy(showUndoIgnoreDialog = false) }
 
-            is PrivateChatUiAction.OnReportUserClick ->
-                _uiState.update {
-                    it.copy(showReportDialog = true, reportTargetProfile = action.message.senderUserProfile)
-                }
+            PrivateChatUiAction.OnReportUserClick -> _uiState.update { it.copy(showReportDialog = true) }
 
             PrivateChatUiAction.OnDismissReportDialog ->
                 _uiState.update { it.copy(showReportDialog = false, reportDraft = null) }
@@ -263,11 +252,10 @@ class PrivateChatPresenter(
         }
 
     private suspend fun loadPeer(channel: TwoPartyPrivateChatChannel) {
-        val reputation = loadReputation(channel.peer.id)
+        val reputation = reputationServiceFacade.resolveReputation(channel.peer.id)
         _uiState.update {
             it.copy(
                 peerUserProfile = channel.peer,
-                peerName = channel.peer.userName,
                 peerStarRating = reputation?.fiveSystemScore ?: 0.0,
                 isPeerReputationUnknown = reputation == null,
                 isLoading = false,
@@ -275,58 +263,15 @@ class PrivateChatPresenter(
         }
     }
 
-    /**
-     * Mirrors `PeerProfilePresenter.observeReputation`, for the same reason the header itself mirrors
-     * that screen: on Bisq Connect [ReputationServiceFacade.getReputation] reads a cache filled
-     * asynchronously by the `REPUTATION` subscription, so a DM opened before the first payload lands
-     * resolves to "unknown" — and without this it stays that way for as long as the thread is open,
-     * one tap from a profile showing the real score.
-     *
-     * Narrowed to this peer's own score plus whether anything has arrived at all (which is what flips
-     * "unknown" into a genuine zero), because on the node flavour the re-ask is not a lookup: Bisq 2
-     * ranks a peer by sorting every score it holds, so every other peer's update would pay for it.
-     *
-     * The first emission is deliberately not dropped — it re-resolves to what [loadPeer] just wrote
-     * and `_uiState` conflates the identical copy, which closes the gap between that read and this
-     * subscription.
-     */
-    private suspend fun observeReputation(profileId: String) {
-        reputationServiceFacade.scoreByUserProfileId
-            .map { scores -> scores[profileId] to scores.isNotEmpty() }
-            .distinctUntilChanged()
-            .collect {
-                val reputation = loadReputation(profileId)
-                _uiState.update {
-                    it.copy(
-                        peerStarRating = reputation?.fiveSystemScore ?: 0.0,
-                        isPeerReputationUnknown = reputation == null,
-                    )
-                }
+    private suspend fun observePeerReputation(profileId: String) {
+        reputationServiceFacade.observeReputation(profileId).collect { reputation ->
+            _uiState.update {
+                it.copy(
+                    peerStarRating = reputation?.fiveSystemScore ?: 0.0,
+                    isPeerReputationUnknown = reputation == null,
+                )
             }
-    }
-
-    /**
-     * Mirrors `PeerProfilePresenter.loadReputation`, deliberately: the two screens must not disagree
-     * about the same peer, and the peer header here is one tap from that profile.
-     *
-     * @return null when the score could not be resolved, which is NOT the same as a score of zero.
-     *   The earlier `?: ZERO_REPUTATION` collapsed them, and on Bisq Connect `getReputation` reads a
-     *   cache filled asynchronously — so opening a DM before the first payload landed showed no stars
-     *   for a peer whose offerbook card had just shown 4.5. An empty cache means "not known yet"; a
-     *   populated one that has no entry for this peer means a genuine zero.
-     */
-    private suspend fun loadReputation(profileId: String): ReputationScoreVO? {
-        val result =
-            try {
-                reputationServiceFacade.getReputation(profileId)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                log.w(e) { "Failed to load reputation for peer" }
-                return null
-            }
-        result.getOrNull()?.let { return it }
-        return if (reputationServiceFacade.scoreByUserProfileId.value.isNotEmpty()) ZERO_REPUTATION else null
+        }
     }
 
     /**
@@ -442,34 +387,27 @@ class PrivateChatPresenter(
         }
     }
 
-    private fun onConfirmIgnore() {
-        val profileId = _uiState.value.ignoreUserId
-        if (profileId.isEmpty()) return
-        guardedSuspendAction(_isConfirmIgnoreUserEnabled, "onConfirmIgnore") {
+    private fun onConfirmIgnore() = confirmIgnoreAction("onConfirmIgnore", userProfileServiceFacade::ignoreUserProfile) { it.copy(showIgnoreDialog = false) }
+
+    private fun onConfirmUndoIgnore() = confirmIgnoreAction("onConfirmUndoIgnore", userProfileServiceFacade::undoIgnoreUserProfile) { it.copy(showUndoIgnoreDialog = false) }
+
+    /** The subject is the peer of the channel, whichever message the menu was opened on. */
+    private fun confirmIgnoreAction(
+        name: String,
+        call: suspend (String) -> Unit,
+        close: (PrivateChatUiState) -> PrivateChatUiState,
+    ) {
+        val peerId = _uiState.value.peerUserProfile?.id ?: return
+        guardedSuspendAction(_isIgnoreActionEnabled, name) {
             try {
-                userProfileServiceFacade.ignoreUserProfile(profileId)
+                call(peerId)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 // No log here: handleError logs the exception before it shows the snackbar.
                 handleError(e)
             }
-            _uiState.update { it.copy(ignoreUserId = "") }
-        }
-    }
-
-    private fun onConfirmUndoIgnore() {
-        val profileId = _uiState.value.undoIgnoreUserId
-        if (profileId.isEmpty()) return
-        guardedSuspendAction(_isConfirmUndoIgnoreUserEnabled, "onConfirmUndoIgnore") {
-            try {
-                userProfileServiceFacade.undoIgnoreUserProfile(profileId)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                handleError(e)
-            }
-            _uiState.update { it.copy(undoIgnoreUserId = "") }
+            _uiState.update(close)
         }
     }
 
@@ -487,7 +425,6 @@ class PrivateChatPresenter(
                     _uiState.update { it.copy(showLeaveConfirmDialog = false) }
                     navigateBack()
                 }.onFailure {
-                    log.e(it) { "Failed to leave private chat channel" }
                     _uiState.update { state -> state.copy(showLeaveConfirmDialog = false) }
                     handleError(it, customHandler = ::showPrivateChatFailure)
                 }
@@ -498,10 +435,8 @@ class PrivateChatPresenter(
      * A withheld private-chat permission is not a connection problem, and `handleError`'s default copy
      * ("something went wrong, try again") sends the user in circles — only a re-pairing fixes it.
      *
-     * This screen is reachable without ever calling `findOrCreateChannel`: a pairing that lost the
-     * permission still receives the DMs over the `PRIVATE_CHAT_*` topics, which every released bisq 2
-     * authenticates but does not authorise, so a notification tap opens the conversation and the first
-     * send is the first 403. `PeerProfilePresenter` says the same thing on the entry-point path.
+     * The first send can be the first 403, because the DMs keep arriving over the topics for a pairing
+     * without the permission — see [PrivateChatServiceFacade.isSupported].
      *
      * The same goes for a send the node refused outright because a profile in the conversation is
      * banned ([PrivateChatSendRefusedException]): nothing was stored, so a retry changes nothing, and
@@ -510,13 +445,14 @@ class PrivateChatPresenter(
      * @return true when it handled the failure, which is what suppresses `handleError`'s own snackbar.
      */
     private fun showPrivateChatFailure(exception: Throwable): Boolean {
+        val peerName = _uiState.value.peerUserProfile?.userName ?: ""
         val message =
             when (exception) {
                 is PrivateChatNotPermittedException -> "mobile.privateChats.notPermitted".i18n()
                 is PrivateChatSendRefusedException ->
                     when (exception.rejection) {
                         PrivateChatSendRejection.MY_PROFILE_BANNED -> "mobile.privateChats.sendRefused.myProfileBanned".i18n()
-                        PrivateChatSendRejection.PEER_BANNED -> "mobile.privateChats.sendRefused.peerBanned".i18n(_uiState.value.peerName)
+                        PrivateChatSendRejection.PEER_BANNED -> "mobile.privateChats.sendRefused.peerBanned".i18n(peerName)
                         PrivateChatSendRejection.UNKNOWN -> "mobile.privateChats.sendRefused".i18n()
                     }
                 else -> return false
