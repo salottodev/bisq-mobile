@@ -1,5 +1,6 @@
 package network.bisq.mobile.presentation.private_chat
 
+import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -27,6 +28,7 @@ import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.notification.NotificationController
+import network.bisq.mobile.presentation.common.notification.NotificationIds
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.test.mocks.SettingsRepositoryMock
@@ -293,6 +295,59 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             // ChatMessageList derives unread as messages.size - readCount; a count past the end would
             // make that negative.
             assertEquals(1, presenter.uiState.value.readCount)
+        }
+
+    /**
+     * A notification tap for another peer while a thread is open lands on the same destination with
+     * launchSingleTop, so the presenter is re-initialised with a different id. Everything the first
+     * channel started — the read-count collector included — must go down with it, or every debounced
+     * scroll consumes once per initialise.
+     */
+    @Test
+    fun `re-initialising with another channel does not duplicate the read-count collector`() =
+        runTest {
+            val other = channel(id = "discussion.a-c")
+            channels.value = listOf(channel(), other)
+            presenter.initialize(CHANNEL_ID)
+            advanceUntilIdle()
+            presenter.initialize(other.id)
+            advanceUntilIdle()
+
+            repeat(3) { presenter.onAction(PrivateChatUiAction.OnUpdateReadCount(it)) }
+            advanceUntilIdle()
+
+            // Once for opening the thread, once for the debounced burst — not twice for the burst.
+            coVerify(exactly = 2) { privateChatServiceFacade.consumeNotifications(other.id) }
+        }
+
+    /** A DM arriving while its own thread is backgrounded posts a tray entry; revealing the thread clears it. */
+    @Test
+    fun `revealing the thread again cancels its notification`() =
+        runTest {
+            channels.value = listOf(channel())
+            presenter.initialize(CHANNEL_ID)
+            advanceUntilIdle()
+            clearMocks(notificationController, answers = false)
+
+            presenter.onViewRevealed()
+
+            verify { notificationController.cancel(NotificationIds.getNewPrivateChatMessageId(CHANNEL_ID)) }
+        }
+
+    /** Each tap is a node round-trip on Bisq Connect; a double tap must not queue two of them. */
+    @Test
+    fun `a double tap on a reaction sends it once`() =
+        runTest {
+            channels.value = listOf(channel())
+            presenter.initialize(CHANNEL_ID)
+            advanceUntilIdle()
+            val target = message("m1", peer, date = 1L)
+
+            presenter.onAction(PrivateChatUiAction.OnAddReaction(target, ReactionEnum.THUMBS_UP))
+            presenter.onAction(PrivateChatUiAction.OnAddReaction(target, ReactionEnum.THUMBS_UP))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { privateChatServiceFacade.addChatMessageReaction(CHANNEL_ID, "m1", ReactionEnum.THUMBS_UP) }
         }
 
     @Test
@@ -710,9 +765,9 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             assertEquals(4.5, presenter.uiState.value.peerStarRating)
         }
 
-    private fun channel() =
+    private fun channel(id: String = CHANNEL_ID) =
         TwoPartyPrivateChatChannel(
-            id = CHANNEL_ID,
+            id = id,
             chatChannelDomain = ChatChannelDomainEnum.DISCUSSION,
             peer = peer,
             myUserProfile = me,

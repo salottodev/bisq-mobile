@@ -14,6 +14,7 @@ import network.bisq.mobile.data.service.ForegroundDetector
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatServiceFacade
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.presentation.common.notification.NotificationController
+import network.bisq.mobile.presentation.common.notification.NotificationIds
 import network.bisq.mobile.presentation.common.notification.NotificationRedactions
 import network.bisq.mobile.presentation.common.notification.model.NotificationBuilder
 import network.bisq.mobile.presentation.common.notification.model.NotificationConfig
@@ -127,6 +128,26 @@ class PrivateChatNotificationServiceTest : PresentationKoinTestBase() {
                 config.android?.lockScreen,
                 "the body names the peer, so a secure lock screen must see the summary instead",
             )
+        }
+
+    /**
+     * The group key lands in `StatusBarNotification.getGroupKey()`, readable by notification listeners
+     * and dumped by `dumpsys` — so it carries the same digest the id does, never the raw channel id,
+     * which names both participants.
+     */
+    @Test
+    fun `the notification groups by the channel digest not the raw channel id`() =
+        runTest {
+            val channel = channelWithUnread(3)
+            channels.value = listOf(channel)
+            goForeground()
+            goBackground()
+
+            channel.setUnreadCount(4)
+            advanceUntilIdle()
+
+            val config = assertNotNull(lastConfig, "the service must have posted a notification")
+            assertEquals(NotificationIds.getNewPrivateChatMessageId(channel.id), config.android?.group)
         }
 
     @Test

@@ -3,9 +3,9 @@ package network.bisq.mobile.node.common.domain.service.chat.private_chat
 import bisq.chat.ChatChannelDomain
 import bisq.chat.ChatMessageType
 import bisq.chat.ChatService
+import bisq.chat.notifications.ChatNotificationService
 import bisq.chat.priv.SendOutcome
 import bisq.chat.priv.SendRejection
-import bisq.chat.notifications.ChatNotificationService
 import bisq.chat.two_party.TwoPartyPrivateChatChannelService
 import bisq.common.observable.collection.ObservableSet
 import bisq.network.SendMessageResult

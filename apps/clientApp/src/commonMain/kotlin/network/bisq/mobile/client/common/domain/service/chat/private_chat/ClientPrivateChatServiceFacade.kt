@@ -264,6 +264,10 @@ class ClientPrivateChatServiceFacade(
             val payload: WebSocketEventPayload<List<TwoPartyPrivateChatMessageDto>> =
                 WebSocketEventPayload.from(json, webSocketEvent)
             stateMutex.withLock {
+                // No REPLACE branch, unlike channels and reactions: a private chat message is never
+                // removed on the node (PrivateChatMessagesWebSocketService), so a snapshot can only add.
+                // The one way a message disappears is its channel being left, and forgetChannel drops
+                // the messages along with it.
                 payload.payload.forEach { messageDtosById[it.messageId] = it }
                 payload.payload
                     .map { it.channelId }

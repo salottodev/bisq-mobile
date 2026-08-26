@@ -249,7 +249,9 @@ class PrivateChatNotificationService(
                 category = AndroidNotificationCategory.CATEGORY_MESSAGE
                 lockScreen = NotificationRedactions.chatMessage()
                 pressAction = NotificationPressAction.Route(NavRoute.PrivateChat(chatChannelId))
-                group = chatChannelId
+                // The digest, like the id: the group key is readable by notification listeners and
+                // dumped by dumpsys, and a two-party channel id names both participants.
+                group = NotificationIds.getNewPrivateChatMessageId(chatChannelId)
             }
             ios {
                 pressAction = NotificationPressAction.Route(NavRoute.PrivateChat(chatChannelId))

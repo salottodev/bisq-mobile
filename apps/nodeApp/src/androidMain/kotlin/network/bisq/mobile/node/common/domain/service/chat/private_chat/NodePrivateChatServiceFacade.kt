@@ -450,5 +450,8 @@ class NodePrivateChatServiceFacade(
         when (this) {
             SendRejection.MY_PROFILE_BANNED -> PrivateChatSendRejection.MY_PROFILE_BANNED
             SendRejection.PEER_BANNED -> PrivateChatSendRejection.PEER_BANNED
+            // A reason this build does not know degrades the way the client flavour does with an
+            // unparseable 409, instead of escaping throwIfRefused as a generic send failure.
+            else -> PrivateChatSendRejection.UNKNOWN
         }
 }

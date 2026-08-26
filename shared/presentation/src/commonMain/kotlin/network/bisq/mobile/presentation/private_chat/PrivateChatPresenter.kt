@@ -65,6 +65,9 @@ class PrivateChatPresenter(
     private val _isSendChatMessageEnabled = MutableStateFlow(true)
     val isSendChatMessageEnabled: StateFlow<Boolean> = _isSendChatMessageEnabled.asStateFlow()
 
+    private val _isAddReactionEnabled = MutableStateFlow(true)
+    private val _isRemoveReactionEnabled = MutableStateFlow(true)
+
     private val _isLeaveChatEnabled = MutableStateFlow(true)
     val isLeaveChatEnabled: StateFlow<Boolean> = _isLeaveChatEnabled.asStateFlow()
 
@@ -105,11 +108,20 @@ class PrivateChatPresenter(
         _uiState.value = PrivateChatUiState(channelId = channelId)
         reportedReadCount.value = null
 
-        notificationController.cancel(NotificationIds.getNewPrivateChatMessageId(channelId))
+        cancelNotification()
 
         channelJob?.cancel()
         channelJob =
             presenterScope.launch {
+                // Children of the channel's job, not of presenterScope: a re-initialise with another
+                // channel cancels them along with everything else the first channel started. Otherwise
+                // the read-count collector would be duplicated and every debounced scroll consumed twice.
+                launch {
+                    settingsRepository.data.collect { settings ->
+                        _uiState.update { it.copy(showChatRulesWarnBox = settings.showChatRulesWarnBox) }
+                    }
+                }
+                launch { observeReadCountUpdates() }
                 // Disabled until the channel resolves. ChatInputField is composed outside the
                 // loading branch, so without this the user can send into a channel that is not there
                 // yet — and the field clears its text the moment it hands the message over, so the
@@ -149,14 +161,19 @@ class PrivateChatPresenter(
                 launch { observeReputation(channel.peer.id) }
                 observeMessages(channel, unreadOnOpen)
             }
+    }
 
-        presenterScope.launch {
-            settingsRepository.data.collect { settings ->
-                _uiState.update { it.copy(showChatRulesWarnBox = settings.showChatRulesWarnBox) }
-            }
-        }
+    /**
+     * Also on reveal, not only on initialise: a DM arriving while this thread is backgrounded posts a
+     * tray entry, and coming back re-fires neither the `LaunchedEffect` nor the guarded initialise.
+     */
+    override fun onViewRevealed() {
+        super.onViewRevealed()
+        cancelNotification()
+    }
 
-        observeReadCountUpdates()
+    private fun cancelNotification() {
+        initializedChannelId?.let { notificationController.cancel(NotificationIds.getNewPrivateChatMessageId(it)) }
     }
 
     fun onAction(action: PrivateChatUiAction) {
@@ -401,7 +418,10 @@ class PrivateChatPresenter(
      * reaction was not ours to remove, which is a documented outcome, not an error.
      */
     private fun onAddReaction(action: PrivateChatUiAction.OnAddReaction) {
-        presenterScope.launch {
+        // Guarded like the other actions, without the overlay: on Bisq Connect each tap is a node
+        // round-trip, and a double tap must not queue two. One guard per action, so that an add
+        // followed by a remove still runs both.
+        guardedSuspendAction(_isAddReactionEnabled, "onAddReaction", showLoadingOverlay = false) {
             privateChatServiceFacade
                 .addChatMessageReaction(
                     _uiState.value.channelId,
@@ -412,7 +432,7 @@ class PrivateChatPresenter(
     }
 
     private fun onRemoveReaction(action: PrivateChatUiAction.OnRemoveReaction) {
-        presenterScope.launch {
+        guardedSuspendAction(_isRemoveReactionEnabled, "onRemoveReaction", showLoadingOverlay = false) {
             privateChatServiceFacade
                 .removeChatMessageReaction(
                     _uiState.value.channelId,
@@ -517,23 +537,21 @@ class PrivateChatPresenter(
         readCountUpdates.tryEmit(channelId)
     }
 
-    private fun observeReadCountUpdates() {
-        presenterScope.launch {
-            readCountUpdates
-                .debounce(CONSUME_NOTIFICATIONS_DEBOUNCE_MS)
-                // Guarded because consumeNotifications reports failure by throwing — it returns Unit.
-                // The client flavour swallows and logs its own failures, so only the node flavour can
-                // actually reach this, but one escaped throw would cancel this collector for the rest
-                // of the screen's life and the conversation would silently stop being marked read.
-                .collect { channelId ->
-                    try {
-                        privateChatServiceFacade.consumeNotifications(channelId)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        log.w(e) { "Failed to mark a private chat channel as read" }
-                    }
+    private suspend fun observeReadCountUpdates() {
+        readCountUpdates
+            .debounce(CONSUME_NOTIFICATIONS_DEBOUNCE_MS)
+            // Guarded because consumeNotifications reports failure by throwing — it returns Unit.
+            // The client flavour swallows and logs its own failures, so only the node flavour can
+            // actually reach this, but one escaped throw would cancel this collector for the rest
+            // of the screen's life and the conversation would silently stop being marked read.
+            .collect { channelId ->
+                try {
+                    privateChatServiceFacade.consumeNotifications(channelId)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    log.w(e) { "Failed to mark a private chat channel as read" }
                 }
-        }
+            }
     }
 }
