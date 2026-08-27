@@ -1015,4 +1015,56 @@ class SettingsContentUiTest : BisqComposeUiTestBase() {
             .onNodeWithText("1")
             .assertIsEnabled()
     }
+
+    @Test
+    fun `auto-add-to-contacts toggle renders when supported and dispatches its action`() {
+        val uiState =
+            SettingsUiState(
+                tradePriceTolerance = DataEntry(value = ""),
+                numDaysAfterRedactingTradeData = DataEntry(value = ""),
+                powFactor = DataEntry(value = ""),
+                isFetchingSettings = false,
+                showAutoAddTradePeersToContacts = true,
+                autoAddTradePeersToContacts = true,
+            )
+
+        setTestContent {
+            SettingsContent(
+                uiState = uiState,
+                onAction = mockOnAction,
+            )
+        }
+
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("mobile.settings.contacts.headline".i18n()).assertExists()
+
+        composeTestRule
+            .onNodeWithText("mobile.settings.contacts.autoAddTradePeers".i18n())
+            .performScrollTo()
+            .performClick()
+
+        verify { mockOnAction(SettingsUiAction.OnAutoAddTradePeersToContactsChange(false)) }
+    }
+
+    @Test
+    fun `auto-add-to-contacts toggle is absent when the backend does not support it`() {
+        val uiState =
+            SettingsUiState(
+                tradePriceTolerance = DataEntry(value = ""),
+                numDaysAfterRedactingTradeData = DataEntry(value = ""),
+                powFactor = DataEntry(value = ""),
+                isFetchingSettings = false,
+                showAutoAddTradePeersToContacts = false,
+            )
+
+        setTestContent {
+            SettingsContent(
+                uiState = uiState,
+                onAction = mockOnAction,
+            )
+        }
+
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("mobile.settings.contacts.autoAddTradePeers".i18n()).assertDoesNotExist()
+    }
 }

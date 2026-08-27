@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -33,10 +34,19 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycleBackStackAware
+import network.bisq.mobile.presentation.community.contacts.ContactsTabContent
 
+@ExcludeFromCoverage
 @Composable
-fun CommunityHubScreen() {
+fun CommunityHubScreen(initialSegment: CommunitySegment? = null) {
     val presenter = RememberPresenterLifecycleBackStackAware<CommunityHubPresenter>()
+
+    // remember (not LaunchedEffect) so the deep-linked segment is selected DURING the first
+    // composition — with LaunchedEffect the default segment (and its Support banner) renders
+    // for one frame before the switch. Idempotent: selectInitialSegment is honored once.
+    remember(initialSegment) {
+        initialSegment?.let { presenter.selectInitialSegment(it) }
+    }
 
     val uiState by presenter.uiState.collectAsState()
 
@@ -44,6 +54,14 @@ fun CommunityHubScreen() {
         uiState = uiState,
         onAction = presenter::onAction,
         topBar = { TopBar("mobile.community.title".i18n()) },
+        segmentContent = { segment ->
+            when (segment) {
+                CommunitySegment.CONTACTS -> {
+                    { ContactsTabContent() }
+                }
+                else -> null
+            }
+        },
     )
 }
 
@@ -52,6 +70,8 @@ fun CommunityHubScreenContent(
     uiState: CommunityHubUiState,
     onAction: (CommunityHubUiAction) -> Unit,
     topBar: @Composable () -> Unit = {},
+    // Returns the selected segment's body composable, or null for the coming-soon placeholder.
+    segmentContent: ((CommunitySegment) -> (@Composable () -> Unit)?)? = null,
 ) {
     BisqScaffold(
         topBar = topBar,
@@ -72,15 +92,30 @@ fun CommunityHubScreenContent(
 
             BisqGap.V1()
 
-            SupportQuickAccessRow(onClick = { onAction(CommunityHubUiAction.OnOpenSupportChannel) })
+            // The pinned Support reference belongs to the Discussions context only (see
+            // CommunityHubScreenDesign.kt "SUPPORT — HUB-SIDE REFERENCE": it moves INTO the
+            // Discussions content when that ships). Directory/inbox segments don't carry it.
+            if (uiState.selectedSegment == null || uiState.selectedSegment == CommunitySegment.DISCUSSIONS) {
+                SupportQuickAccessRow(onClick = { onAction(CommunityHubUiAction.OnOpenSupportChannel) })
+            }
 
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                // TODO replace the placeholder bodies with the segments' real content as each ships
-                val label = uiState.selectedSegment?.label()
-                if (label == null) {
-                    BisqText.BaseRegularGrey(text = "mobile.community.comingSoon".i18n())
-                } else {
-                    BisqText.BaseRegularGrey(text = "$label — ${"mobile.community.comingSoon".i18n()}")
+            // Shipped segments render their real body via segmentContent; the rest keep the
+            // coming-soon placeholder. Previews pass no segmentContent (default null) so the
+            // shell keeps rendering without Koin.
+            val selected = uiState.selectedSegment
+            val body = selected?.let { segmentContent?.invoke(it) }
+            if (body == null) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    val label = selected?.label()
+                    if (label == null) {
+                        BisqText.BaseRegularGrey(text = "mobile.community.comingSoon".i18n())
+                    } else {
+                        BisqText.BaseRegularGrey(text = "$label — ${"mobile.community.comingSoon".i18n()}")
+                    }
+                }
+            } else {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    body()
                 }
             }
         }

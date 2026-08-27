@@ -12,18 +12,27 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
+import network.bisq.mobile.data.replicated.user.contact_list.ContactListEntryVO
+import network.bisq.mobile.data.replicated.user.contact_list.ContactReasonEnum
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatNotPermittedException
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatServiceFacade
+import network.bisq.mobile.data.service.contacts.ContactsServiceFacade
 import network.bisq.mobile.data.service.reputation.ReputationServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.domain.analytics.AnalyticsEvent
+import network.bisq.mobile.domain.analytics.AnalyticsService
+import network.bisq.mobile.domain.service.community.CommunitySegment
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.test.presentation.coroutines.PresentationKoinTestBase
+import org.koin.core.module.Module
+import org.koin.dsl.module
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -58,6 +67,16 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
         val REPUTATION = ReputationScoreVO(totalScore = 12_400L, fiveSystemScore = 4.5, ranking = 7)
     }
 
+    private val analyticsService: AnalyticsService = mockk(relaxed = true)
+
+    // Overrides the base module's NoOp so the contact-toggle tests can assert what was tracked.
+    override fun additionalModules(): List<Module> =
+        listOf(
+            module {
+                single<AnalyticsService> { analyticsService }
+            },
+        )
+
     override fun onKoinReady() {
         // The snackbar assertions compare resolved text, so the bundle has to be loaded.
         I18nSupport.initialize("en")
@@ -86,6 +105,14 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
                 userProfileServiceFacade = userProfileServiceFacade,
                 reputationServiceFacade = reputationServiceFacade,
                 privateChatServiceFacade = privateChatServiceFacade,
+                contactsServiceFacade =
+                    mockk {
+                        every { contacts } returns MutableStateFlow(emptyList())
+                    },
+                communityHubService =
+                    mockk {
+                        every { liveSegments } returns MutableStateFlow(emptySet())
+                    },
                 mainPresenter = mockk<MainPresenter>(relaxed = true),
             )
     }
@@ -623,5 +650,205 @@ class PeerProfilePresenterTest : PresentationKoinTestBase() {
 
             assertNull(presenter.uiState.value.reportDraft)
             assertFalse(presenter.uiState.value.showReportDialog)
+        }
+
+    // -----------------------------------------------------------------------------------------
+    // Contact details editing (#1238)
+    // -----------------------------------------------------------------------------------------
+
+    private fun contactEntry(
+        tag: String? = null,
+        notes: String? = null,
+        trustScore: Double? = null,
+    ) = ContactListEntryVO(
+        userProfile = peer,
+        date = 1_700_000_000_000,
+        contactReason = ContactReasonEnum.MANUALLY_ADDED,
+        trustScore = trustScore,
+        tag = tag,
+        notes = notes,
+    )
+
+    private fun kotlinx.coroutines.test.TestScope.presenterWithContact(
+        contactsFacade: ContactsServiceFacade,
+    ): PeerProfilePresenter {
+        val presenter =
+            PeerProfilePresenter(
+                userProfileServiceFacade = userProfileServiceFacade,
+                reputationServiceFacade = reputationServiceFacade,
+                privateChatServiceFacade = privateChatServiceFacade,
+                contactsServiceFacade = contactsFacade,
+                communityHubService =
+                    mockk {
+                        every { liveSegments } returns MutableStateFlow(setOf(CommunitySegment.CONTACTS))
+                    },
+                mainPresenter = mockk<MainPresenter>(relaxed = true),
+            )
+        presenter.initialize(PEER_ID)
+        advanceUntilIdle()
+        return presenter
+    }
+
+    @Test
+    fun `contact details render from the shared facade entry`() =
+        runTest {
+            val contactsFacade =
+                mockk<ContactsServiceFacade>(relaxed = true) {
+                    every { contacts } returns MutableStateFlow(listOf(contactEntry(tag = "SEPA", notes = "met at conf", trustScore = 0.7)))
+                }
+            val presenter = presenterWithContact(contactsFacade)
+
+            val details = presenter.uiState.value.contactDetails
+            assertEquals("SEPA", details?.tag)
+            assertEquals("met at conf", details?.notes)
+            assertEquals(0.7, details?.trustScore)
+            assertTrue(presenter.uiState.value.isContact)
+        }
+
+    @Test
+    fun `saving edits calls only the changed setters, clamped to the domain limits`() =
+        runTest {
+            val contactsFacade =
+                mockk<ContactsServiceFacade>(relaxed = true) {
+                    every { contacts } returns MutableStateFlow(listOf(contactEntry(tag = "old", notes = "keep", trustScore = 0.2)))
+                    coEvery { setTag(any(), any()) } returns Result.success(Unit)
+                    coEvery { setTrustScore(any(), any()) } returns Result.success(Unit)
+                }
+            val presenter = presenterWithContact(contactsFacade)
+
+            presenter.onAction(PeerProfileUiAction.OnEditContactDetailsClick)
+            assertEquals(
+                "old",
+                presenter.uiState.value.contactDraft
+                    ?.tag,
+            )
+            presenter.onAction(PeerProfileUiAction.OnContactTagChanged("x".repeat(40)))
+            presenter.onAction(PeerProfileUiAction.OnContactTrustScoreChanged(1.4))
+            presenter.onAction(PeerProfileUiAction.OnSaveContactDetailsClick)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { contactsFacade.setTag(PEER_ID, "x".repeat(30)) }
+            coVerify(exactly = 1) { contactsFacade.setTrustScore(PEER_ID, 1.0) }
+            coVerify(exactly = 0) { contactsFacade.setNotes(any(), any()) }
+            assertFalse(presenter.uiState.value.showEditContactDetailsDialog)
+            assertNull(presenter.uiState.value.contactDraft)
+        }
+
+    @Test
+    fun `a failed save reopens the edit dialog with the draft intact`() =
+        runTest {
+            val contactsFacade =
+                mockk<ContactsServiceFacade>(relaxed = true) {
+                    every { contacts } returns MutableStateFlow(listOf(contactEntry(tag = "old")))
+                    coEvery { setTag(any(), any()) } returns Result.failure(RuntimeException("node unreachable"))
+                }
+            val presenter = presenterWithContact(contactsFacade)
+
+            presenter.onAction(PeerProfileUiAction.OnEditContactDetailsClick)
+            presenter.onAction(PeerProfileUiAction.OnContactTagChanged("new tag"))
+            presenter.onAction(PeerProfileUiAction.OnSaveContactDetailsClick)
+            advanceUntilIdle()
+
+            assertTrue(presenter.uiState.value.showEditContactDetailsDialog)
+            assertEquals(
+                "new tag",
+                presenter.uiState.value.contactDraft
+                    ?.tag,
+            )
+        }
+
+    @Test
+    fun `dismissing the edit dialog drops the draft without touching the facade`() =
+        runTest {
+            val contactsFacade =
+                mockk<ContactsServiceFacade>(relaxed = true) {
+                    every { contacts } returns MutableStateFlow(listOf(contactEntry(tag = "old")))
+                }
+            val presenter = presenterWithContact(contactsFacade)
+
+            presenter.onAction(PeerProfileUiAction.OnEditContactDetailsClick)
+            presenter.onAction(PeerProfileUiAction.OnContactTagChanged("changed"))
+            presenter.onAction(PeerProfileUiAction.OnDismissEditContactDetailsDialog)
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { contactsFacade.setTag(any(), any()) }
+            assertNull(presenter.uiState.value.contactDraft)
+            assertEquals(
+                "old",
+                presenter.uiState.value.contactDetails
+                    ?.tag,
+            )
+        }
+
+    // -----------------------------------------------------------------------------------------
+    // Contact toggle: in-flight guard + idempotent no-op results
+    // -----------------------------------------------------------------------------------------
+
+    @Test
+    fun `a second toggle tap while one is in flight is ignored`() =
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            val contactsFacade =
+                mockk<ContactsServiceFacade>(relaxed = true) {
+                    every { contacts } returns MutableStateFlow(emptyList())
+                    coEvery { addContact(any(), any()) } coAnswers {
+                        gate.await()
+                        Result.success(true)
+                    }
+                }
+            val presenter = presenterWithContact(contactsFacade)
+
+            presenter.onAction(PeerProfileUiAction.OnAddContactClick)
+            runCurrent()
+            assertFalse(presenter.isContactActionEnabled.value)
+            presenter.onAction(PeerProfileUiAction.OnAddContactClick)
+            runCurrent()
+
+            coVerify(exactly = 1) { contactsFacade.addContact(any(), any()) }
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+            assertTrue(presenter.isContactActionEnabled.value)
+            verify(exactly = 1) { analyticsService.track(AnalyticsEvent.Contact.Added) }
+        }
+
+    @Test
+    fun `a toggle that changed nothing tracks no analytics and shows no error`() =
+        runTest {
+            val contactsFacade =
+                mockk<ContactsServiceFacade>(relaxed = true) {
+                    every { contacts } returns MutableStateFlow(emptyList())
+                    coEvery { addContact(any(), any()) } returns Result.success(false)
+                }
+            val presenter = presenterWithContact(contactsFacade)
+
+            presenter.onAction(PeerProfileUiAction.OnAddContactClick)
+            advanceUntilIdle()
+
+            verify(exactly = 0) { analyticsService.track(AnalyticsEvent.Contact.Added) }
+            verify(exactly = 0) { globalUiManager.showSnackbar(any(), any(), any(), any()) }
+            assertTrue(presenter.isContactActionEnabled.value)
+        }
+
+    @Test
+    fun `a failed toggle re-enables the button and reports the failure`() =
+        runTest {
+            val contactsFacade =
+                mockk<ContactsServiceFacade>(relaxed = true) {
+                    every { contacts } returns MutableStateFlow(listOf(contactEntry()))
+                    coEvery { removeContact(any()) } returns Result.failure(RuntimeException("boom"))
+                }
+            val presenter = presenterWithContact(contactsFacade)
+
+            presenter.onAction(PeerProfileUiAction.OnRemoveContactClick)
+            advanceUntilIdle()
+
+            verify(exactly = 0) { analyticsService.track(AnalyticsEvent.Contact.Removed) }
+            verify {
+                analyticsService.track(
+                    AnalyticsEvent.Contact.ActionFailed(AnalyticsEvent.Contact.FailedAction.REMOVE),
+                )
+            }
+            assertTrue(presenter.isContactActionEnabled.value)
         }
 }

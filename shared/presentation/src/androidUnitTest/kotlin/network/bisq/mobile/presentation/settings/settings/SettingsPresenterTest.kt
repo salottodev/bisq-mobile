@@ -100,6 +100,9 @@ class SettingsPresenterTest : PresentationKoinTestBase() {
         every { languageServiceFacade.allPairs } returns MutableStateFlow(sampleAllPairs)
         every { settingsServiceFacade.difficultyAdjustmentFactor } returns MutableStateFlow(DEFAULT_DIFFICULTY_ADJUSTMENT_FACTOR)
         every { settingsServiceFacade.ignoreDiffAdjustmentFromSecManager } returns MutableStateFlow(false)
+        // Relaxed mockk can't infer the generic StateFlow<Boolean>.value type (erasure) — stub explicitly.
+        every { settingsServiceFacade.autoAddTradePeersToContacts } returns MutableStateFlow(true)
+        every { settingsServiceFacade.isAutoAddTradePeersToContactsSupported } returns false
         every { pushNotificationServiceFacade.isPushNotificationsEnabled } returns MutableStateFlow(false)
         every { pushNotificationServiceFacade.isDeviceRegistered } returns MutableStateFlow(false)
         every { pushNotificationServiceFacade.deviceToken } returns MutableStateFlow(null)
@@ -1667,5 +1670,36 @@ class SettingsPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             assertTrue(presenter.isPowFactorSaveEnabled.value)
+        }
+
+    @Test
+    fun `auto-add toggle persists through the facade and updates state optimistically`() =
+        runTest {
+            coEvery { settingsServiceFacade.getSettings() } returns Result.success(sampleSettings)
+            coEvery { settingsServiceFacade.setAutoAddTradePeersToContacts(false) } returns Result.success(Unit)
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(SettingsUiAction.OnAutoAddTradePeersToContactsChange(false))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { settingsServiceFacade.setAutoAddTradePeersToContacts(false) }
+            assertFalse(presenter.uiState.value.autoAddTradePeersToContacts)
+        }
+
+    @Test
+    fun `auto-add toggle reverts the optimistic state when the facade fails`() =
+        runTest {
+            coEvery { settingsServiceFacade.getSettings() } returns Result.success(sampleSettings)
+            coEvery { settingsServiceFacade.setAutoAddTradePeersToContacts(false) } returns Result.failure(RuntimeException("nope"))
+            presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(SettingsUiAction.OnAutoAddTradePeersToContactsChange(false))
+            advanceUntilIdle()
+
+            assertTrue(presenter.uiState.value.autoAddTradePeersToContacts)
         }
 }
