@@ -84,6 +84,14 @@ such as a top-bar icon). Then that answer lives in a domain-level service under
 Current instance: `CommunityHubService`. If a second composite appears (e.g. MuSig-on-Connect
 gating), extract the shared core then — not before.
 
+One case sits between the two, and it is not an escalation: a facade that has to gate its **own**
+activation on the capability already holds the answer, so it exposes it
+(`PrivateChatServiceFacade.isSupported`, the same capability `ClientPrivateChatServiceFacade.activate`
+awaits before it subscribes) and presenters observe the facade. Reading `BackendCapabilitiesService` in the presenter as well would
+copy an answer that already exists and let the two drift. It also keeps the client/node difference
+in the one place that has it: the node facade returns `flowOf(true)`, the client one maps the
+capability. No new type either way — the facade is one the presenter already depends on.
+
 ---
 
 ## Presenter lifecycle modes
@@ -150,12 +158,13 @@ Canonical: [shared/.../data/replicated/README.md](../shared/domain/src/commonMai
 Presentation UI types (separate): `*UiState`, `*UiAction`.
 
 Node mapping from bisq2: `apps/nodeApp/.../mapping/Mappings.kt` (`fromBisq2Model`), with one carve-out.
-The three open-trade chat types — `BisqEasyOpenTradeMessage`, `BisqEasyOpenTradeChannel` and
-`BisqEasyOpenTradeMessageReaction` — map in per-type files under `apps/nodeApp/.../mapping/chat/`, as
-`toDomain()` extension functions. They are the ones that carry the generic `PrivateChatMessage<R>`
-hierarchy, so their mappings are long enough to be worth reading next to the type. Everything else
-still lives in `Mappings.kt`, including the smaller chat mappings (`CitationMapping`,
-`ChatMessageTypeMapping`, `BisqEasyOfferbookMessageReactionMapping` and the two channel enums).
+The private-chat types map in per-type files under `apps/nodeApp/.../mapping/chat/`, as `toDomain()`
+extension functions — message, channel and reaction for each of the two `PrivateChatMessage<R>`
+subtypes, so six files: `BisqEasyOpenTrade*` for trade chat and `TwoPartyPrivateChat*` for DMs. They
+are the ones carrying the generic hierarchy, so their mappings are long enough to be worth reading
+next to the type, and a third subtype would add three more. Everything else still lives in
+`Mappings.kt`, including the smaller chat mappings (`CitationMapping`, `ChatMessageTypeMapping`,
+`BisqEasyOfferbookMessageReactionMapping` and the two channel enums).
 Helpers use `*Extensions` / `*Factory` / `*Utils`.
 
 ---

@@ -4,6 +4,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -16,6 +17,7 @@ import network.bisq.mobile.data.service.accounts.UserDefinedAccountsServiceFacad
 import network.bisq.mobile.data.service.alert.AlertNotificationsServiceFacade
 import network.bisq.mobile.data.service.alert.TradeRestrictingAlertServiceFacade
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
+import network.bisq.mobile.data.service.chat.private_chat.PrivateChatServiceFacade
 import network.bisq.mobile.data.service.chat.trade.TradeChatMessagesServiceFacade
 import network.bisq.mobile.data.service.common.LanguageServiceFacade
 import network.bisq.mobile.data.service.config.ConfigServiceFacade
@@ -39,17 +41,21 @@ import network.bisq.mobile.domain.analytics.NoOpAnalyticsService
 import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.presentation.common.notification.NotificationController
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
+import network.bisq.mobile.presentation.common.service.PrivateChatNotificationService
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
     private val order = mutableListOf<String>()
 
     private val openTradesNotificationService: OpenTradesNotificationService = mockk(relaxed = true)
+    private val privateChatNotificationService: PrivateChatNotificationService = mockk(relaxed = true)
     private val kmpTorService: KmpTorService = mockk(relaxed = true)
     private val userDefinedAccountsServiceFacade: UserDefinedAccountsServiceFacade = mockk(relaxed = true)
     private val applicationBootstrapFacade: ApplicationBootstrapFacade = mockk(relaxed = true)
     private val tradeChatMessagesServiceFacade: TradeChatMessagesServiceFacade = mockk(relaxed = true)
+    private val privateChatServiceFacade: PrivateChatServiceFacade = mockk(relaxed = true)
     private val languageServiceFacade: LanguageServiceFacade = mockk(relaxed = true)
     private val explorerServiceFacade: ExplorerServiceFacade = mockk(relaxed = true)
     private val marketPriceServiceFacade: MarketPriceServiceFacade = mockk(relaxed = true)
@@ -84,10 +90,12 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
         service =
             ClientApplicationLifecycleService(
                 openTradesNotificationService = openTradesNotificationService,
+                privateChatNotificationService = privateChatNotificationService,
                 kmpTorService = kmpTorService,
                 userDefinedAccountsServiceFacade = userDefinedAccountsServiceFacade,
                 applicationBootstrapFacade = applicationBootstrapFacade,
                 tradeChatMessagesServiceFacade = tradeChatMessagesServiceFacade,
+                privateChatServiceFacade = privateChatServiceFacade,
                 languageServiceFacade = languageServiceFacade,
                 explorerServiceFacade = explorerServiceFacade,
                 marketPriceServiceFacade = marketPriceServiceFacade,
@@ -123,6 +131,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
             assertEquals(
                 listOf(
                     "notification.start",
+                    "privateChatNotification.start",
                     "apiAccess.activate",
                     "bootstrap.activate",
                     "network.activate",
@@ -132,6 +141,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
                     "marketPrice.activate",
                     "trades.activate",
                     "tradeChat.activate",
+                    "privateChat.activate",
                     "language.activate",
                     "fiat.activate",
                     "explorer.activate",
@@ -164,8 +174,10 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
             // service should never even briefly start (battery + risk of
             // ForegroundServiceDidNotStartInTimeException).
             assertEquals(false, order.contains("notification.start"))
-            // Sanity check: the rest of the activation chain still runs.
-            assertEquals("apiAccess.activate", order.first())
+            // Sanity check: the rest of the activation chain still runs. The private-chat
+            // notification service is not part of the FG-service decision — it holds no
+            // foreground service — so it starts first regardless of the delivery mode.
+            assertEquals(listOf("privateChatNotification.start", "apiAccess.activate"), order.take(2))
             assertEquals("push.activate", order.last())
         }
 
@@ -207,8 +219,10 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
             service.activate()
 
             assertEquals(false, order.contains("notification.start"))
-            // Sanity check: the rest of the activation chain still runs.
-            assertEquals("apiAccess.activate", order.first())
+            // Sanity check: the rest of the activation chain still runs. The private-chat
+            // notification service is not part of the FG-service decision — it holds no
+            // foreground service — so it starts first regardless of the delivery mode.
+            assertEquals(listOf("privateChatNotification.start", "apiAccess.activate"), order.take(2))
             assertEquals("push.activate", order.last())
         }
 
@@ -425,6 +439,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
             assertEquals(
                 listOf(
                     "notification.stop",
+                    "privateChatNotification.stop",
                     "push.deactivate",
                     "messageDelivery.deactivate",
                     "userProfile.deactivate",
@@ -436,6 +451,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
                     "explorer.deactivate",
                     "fiat.deactivate",
                     "language.deactivate",
+                    "privateChat.deactivate",
                     "tradeChat.deactivate",
                     "trades.deactivate",
                     "marketPrice.deactivate",
@@ -466,6 +482,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
             assertEquals(
                 listOf(
                     "notification.stop",
+                    "privateChatNotification.stop",
                     "push.deactivate",
                     "messageDelivery.deactivate",
                     "userProfile.deactivate",
@@ -477,6 +494,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
                     "explorer.deactivate",
                     "fiat.deactivate",
                     "language.deactivate",
+                    "privateChat.deactivate",
                     "tradeChat.deactivate",
                     "trades.deactivate",
                     "marketPrice.deactivate",
@@ -491,6 +509,17 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
             )
         }
 
+    /** A cancelled deactivation is not a shutdown failure: the base class must let it through instead of logging it. */
+    @Test
+    fun `deactivate propagates cancellation instead of reporting it as a failure`() =
+        runTest {
+            io.mockk.coEvery {
+                privateChatNotificationService.stopNotificationService()
+            } throws CancellationException("deactivation cancelled")
+
+            assertFailsWith<CancellationException> { service.deactivate() }
+        }
+
     private fun configureActivationTracking() {
         // The bootstrap path now calls `setKeepProcessAlive(true)` directly (see
         // `ClientApplicationLifecycleService.maybeLaunchForegroundNotificationService`)
@@ -499,6 +528,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
         // via `order.contains("notification.start") == false`.
         io.mockk.every { openTradesNotificationService.setKeepProcessAlive(true) } answers { order += "notification.start" }
         io.mockk.every { openTradesNotificationService.startService() } answers { order += "notification.start" }
+        every { privateChatNotificationService.startService() } answers { order += "privateChatNotification.start" }
         coEvery { apiAccessService.activate() } answers { order += "apiAccess.activate" }
         coEvery { applicationBootstrapFacade.activate() } answers { order += "bootstrap.activate" }
         coEvery { networkServiceFacade.activate() } answers { order += "network.activate" }
@@ -508,6 +538,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
         coEvery { marketPriceServiceFacade.activate() } answers { order += "marketPrice.activate" }
         coEvery { tradesServiceFacade.activate() } answers { order += "trades.activate" }
         coEvery { tradeChatMessagesServiceFacade.activate() } answers { order += "tradeChat.activate" }
+        coEvery { privateChatServiceFacade.activate() } answers { order += "privateChat.activate" }
         coEvery { languageServiceFacade.activate() } answers { order += "language.activate" }
         coEvery { userDefinedAccountsServiceFacade.activate() } answers { order += "fiat.activate" }
         coEvery { explorerServiceFacade.activate() } answers { order += "explorer.activate" }
@@ -523,6 +554,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
 
     private fun configureDeactivationTracking() {
         io.mockk.coEvery { openTradesNotificationService.stopNotificationService() } answers { order += "notification.stop" }
+        coEvery { privateChatNotificationService.stopNotificationService() } answers { order += "privateChatNotification.stop" }
         coEvery { pushNotificationServiceFacade.deactivate() } answers { order += "push.deactivate" }
         coEvery { messageDeliveryServiceFacade.deactivate() } answers { order += "messageDelivery.deactivate" }
         coEvery { userProfileServiceFacade.deactivate() } answers { order += "userProfile.deactivate" }
@@ -534,6 +566,7 @@ class ClientApplicationLifecycleServiceTest : ClientKoinIntegrationTestBase() {
         coEvery { explorerServiceFacade.deactivate() } answers { order += "explorer.deactivate" }
         coEvery { userDefinedAccountsServiceFacade.deactivate() } answers { order += "fiat.deactivate" }
         coEvery { languageServiceFacade.deactivate() } answers { order += "language.deactivate" }
+        coEvery { privateChatServiceFacade.deactivate() } answers { order += "privateChat.deactivate" }
         coEvery { tradeChatMessagesServiceFacade.deactivate() } answers { order += "tradeChat.deactivate" }
         coEvery { tradesServiceFacade.deactivate() } answers { order += "trades.deactivate" }
         coEvery { marketPriceServiceFacade.deactivate() } answers { order += "marketPrice.deactivate" }

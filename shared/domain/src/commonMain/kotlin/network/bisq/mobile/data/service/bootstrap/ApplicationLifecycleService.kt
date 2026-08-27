@@ -210,6 +210,8 @@ abstract class ApplicationLifecycleService(
         }
         try {
             deactivateServiceFacades()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             log.e(e) { "Error during deactivateServiceFacades" }
         }
