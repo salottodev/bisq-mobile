@@ -224,7 +224,7 @@ class NodeTradeChatMessagesServiceFacade(
                 citationAuthorUserProfile,
                 myUserProfile,
             )
-        openTradeItem.bisqEasyOpenTradeChannelModel.addChatMessages(model)
+        openTradeItem.bisqEasyOpenTradeChannelModel.addChatMessage(model)
 
         // PROTOCOL_LOG_MESSAGE's persist() is always rate-limited (arrives ~200 ms after
         // TAKE_BISQ_EASY_OFFER, inside the 1 000 ms window). Force a persist once the window clears.

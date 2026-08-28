@@ -1,9 +1,6 @@
 package network.bisq.mobile.data.replicated.chat.two_party
 
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import network.bisq.mobile.data.replicated.chat.ChatChannel
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 
@@ -23,36 +20,8 @@ import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
  * profile has been pruned.
  */
 class TwoPartyPrivateChatChannel(
-    val id: String,
-    val chatChannelDomain: ChatChannelDomainEnum,
+    id: String,
+    chatChannelDomain: ChatChannelDomainEnum,
     val peer: UserProfileVO,
     val myUserProfile: UserProfileVO,
-) {
-    private val _chatMessages: MutableStateFlow<Set<TwoPartyPrivateChatMessage>> = MutableStateFlow(emptySet())
-    val chatMessages: StateFlow<Set<TwoPartyPrivateChatMessage>> = _chatMessages.asStateFlow()
-
-    /**
-     * Number of unread messages, sourced from Bisq 2's persisted `ChatNotificationService` rather
-     * than counted locally, so it survives an app restart.
-     */
-    private val _unreadCount: MutableStateFlow<Long> = MutableStateFlow(0L)
-    val unreadCount: StateFlow<Long> = _unreadCount.asStateFlow()
-
-    fun addChatMessage(message: TwoPartyPrivateChatMessage) {
-        // Last write wins: equals/hashCode is not enough, because a message keeps its id while its
-        // reactions and delivery status change.
-        _chatMessages.update { current ->
-            current
-                .filterNot { it.id == message.id }
-                .toSet() + message
-        }
-    }
-
-    fun setAllChatMessages(messages: Set<TwoPartyPrivateChatMessage>) {
-        _chatMessages.value = messages.associateBy { it.id }.values.toSet()
-    }
-
-    fun setUnreadCount(value: Long) {
-        _unreadCount.value = value
-    }
-}
+) : ChatChannel<TwoPartyPrivateChatMessage>(id, chatChannelDomain)

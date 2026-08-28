@@ -72,7 +72,7 @@
  * ======================================================================================
  * - `ChatMessageList` — SUPERSEDED. This PoC assumed an adapter in the presenter
  *   (`msg.toBisqEasyOpenTradeMessageModel()`) that forged a trade message out of a DM.
- *   `ChatMessageList` is now generic over `PrivateChatMessage<R>`, so a DM is passed
+ *   `ChatMessageList` is now generic over `ChatMessage<R>`, so a DM is passed
  *   straight in and no adapter exists or is wanted. The one thing a non-trade caller
  *   must supply is `leaveMessageContent`: the slot has no default, because "has left
  *   the trade" is the wrong copy outside a trade.

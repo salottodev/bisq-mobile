@@ -26,7 +26,7 @@ import kotlin.test.assertSame
 
 class BisqEasyOpenTradeChannelTest {
     @Test
-    fun addChatMessages_replacesExistingMessageWithSameId() {
+    fun addChatMessage_replacesExistingMessageWithSameId() {
         val myUserProfile = createMockUserProfile("me")
         val sender = createMockUserProfile("sender")
         val channelModel = createChannel(myUserProfile, sender)
@@ -46,8 +46,8 @@ class BisqEasyOpenTradeChannelTest {
                 reactionId = 2,
             )
 
-        channelModel.addChatMessages(original)
-        channelModel.addChatMessages(updated)
+        channelModel.addChatMessage(original)
+        channelModel.addChatMessage(updated)
 
         val storedMessage = channelModel.chatMessages.value.single()
         assertEquals(1, channelModel.chatMessages.value.size)

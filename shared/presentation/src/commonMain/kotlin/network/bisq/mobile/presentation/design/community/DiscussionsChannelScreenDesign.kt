@@ -75,15 +75,12 @@
  *
  * NOT reusable as-is in a domain-type-free PoC, but reused unchanged in PRODUCTION:
  *   - `ChatMessageList` / `ChatTextMessageBox` (organisms/chat, molecules/chat) — both are
- *     now generic over `PrivateChatMessage<R>` rather than pinned to the TRADE-scoped
- *     `BisqEasyOpenTradeMessage`, so the DM adapter this note used to call for no longer
- *     exists. A public channel message is still NOT covered: `PrivateChatMessage` models a
- *     conversation with one peer, and a public channel has no single "receiver". Reusing
- *     these here needs the shared base widened, not an adapter.
- *   - `ChatMessageContextMenu` — same domain-type constraint; reused unchanged in
- *     production once the base above covers public channels. Its ignore/report menu items should now
- *     route to the Peer Profile screen's canonical handlers (see peer_profile/
- *     PeerProfileScreenDesign.kt) rather than trade-chat-local ones.
+ *     generic over `ChatMessage<R>`, the root shared by the private branch (trade, DM) and
+ *     the public one (`CommonPublicChatMessage`), so a public channel message renders through
+ *     them unchanged; only the delivery status is gated on the private branch.
+ *   - `ChatMessageContextMenu` — same domain-type constraint; reused unchanged in production.
+ *     Its ignore/report menu items should now route to the Peer Profile screen's canonical
+ *     handlers (see peer_profile/PeerProfileScreenDesign.kt) rather than trade-chat-local ones.
  *   - `ReactionInput` / `QuoteMessageBubble` (used inside ChatTextMessageBox) — unchanged.
  *
  * Because ChatMessageList/ChatTextMessageBox can't be previewed here without domain
@@ -114,7 +111,7 @@
  * Private DM's 1:1 assumption doesn't hold for a many-to-many public channel — messages
  * need each sender's name visible, not just an inbound/outbound binary. This is largely
  * already covered: `ChatTextMessageBox`'s existing `UsernameMessageDeliveryAndDate` row
- * already renders the sender's name above every bubble (see ChatTextMessageBox.kt L72-77),
+ * already renders the sender's name above every bubble,
  * because trade chat already supports a mediator as a third party. The gap is specifically
  * the tap-targetability called out above, not the name display itself.
  *

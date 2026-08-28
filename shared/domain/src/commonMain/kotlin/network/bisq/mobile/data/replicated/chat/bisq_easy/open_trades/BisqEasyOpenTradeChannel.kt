@@ -3,7 +3,8 @@ package network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import network.bisq.mobile.data.replicated.chat.ChatChannel
+import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.data.replicated.chat.notifications.ChatChannelNotificationTypeEnum
 import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO
 import network.bisq.mobile.data.replicated.user.identity.UserIdentityVO
@@ -14,18 +15,17 @@ import network.bisq.mobile.i18n.i18n
 
 // todo will get completed with work on chat
 class BisqEasyOpenTradeChannel(
-    val id: String,
+    id: String,
     val tradeId: String,
     val bisqEasyOffer: BisqEasyOfferVO,
     val myUserIdentity: UserIdentityVO,
     val traders: Set<UserProfileVO>,
     val mediator: UserProfileVO?,
-) : Logging {
+) : ChatChannel<BisqEasyOpenTradeMessage>(id, ChatChannelDomainEnum.BISQ_EASY_OPEN_TRADES),
+    Logging {
     // Mutable properties
     private val _isInMediation: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isInMediation: StateFlow<Boolean> = _isInMediation.asStateFlow()
-    private val _chatMessages: MutableStateFlow<Set<BisqEasyOpenTradeMessage>> = MutableStateFlow(emptySet())
-    val chatMessages: StateFlow<Set<BisqEasyOpenTradeMessage>> = _chatMessages.asStateFlow()
     val chatChannelNotificationType: MutableStateFlow<ChatChannelNotificationTypeEnum> =
         MutableStateFlow(ChatChannelNotificationTypeEnum.ALL)
     val userProfileIdsOfActiveParticipants: MutableSet<String> = mutableSetOf()
@@ -62,20 +62,5 @@ class BisqEasyOpenTradeChannel(
     fun getPeer(): UserProfileVO {
         require(traders.size == 1) { "traders is expected to has size 1 at getPeer()" }
         return traders.iterator().next()
-    }
-
-    fun addChatMessages(message: BisqEasyOpenTradeMessage) {
-        // last write wins
-        // relying on equals and hashcode is not enough for us
-        // because while the message id can stay the same, reactions and messageDeliveryStatus can be updated
-        _chatMessages.update { current ->
-            current
-                .filterNot { it.id == message.id }
-                .toSet() + message
-        }
-    }
-
-    fun setAllChatMessages(messages: Set<BisqEasyOpenTradeMessage>) {
-        _chatMessages.value = messages.associateBy { it.id }.values.toSet()
     }
 }

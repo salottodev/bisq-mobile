@@ -3,7 +3,7 @@ package network.bisq.mobile.presentation.common.ui.components.organisms.chat
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
-import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
+import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.presentation.common.ui.components.layout.BisqStaticScaffold
 import network.bisq.mobile.presentation.common.ui.components.molecules.chat.ChatInputBottomBar
 import network.bisq.mobile.presentation.common.ui.components.molecules.chat.ChatInputField
@@ -21,7 +21,7 @@ import network.bisq.mobile.presentation.common.ui.utils.EMPTY_STRING
 fun ChatScaffold(
     onMessageSend: (String) -> Unit,
     topBar: @Composable (() -> Unit)? = null,
-    quotedMessage: PrivateChatMessage<*>? = null,
+    quotedMessage: ChatMessage<*>? = null,
     placeholder: String = EMPTY_STRING,
     resetScroll: () -> Unit = {},
     onCloseReply: () -> Unit = {},

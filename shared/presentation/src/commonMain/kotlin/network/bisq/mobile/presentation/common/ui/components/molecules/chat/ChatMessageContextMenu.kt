@@ -7,9 +7,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
-import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.i18n.i18n
@@ -24,7 +24,7 @@ import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 
 @Composable
 fun ChatMessageContextMenu(
-    message: PrivateChatMessage<*>,
+    message: ChatMessage<*>,
     isIgnored: Boolean,
     onSetShowMenu: (Boolean) -> Unit,
     onAddReaction: (ReactionEnum) -> Unit,

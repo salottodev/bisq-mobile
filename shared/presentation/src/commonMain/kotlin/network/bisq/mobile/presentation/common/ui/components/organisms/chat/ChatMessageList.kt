@@ -31,8 +31,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
-import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.chat.reactions.ChatMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatMessage
@@ -53,7 +53,7 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 
 @Composable
-fun <M : PrivateChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
+fun <M : ChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
     messages: List<M>,
     ignoredUserIds: Set<String>,
     showChatRulesWarnBox: Boolean,

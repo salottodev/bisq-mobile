@@ -20,7 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.tooling.preview.Preview
-import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
+import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.two_party.createMockTwoPartyPrivateChatMessage
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.i18n.i18n
@@ -40,7 +40,7 @@ private const val MAX_CHAT_INPUT_LENGTH = 10_000
 fun ChatInputField(
     onMessageSend: (String) -> Unit,
     modifier: Modifier = Modifier,
-    quotedMessage: PrivateChatMessage<*>? = null,
+    quotedMessage: ChatMessage<*>? = null,
     placeholder: String = EMPTY_STRING,
     resetScroll: () -> Unit = {},
     onCloseReply: () -> Unit = {},
@@ -85,7 +85,7 @@ fun ChatInputField(
 
 @Composable
 fun QuotedMessage(
-    quotedMessage: PrivateChatMessage<*>,
+    quotedMessage: ChatMessage<*>,
     onCloseReply: () -> Unit = {},
 ) {
     AnimatedVisibility(visible = quotedMessage.text != null) {

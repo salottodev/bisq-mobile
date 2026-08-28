@@ -75,11 +75,13 @@ Model classes can contain also domain methods or util fields.
 The classes under `chat/` deliberately drop their postfix and mirror the Bisq Easy class names one to
 one, together with the class hierarchy and package layout:
 
-- messages and channels drop `Model` — `PrivateChatMessage`, `BisqEasyOpenTradeMessage`,
-  `TwoPartyPrivateChatMessage`, `BisqEasyOpenTradeChannel`, `TwoPartyPrivateChatChannel`
+- messages and channels drop `Model` — `ChatMessage`, `PrivateChatMessage`, `PublicChatMessage`,
+  `BisqEasyOpenTradeMessage`, `TwoPartyPrivateChatMessage`, `CommonPublicChatMessage`,
+  `ChatChannel`, `PublicChatChannel`, `BisqEasyOpenTradeChannel`, `TwoPartyPrivateChatChannel`,
+  `CommonPublicChatChannel`
 - reactions drop `VO` — `ChatMessageReaction`, `PrivateChatMessageReaction`,
   `BisqEasyOpenTradeMessageReaction`, `BisqEasyOfferbookMessageReaction`,
-  `TwoPartyPrivateChatMessageReaction`
+  `TwoPartyPrivateChatMessageReaction`, `CommonPublicChatMessageReaction`
 - `Citation` drops `VO` for the same reason, being a chat type carried by every message
 
 The messages and channels are still models in the sense above — mutability is the `StateFlow` fields,

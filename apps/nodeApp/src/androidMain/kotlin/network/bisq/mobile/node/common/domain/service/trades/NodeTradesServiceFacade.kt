@@ -735,7 +735,7 @@ class NodeTradesServiceFacade(
         // associated channel — see the early-return log above). tradeItemsLock serializes the two
         // invocations so the findListItem guard closes that race; the atomic dedup below stays as
         // defence-in-depth against a duplicate tradeId, which would crash OpenTradeListScreen's
-        // keyed LazyColumn (key = tradeId). Last write wins, mirroring addChatMessages / client facade.
+        // keyed LazyColumn (key = tradeId). Last write wins, mirroring addChatMessage / client facade.
         _openTradeItems.update { current -> current.filterNot { it.tradeId == openTradeItem.tradeId } + openTradeItem }
 
         val tradeId = trade.id

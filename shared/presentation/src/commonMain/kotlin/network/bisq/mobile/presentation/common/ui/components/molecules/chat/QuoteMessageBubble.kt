@@ -15,8 +15,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.Citation
-import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.chat.two_party.TwoPartyPrivateChatMessage
 import network.bisq.mobile.data.replicated.chat.two_party.createMockTwoPartyPrivateChatMessage
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
@@ -27,7 +27,7 @@ import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 
 @Composable
 fun QuoteMessageBubble(
-    message: PrivateChatMessage<*>,
+    message: ChatMessage<*>,
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {

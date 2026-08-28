@@ -4,72 +4,46 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.Citation
 import network.bisq.mobile.data.replicated.chat.reactions.ChatMessageReaction
 import network.bisq.mobile.data.replicated.network.confidential.ack.MessageDeliveryInfoVO
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
-import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.data.service.message_delivery.MessageDeliveryServiceFacade
-import network.bisq.mobile.domain.utils.DateUtils
-import network.bisq.mobile.i18n.I18nSupport
 
 /**
- * Everything a private chat message has in common, mirroring Bisq 2's
- * `bisq.chat.priv.PrivateChatMessage<R extends ChatMessageReaction>`.
+ * What a private chat message adds to [ChatMessage], mirroring Bisq 2's
+ * `bisq.chat.priv.PrivateChatMessage<R extends ChatMessageReaction>`: the delivery status of a
+ * message sent point to point. A public message is broadcast through the P2P store and has none.
  *
  * Bisq 2 models trade chat and peer-to-peer DMs as siblings under this base:
  * `BisqEasyOpenTradeMessage` adds only `tradeId` / `mediator` / `bisqEasyOffer`, and
- * `TwoPartyPrivateChatMessage` adds nothing at all. This class holds the shared body so neither
- * subclass has to repeat it.
- *
- * Takes plain values rather than a DTO: DTOs are a client-side transport concern and live in
- * `apps/clientApp`, so a type in `:shared:domain` must not depend on one. The node maps Bisq 2
- * objects straight into these arguments; a client implementation destructures its own DTO into the
- * same ones.
- *
- * Generic in [R] for the same reason Bisq 2 is: [isMyChatReaction] takes a reaction, so a
- * non-generic parameter type would force every caller that removes a reaction to widen and then
- * down-cast before handing it to a service facade.
+ * `TwoPartyPrivateChatMessage` adds nothing at all.
  */
 abstract class PrivateChatMessage<R : ChatMessageReaction>(
-    val id: String,
-    val chatMessageType: ChatMessageTypeEnum,
-    val text: String?,
-    val citation: Citation?,
+    id: String,
+    chatMessageType: ChatMessageTypeEnum,
+    text: String?,
+    citation: Citation?,
     citationAuthorUserProfile: UserProfileVO?,
-    val date: Long,
-    val senderUserProfile: UserProfileVO,
+    date: Long,
+    senderUserProfile: UserProfileVO,
     myUserProfile: UserProfileVO,
     chatReactions: List<R>,
-) {
-    private val myUserProfileId = myUserProfile.id
-
-    private val _chatReactions: MutableStateFlow<List<R>> = MutableStateFlow(chatReactions)
-    val chatReactions: StateFlow<List<R>> = _chatReactions.asStateFlow()
-
+) : ChatMessage<R>(
+        id = id,
+        chatMessageType = chatMessageType,
+        text = text,
+        citation = citation,
+        citationAuthorUserProfile = citationAuthorUserProfile,
+        date = date,
+        senderUserProfile = senderUserProfile,
+        myUserProfile = myUserProfile,
+        chatReactions = chatReactions,
+    ) {
     private val _messageDeliveryStatus = MutableStateFlow<Map<String, MessageDeliveryInfoVO>>(emptyMap())
     val messageDeliveryStatus = _messageDeliveryStatus.asStateFlow()
-
-    val textString: String get() = text ?: ""
-
-    // Used for protocol log message. Eager like `citationAuthorUserName` below, and for the same
-    // reason: both are pure functions of constructor vals, and a `get()` would re-run the i18n decode
-    // and the platform date format every time a row enters composition in the chat list.
-    val decodedText: String = text?.let { I18nSupport.decode(it) } ?: ""
-
-    val dateString: String = DateUtils.toDateTime(date)
-    val citationString: String get() = citation?.text ?: ""
-    val citationAuthorUserName: String? = citationAuthorUserProfile?.userName
-    val senderUserProfileId get() = senderUserProfile.id
-    val senderUserName get() = senderUserProfile.userName
-    val isMyMessage: Boolean get() = senderUserProfileId == myUserProfileId
-
-    fun isMyChatReaction(reaction: R): Boolean = myUserProfileId == reaction.userProfileId
-
-    fun setReactions(chatMessageReactions: List<R>) {
-        _chatReactions.value = chatMessageReactions
-    }
 
     fun removeMessageDeliveryStatusObserver(messageDeliveryServiceFacade: MessageDeliveryServiceFacade) {
         messageDeliveryServiceFacade.removeMessageDeliveryStatusObserver(id)
@@ -81,3 +55,11 @@ abstract class PrivateChatMessage<R : ChatMessageReaction>(
         }
     }
 }
+
+/**
+ * The delivery status of a message sent point to point, or null for a broadcast public one. The
+ * one place the shared chat composables tell the two branches apart, as desktop does in
+ * `ChatMessageListItem`.
+ */
+val ChatMessage<*>.messageDeliveryStatusOrNull: StateFlow<Map<String, MessageDeliveryInfoVO>>?
+    get() = (this as? PrivateChatMessage<*>)?.messageDeliveryStatus
