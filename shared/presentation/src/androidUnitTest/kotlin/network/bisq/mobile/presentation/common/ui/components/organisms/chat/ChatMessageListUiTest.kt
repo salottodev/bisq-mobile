@@ -6,9 +6,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
+import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.ChatMessageTypeEnum
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.common.createMockCommonPublicChatMessage
+import network.bisq.mobile.data.replicated.chat.reactions.ChatMessageReaction
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.utils.createEmptyImage
@@ -45,15 +48,14 @@ class ChatMessageListUiTest : BisqComposeUiTestBase() {
 
     @Test
     fun `renders an empty conversation without crashing`() {
-        setTestContent { MessageList(emptyList()) }
+        setTestContent { MessageList(emptyList<BisqEasyOpenTradeMessage>()) }
 
         composeTestRule.waitForIdle()
     }
 
     /**
      * A `LEAVE` message goes through the `leaveMessageContent` slot instead of the text bubble. The
-     * default is the trade wording, which is what a caller inside a trade wants; a caller outside one
-     * has to override it.
+     * slot has no default: a caller inside a trade passes the trade wording, one outside it its own.
      */
     @Test
     fun `a leave message renders the default trade wording, not a text bubble`() {
@@ -63,6 +65,7 @@ class ChatMessageListUiTest : BisqComposeUiTestBase() {
                     message("msg-2", sender = peer, text = null, type = ChatMessageTypeEnum.LEAVE),
                     message("msg-1", sender = peer, text = "Payment received, thanks!"),
                 ),
+                leaveMessageContent = { message, modifier -> TradePeerLeftMessageBox(message, modifier) },
             )
         }
 
@@ -70,8 +73,30 @@ class ChatMessageListUiTest : BisqComposeUiTestBase() {
         composeTestRule.onNodeWithText("Payment received, thanks!").assertIsDisplayed()
     }
 
+    /**
+     * A public channel message has no delivery status and no peer, and the list must not need
+     * either: it is generic over the shared [ChatMessage] base, not the private branch.
+     */
+    @Test
+    fun `renders a public channel conversation`() {
+        setTestContent {
+            MessageList(
+                listOf(
+                    createMockCommonPublicChatMessage(id = "msg-2", text = "Welcome to Bisq", senderUserProfile = me, myUserProfile = me),
+                    createMockCommonPublicChatMessage(id = "msg-1", text = "Hi all", senderUserProfile = peer, myUserProfile = me),
+                ),
+            )
+        }
+
+        composeTestRule.onNodeWithText("Welcome to Bisq").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Hi all").assertIsDisplayed()
+    }
+
     @Composable
-    private fun MessageList(messages: List<BisqEasyOpenTradeMessage>) {
+    private fun <M : ChatMessage<R>, R : ChatMessageReaction> MessageList(
+        messages: List<M>,
+        leaveMessageContent: @Composable (M, Modifier) -> Unit = { _, _ -> },
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             ChatMessageList(
                 messages = messages,
@@ -83,7 +108,7 @@ class ChatMessageListUiTest : BisqComposeUiTestBase() {
                 userNameProvider = { it },
                 onPeerProfileClick = {},
                 modifier = Modifier.fillMaxSize(),
-                leaveMessageContent = { message, modifier -> TradePeerLeftMessageBox(message, modifier) },
+                leaveMessageContent = leaveMessageContent,
             )
         }
     }
