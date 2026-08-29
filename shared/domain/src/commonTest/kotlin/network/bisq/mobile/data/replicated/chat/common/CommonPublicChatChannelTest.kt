@@ -40,9 +40,18 @@ class CommonPublicChatChannelTest {
     fun `setAllChatMessages keeps one copy per id`() {
         val channel = createChannel()
 
-        channel.setAllChatMessages(setOf(createMessage("message-1"), createMessage("message-1"), createMessage("message-2")))
+        channel.setAllChatMessages(
+            setOf(
+                createMessage("message-1", text = "first"),
+                createMessage("message-1", text = "updated"),
+                createMessage("message-2"),
+            ),
+        )
 
+        val stored = channel.chatMessages.value
+        assertEquals(2, stored.size)
         assertEquals(setOf("message-1", "message-2"), channel.ids())
+        assertEquals("updated", stored.single { it.id == "message-1" }.text)
     }
 
     @Test
