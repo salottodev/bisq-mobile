@@ -15,7 +15,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
+import network.bisq.mobile.data.replicated.chat.ChatMessage
+import network.bisq.mobile.data.replicated.chat.priv.messageDeliveryStatusOrNull
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.molecules.chat.MessageDeliveryBox
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
@@ -23,12 +24,15 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 
 @Composable
 fun ProtocolLogMessageBox(
-    message: PrivateChatMessage<*>,
+    message: ChatMessage<*>,
     onResendMessage: (String) -> Unit,
     userNameProvider: suspend (String) -> String,
     modifier: Modifier = Modifier,
 ) {
     var showInfo by remember { mutableStateOf(false) }
+    // Only a trade emits this type, but the list is generic over ChatMessage, so the box and its
+    // tap target are both gated on the private branch.
+    val messageDeliveryStatus = message.messageDeliveryStatusOrNull
 
     Row(
         modifier =
@@ -48,17 +52,21 @@ fun ProtocolLogMessageBox(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalfQuarter),
                 modifier =
-                    Modifier.clickable {
-                        showInfo = true
+                    if (messageDeliveryStatus != null) {
+                        Modifier.clickable { showInfo = true }
+                    } else {
+                        Modifier
                     },
             ) {
-                MessageDeliveryBox(
-                    onResendMessage = onResendMessage,
-                    userNameProvider = userNameProvider,
-                    messageDeliveryInfoByPeersProfileId = message.messageDeliveryStatus,
-                    showInfo,
-                    onDismissMenu = { showInfo = false },
-                )
+                if (messageDeliveryStatus != null) {
+                    MessageDeliveryBox(
+                        onResendMessage = onResendMessage,
+                        userNameProvider = userNameProvider,
+                        messageDeliveryInfoByPeersProfileId = messageDeliveryStatus,
+                        showInfo,
+                        onDismissMenu = { showInfo = false },
+                    )
+                }
 
                 BisqText.XSmallLightGrey(message.dateString)
             }

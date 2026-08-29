@@ -20,8 +20,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
-import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
 import network.bisq.mobile.data.replicated.network.confidential.ack.MessageDeliveryInfoVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
@@ -38,10 +38,11 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun UsernameMessageDeliveryAndDate(
-    message: PrivateChatMessage<*>,
+    message: ChatMessage<*>,
     onResendMessage: (String) -> Unit,
     userNameProvider: suspend (String) -> String,
-    messageDeliveryInfoByPeersProfileId: StateFlow<Map<String, MessageDeliveryInfoVO>>,
+    /** Null for a public channel message: only a private one is sent point to point and acknowledged. */
+    messageDeliveryInfoByPeersProfileId: StateFlow<Map<String, MessageDeliveryInfoVO>>?,
     onPeerProfileClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -57,16 +58,17 @@ fun UsernameMessageDeliveryAndDate(
             modifier =
                 Modifier
                     .semantics(mergeDescendants = true) {}
-                    // Always tappable, but to different ends: my own messages open the
-                    // delivery-status popup, a peer's opens their profile.
+                    // Tappable to different ends: a peer's message opens their profile, my own
+                    // opens the delivery-status popup — which a public message does not have, so
+                    // there a tap on my own message does nothing rather than arming a popup that
+                    // never renders.
                     .combinedClickable(
                         role = Role.Button,
                         onLongClick = onLongClick,
                         onClick = {
-                            if (message.isMyMessage) {
-                                showInfo = true
-                            } else {
-                                openPeerProfile()
+                            when {
+                                !message.isMyMessage -> openPeerProfile()
+                                messageDeliveryInfoByPeersProfileId != null -> showInfo = true
                             }
                         },
                     ),
@@ -92,16 +94,18 @@ fun UsernameMessageDeliveryAndDate(
             if (message.isMyMessage) {
                 Spacer(Modifier.weight(1f))
                 date()
-                Spacer(Modifier.width(BisqUIConstants.ScreenPaddingHalfQuarter))
-                MessageDeliveryBox(
-                    onResendMessage = onResendMessage,
-                    userNameProvider = userNameProvider,
-                    messageDeliveryInfoByPeersProfileId = messageDeliveryInfoByPeersProfileId,
-                    showInfo,
-                    onDismissMenu = {
-                        showInfo = false
-                    },
-                )
+                if (messageDeliveryInfoByPeersProfileId != null) {
+                    Spacer(Modifier.width(BisqUIConstants.ScreenPaddingHalfQuarter))
+                    MessageDeliveryBox(
+                        onResendMessage = onResendMessage,
+                        userNameProvider = userNameProvider,
+                        messageDeliveryInfoByPeersProfileId = messageDeliveryInfoByPeersProfileId,
+                        showInfo,
+                        onDismissMenu = {
+                            showInfo = false
+                        },
+                    )
+                }
                 username()
             } else {
                 username()

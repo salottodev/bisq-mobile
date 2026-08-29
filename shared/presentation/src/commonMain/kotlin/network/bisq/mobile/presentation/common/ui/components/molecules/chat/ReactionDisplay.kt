@@ -19,7 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
+import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.reactions.ChatMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
@@ -29,7 +29,7 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 
 @Composable
 fun <R : ChatMessageReaction> ReactionDisplay(
-    message: PrivateChatMessage<R>,
+    message: ChatMessage<R>,
     onAddReaction: (ReactionEnum) -> Unit,
     onRemoveReaction: (R) -> Unit,
     modifier: Modifier = Modifier,

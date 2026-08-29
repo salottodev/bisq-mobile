@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
+import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
@@ -19,7 +19,7 @@ import network.bisq.mobile.presentation.common.ui.utils.EMPTY_STRING
 fun ChatInputBottomBar(
     onMessageSend: (String) -> Unit,
     modifier: Modifier = Modifier,
-    quotedMessage: PrivateChatMessage<*>? = null,
+    quotedMessage: ChatMessage<*>? = null,
     placeholder: String = EMPTY_STRING,
     resetScroll: () -> Unit = {},
     onCloseReply: () -> Unit = {},

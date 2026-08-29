@@ -7,7 +7,7 @@ import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
  * `bisq.chat.reactions.ChatMessageReaction` field for field.
  *
  * Not every member is read polymorphically today — shared code groups and renders by [reactionId],
- * and [network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage.isMyChatReaction] compares
+ * and [network.bisq.mobile.data.replicated.chat.ChatMessage.isMyChatReaction] compares
  * [userProfileId] — but the hierarchy is kept faithful so a mobile type can be read next to its
  * Bisq 2 counterpart without translating it.
  */

@@ -22,9 +22,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
+import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.Citation
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
-import network.bisq.mobile.data.replicated.chat.priv.PrivateChatMessage
+import network.bisq.mobile.data.replicated.chat.priv.messageDeliveryStatusOrNull
 import network.bisq.mobile.data.replicated.chat.reactions.BisqEasyOpenTradeMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ChatMessageReaction
 import network.bisq.mobile.data.replicated.chat.reactions.ReactionEnum
@@ -43,7 +44,7 @@ fun <R : ChatMessageReaction> ChatTextMessageBox(
     isIgnored: Boolean,
     onAddReaction: (ReactionEnum) -> Unit,
     onRemoveReaction: (R) -> Unit,
-    message: PrivateChatMessage<R>,
+    message: ChatMessage<R>,
     userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage,
     onResendMessage: (String) -> Unit,
     userNameProvider: suspend (String) -> String,
@@ -79,7 +80,7 @@ fun <R : ChatMessageReaction> ChatTextMessageBox(
             message = message,
             onResendMessage = onResendMessage,
             userNameProvider = userNameProvider,
-            messageDeliveryInfoByPeersProfileId = message.messageDeliveryStatus,
+            messageDeliveryInfoByPeersProfileId = message.messageDeliveryStatusOrNull,
             onPeerProfileClick = onPeerProfileClick,
             onLongClick = { showMenu = true },
         )
@@ -217,7 +218,7 @@ private fun ChatTextMessageBox_PeerMessagePreview() {
 
 /**
  * [ReactionDisplay] reads only the reaction id and its sender — it groups by the resolved
- * [ReactionEnum] and asks [PrivateChatMessage.isMyChatReaction] who reacted. The rest is filled with
+ * [ReactionEnum] and asks [ChatMessage.isMyChatReaction] who reacted. The rest is filled with
  * plausible values so the object stays a faithful one.
  */
 @ExcludeFromCoverage
