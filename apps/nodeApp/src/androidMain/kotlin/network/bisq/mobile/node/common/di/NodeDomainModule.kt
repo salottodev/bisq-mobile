@@ -12,6 +12,7 @@ import network.bisq.mobile.data.service.alert.TradeRestrictingAlertServiceFacade
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.data.service.bootstrap.ApplicationLifecycleService
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatServiceFacade
+import network.bisq.mobile.data.service.chat.public_chat.PublicChatServiceFacade
 import network.bisq.mobile.data.service.chat.trade.TradeChatMessagesServiceFacade
 import network.bisq.mobile.data.service.common.LanguageServiceFacade
 import network.bisq.mobile.data.service.config.ConfigServiceFacade
@@ -46,6 +47,7 @@ import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesServic
 import network.bisq.mobile.domain.service.capabilities.DefaultBackendCapabilitiesService
 import network.bisq.mobile.domain.service.community.CommunityHubService
 import network.bisq.mobile.domain.service.community.CommunitySegment
+import network.bisq.mobile.domain.service.community.CommunityUnreadCountAggregator
 import network.bisq.mobile.domain.utils.AndroidDeviceInfoProvider
 import network.bisq.mobile.domain.utils.DeviceInfoProvider
 import network.bisq.mobile.domain.utils.VersionProvider
@@ -59,6 +61,7 @@ import network.bisq.mobile.node.common.domain.service.alert.NodeTradeRestricting
 import network.bisq.mobile.node.common.domain.service.bootstrap.NodeApplicationBootstrapFacade
 import network.bisq.mobile.node.common.domain.service.cat_hash.AndroidNodeCatHashService
 import network.bisq.mobile.node.common.domain.service.chat.private_chat.NodePrivateChatServiceFacade
+import network.bisq.mobile.node.common.domain.service.chat.public_chat.NodePublicChatServiceFacade
 import network.bisq.mobile.node.common.domain.service.chat.trade.NodeTradeChatMessagesServiceFacade
 import network.bisq.mobile.node.common.domain.service.common.NodeLanguageServiceFacade
 import network.bisq.mobile.node.common.domain.service.config.NodeConfigServiceFacade
@@ -191,6 +194,10 @@ val androidNodeDomainModule =
         }
 
         single<PrivateChatServiceFacade> { NodePrivateChatServiceFacade(get()) }
+        single<PublicChatServiceFacade> { NodePublicChatServiceFacade(get()) }
+        // A `single` is lazy, so NodeApplicationLifecycleService starts it explicitly — without
+        // that it would never exist and the hub badge would have no producer.
+        single { CommunityUnreadCountAggregator(get(), get()) }
 
         single<MediationServiceFacade> { NodeMediationServiceFacade(get()) }
 
@@ -240,7 +247,9 @@ val androidNodeDomainModule =
                 get(),
                 get(),
                 get(), // privateChatServiceFacade
+                get(), // publicChatServiceFacade
                 get(), // privateChatNotificationService
+                get(), // communityUnreadCountAggregator
                 get(),
                 get(),
                 get(),

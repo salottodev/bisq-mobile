@@ -20,6 +20,7 @@ import network.bisq.mobile.presentation.common.test_utils.OfferTestFactory
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.community.CommunityHubPresenter
 import network.bisq.mobile.presentation.community.contacts.ContactsPresenter
+import network.bisq.mobile.presentation.community.public_chat.PublicChatPresenter
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.presentation.offer.create_offer.CreateOfferCoordinator
 import network.bisq.mobile.presentation.offer.create_offer.amount.CreateOfferAmountPresenter
@@ -117,6 +118,7 @@ class ScreenAnalyticsCoverageTest : PlatformPresentationKoinTestBase() {
             // Tier C — community
             "CommunityHubPresenter" to AnalyticsEvent.ScreenOpened.CommunityHub,
             "ContactsPresenter" to AnalyticsEvent.ScreenOpened.CommunityContacts,
+            "PublicChatPresenter" to AnalyticsEvent.ScreenOpened.CommunityDiscussions,
         )
 
     // ============== Contract test ====================================
@@ -268,6 +270,18 @@ class ScreenAnalyticsCoverageTest : PlatformPresentationKoinTestBase() {
                 userProfileServiceFacade = mockk(relaxed = true),
             )
         assertEmitsOnAttach(presenter, AnalyticsEvent.ScreenOpened.CommunityContacts)
+    }
+
+    @Test
+    fun `PublicChatPresenter emits ScreenOpened_CommunityDiscussions`() {
+        val presenter =
+            PublicChatPresenter(
+                mainPresenter = mainPresenter,
+                publicChatServiceFacade = mockk(relaxed = true),
+                userProfileServiceFacade = mockk(relaxed = true),
+                settingsRepository = SettingsRepositoryMock(),
+            )
+        assertEmitsOnAttach(presenter, AnalyticsEvent.ScreenOpened.CommunityDiscussions)
     }
 
     @Test

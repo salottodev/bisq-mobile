@@ -55,6 +55,28 @@ class CommonPublicChatChannelTest {
     }
 
     @Test
+    fun `removeChatMessage drops exactly that message`() {
+        val channel = createChannel()
+        channel.addChatMessage(createMessage("message-1"))
+        channel.addChatMessage(createMessage("message-2"))
+
+        channel.removeChatMessage("message-1")
+
+        assertEquals(setOf("message-2"), channel.ids())
+    }
+
+    @Test
+    fun `removeChatMessage with an unknown id leaves the set untouched`() {
+        val channel = createChannel()
+        val message = createMessage("message-1")
+        channel.addChatMessage(message)
+
+        channel.removeChatMessage("message-unknown")
+
+        assertSame(message, channel.chatMessages.value.single())
+    }
+
+    @Test
     fun `unread count starts at zero and follows the setter`() {
         val channel = createChannel()
 

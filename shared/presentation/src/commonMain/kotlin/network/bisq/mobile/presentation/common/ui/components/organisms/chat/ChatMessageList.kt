@@ -74,6 +74,12 @@ fun <M : ChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
     onDontShowAgainChatRulesWarningBox: () -> Unit = {},
     onUpdateReadCount: (Int) -> Unit = {},
     /**
+     * Null keeps Edit and Delete out of the context menu; only a public channel has them. See
+     * [network.bisq.mobile.presentation.common.ui.components.molecules.chat.ChatMessageContextMenu].
+     */
+    onEditMessage: ((M) -> Unit)? = null,
+    onDeleteMessage: ((M) -> Unit)? = null,
+    /**
      * Renders a [ChatMessageTypeEnum.LEAVE] message. Required rather than defaulted to the trade
      * wording: this component is generic now, and a default would let a non-trade caller compile
      * while rendering "has left the trade" — wrong copy that only surfaces on a rare event.
@@ -236,6 +242,8 @@ fun <M : ChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
                                         reaction,
                                     )
                                 },
+                                onEditMessage = onEditMessage?.let { edit -> { edit(message) } },
+                                onDeleteMessage = onDeleteMessage?.let { delete -> { delete(message) } },
                                 onReply = { onReply(message) },
                                 onCopy = { onCopy(message) },
                                 onIgnoreUser = { onIgnoreUser(message.senderUserProfileId) },

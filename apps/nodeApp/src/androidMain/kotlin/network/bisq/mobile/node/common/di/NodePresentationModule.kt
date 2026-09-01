@@ -22,6 +22,7 @@ import network.bisq.mobile.presentation.common.ui.components.molecules.ITopBarPr
 import network.bisq.mobile.presentation.common.ui.components.molecules.TopBarPresenter
 import network.bisq.mobile.presentation.community.CommunityHubPresenter
 import network.bisq.mobile.presentation.community.contacts.ContactsPresenter
+import network.bisq.mobile.presentation.community.public_chat.PublicChatPresenter
 import network.bisq.mobile.presentation.main.AppPresenter
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.presentation.offerbook.OfferbookPresenter
@@ -79,6 +80,7 @@ val androidNodePresentationModule =
         factory<FaqPresenter> { FaqNodePresenter(get()) }
         factory { CommunityHubPresenter(get(), get()) }
         factory { ContactsPresenter(get(), get(), get()) }
+        factory { PublicChatPresenter(get(), get(), get(), get()) }
 
         factory { NodeNetworkOverviewPresenter(get(), get(), get()) }
 

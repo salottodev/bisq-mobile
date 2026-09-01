@@ -27,6 +27,7 @@ import network.bisq.mobile.client.common.domain.service.alert.TradeRestrictingAl
 import network.bisq.mobile.client.common.domain.service.bootstrap.ClientApplicationBootstrapFacade
 import network.bisq.mobile.client.common.domain.service.chat.private_chat.ClientPrivateChatServiceFacade
 import network.bisq.mobile.client.common.domain.service.chat.private_chat.PrivateChatApiGateway
+import network.bisq.mobile.client.common.domain.service.chat.public_chat.ClientPublicChatServiceFacade
 import network.bisq.mobile.client.common.domain.service.chat.trade.ClientTradeChatMessagesServiceFacade
 import network.bisq.mobile.client.common.domain.service.chat.trade.TradeChatMessagesApiGateway
 import network.bisq.mobile.client.common.domain.service.common.ClientLanguageServiceFacade
@@ -95,6 +96,7 @@ import network.bisq.mobile.data.service.alert.AlertNotificationsServiceFacade
 import network.bisq.mobile.data.service.alert.TradeRestrictingAlertServiceFacade
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.data.service.chat.private_chat.PrivateChatServiceFacade
+import network.bisq.mobile.data.service.chat.public_chat.PublicChatServiceFacade
 import network.bisq.mobile.data.service.chat.trade.TradeChatMessagesServiceFacade
 import network.bisq.mobile.data.service.common.LanguageServiceFacade
 import network.bisq.mobile.data.service.config.ConfigServiceFacade
@@ -490,6 +492,9 @@ val clientDomainModule =
         }
 
         single<ContactsServiceFacade> { ClientContactsServiceFacade() }
+        // No CommunityUnreadCountAggregator here, unlike the node: its facade is a dormant stub,
+        // so there is no count to aggregate until the client half of #1744 lands.
+        single<PublicChatServiceFacade> { ClientPublicChatServiceFacade() }
 
         single<KmpTorService> {
             // ClientApp doesn't have Bisq2's Tor library to enable network via control port,

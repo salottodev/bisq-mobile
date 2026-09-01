@@ -61,7 +61,8 @@ class CommunityHubService(
      * aggregate number is ambiguous about WHICH source needs attention — accepted by design;
      * the hub's per-segment tab counts and per-conversation rows resolve it one tap in
      * (the convention mainstream messengers use for their outermost badge).
-     * TODO feed from the Discussions unread source once it exists.
+     *
+     * Fed by [CommunityUnreadCountAggregator], which is the single writer.
      */
     val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
 

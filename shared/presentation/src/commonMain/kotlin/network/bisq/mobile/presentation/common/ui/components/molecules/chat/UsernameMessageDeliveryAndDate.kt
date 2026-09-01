@@ -24,6 +24,7 @@ import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.network.confidential.ack.MessageDeliveryInfoVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.rememberDebouncedClick
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
@@ -91,11 +92,25 @@ fun UsernameMessageDeliveryAndDate(
                 )
             }
 
+            // bisq2 models an edit as a removal plus a message that keeps the ORIGINAL date, so
+            // without this marker an edit silently rewrites history in place. Always false on the
+            // private branch, which has no edit at all.
+            val editedMarker = @Composable {
+                if (message.wasEdited) {
+                    Spacer(Modifier.width(BisqUIConstants.ScreenPaddingHalfQuarter))
+                    BisqText.XSmallLightGrey(text = "chat.message.wasEdited".i18n())
+                }
+            }
+
             if (message.isMyMessage) {
                 Spacer(Modifier.weight(1f))
+                editedMarker()
                 date()
+                // Outside the delivery branch, which is where it used to live: a public message has
+                // no delivery box, so the box and the only gap between date and username disappeared
+                // together and the two ran into each other. Private chat spaces out the same as before.
+                Spacer(Modifier.width(BisqUIConstants.ScreenPaddingHalfQuarter))
                 if (messageDeliveryInfoByPeersProfileId != null) {
-                    Spacer(Modifier.width(BisqUIConstants.ScreenPaddingHalfQuarter))
                     MessageDeliveryBox(
                         onResendMessage = onResendMessage,
                         userNameProvider = userNameProvider,
@@ -111,6 +126,7 @@ fun UsernameMessageDeliveryAndDate(
                 username()
                 Spacer(Modifier.width(BisqUIConstants.ScreenPaddingHalfQuarter))
                 date()
+                editedMarker()
             }
         }
     }

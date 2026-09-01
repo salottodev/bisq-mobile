@@ -28,6 +28,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqTextFieldV0
 import network.bisq.mobile.presentation.common.ui.components.atoms.button.BisqIconButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.button.CloseIconButton
+import network.bisq.mobile.presentation.common.ui.components.atoms.icons.SaveIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.SendIcon
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
@@ -45,15 +46,25 @@ fun ChatInputField(
     resetScroll: () -> Unit = {},
     onCloseReply: () -> Unit = {},
     sendEnabled: Boolean = true,
+    editingMessageId: String? = null,
+    editingInitialText: String = "",
+    onCancelEdit: () -> Unit = {},
 ) {
     val focusRequester = remember { FocusRequester() }
-    var text by remember { mutableStateOf("") }
+    val isEditing = editingMessageId != null
+    // Re-keyed on the edited message, so entering, switching and leaving an edit all reload the
+    // composer. Known trade-off, matching desktop: an unsent draft is lost on entering an edit.
+    var text by remember(editingMessageId) { mutableStateOf(editingInitialText) }
     val validationMessage =
         if (text.length > MAX_CHAT_INPUT_LENGTH) "mobile.tradeChat.chatInput.maxLength".i18n(MAX_CHAT_INPUT_LENGTH) else null
     val isTextValid = validationMessage == null
 
     Column(modifier = modifier) {
-        if (quotedMessage != null) {
+        // Mutually exclusive: bisq2 keeps the original's citation on an edit, so the quote banner has
+        // nothing to offer while editing.
+        if (isEditing) {
+            EditingMessageBanner(onCancelEdit)
+        } else if (quotedMessage != null) {
             QuotedMessage(quotedMessage, onCloseReply)
         }
         BisqTextFieldV0(
@@ -67,12 +78,19 @@ fun ChatInputField(
                         if (text.isNotBlank() && isTextValid) {
                             onMessageSend(text)
                             resetScroll()
-                            text = ""
+                            // Cleared for a send only. A save can be refused — a rate limit, a removal
+                            // the local store rejects — and the presenter then keeps the edit open, so
+                            // clearing here would strand the banner over an empty field with Save
+                            // disabled and the user's text gone. On success clearEditing() re-keys the
+                            // remember below, which empties the field anyway.
+                            if (!isEditing) {
+                                text = ""
+                            }
                         }
                     },
                     disabled = text.isBlank() || !isTextValid || !sendEnabled,
                 ) {
-                    SendIcon()
+                    if (isEditing) SaveIcon() else SendIcon()
                 }
             },
             minLines = 1,
@@ -80,6 +98,36 @@ fun ChatInputField(
             isError = !isTextValid,
             bottomMessage = validationMessage,
         )
+    }
+}
+
+/**
+ * Editing reuses the composer rather than a dialog or an in-bubble field: the composer already owns
+ * the character cap and its inline validation, the multiline growth and the blank-send disabling.
+ */
+@Composable
+private fun EditingMessageBanner(onCancelEdit: () -> Unit) {
+    Box(
+        modifier =
+            Modifier
+                .padding(top = BisqUIConstants.ScreenPaddingHalf)
+                .clip(
+                    shape =
+                        RoundedCornerShape(
+                            topStart = BisqUIConstants.ScreenPaddingHalf,
+                            topEnd = BisqUIConstants.ScreenPaddingHalf,
+                        ),
+                ).background(BisqTheme.colors.dark_grey10)
+                .fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(BisqUIConstants.ScreenPadding),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BisqText.BaseRegular("action.edit".i18n(), color = BisqTheme.colors.light_grey10)
+            CloseIconButton(onClick = onCancelEdit)
+        }
     }
 }
 

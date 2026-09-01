@@ -56,6 +56,9 @@ fun <R : ChatMessageReaction> ChatTextMessageBox(
     onIgnoreUser: () -> Unit = {},
     onUndoIgnoreUser: () -> Unit = {},
     onReportUser: () -> Unit = {},
+    /** Null keeps the item out of the menu entirely; see [ChatMessageContextMenu]. */
+    onEditMessage: (() -> Unit)? = null,
+    onDeleteMessage: (() -> Unit)? = null,
 ) {
     val isMyMessage = message.isMyMessage
     val chatAlign = if (isMyMessage) Alignment.End else Alignment.Start
@@ -154,6 +157,8 @@ fun <R : ChatMessageReaction> ChatTextMessageBox(
             onUndoIgnoreUser = onUndoIgnoreUser,
             onReportUser = onReportUser,
             isIgnored = isIgnored,
+            onEditMessage = onEditMessage,
+            onDeleteMessage = onDeleteMessage,
         )
     }
 }
