@@ -61,8 +61,11 @@ class CommunityUnreadCountAggregator(
                 ) { liveSegments, unreadCount ->
                     if (CommunitySegment.DISCUSSIONS in liveSegments) unreadCount else 0L
                 }.collect { unreadCount ->
-                    // The channel counts are Longs and the badge is an Int; an unchecked toInt() wraps negative.
-                    communityHubService.setUnreadCount(unreadCount.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+                    // The channel counts are Longs and the badge is an Int, and an unchecked toInt()
+                    // wraps in both directions: a large positive to a negative, and a large negative
+                    // back to a positive that the hub's own coerceAtLeast(0) then lets through as a
+                    // false maximum. Hence a two-sided clamp rather than a ceiling.
+                    communityHubService.setUnreadCount(unreadCount.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt())
                 }
             }
     }

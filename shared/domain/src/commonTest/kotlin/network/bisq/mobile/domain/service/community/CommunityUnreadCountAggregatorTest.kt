@@ -88,6 +88,22 @@ class CommunityUnreadCountAggregatorTest {
         }
 
     /**
+     * The other direction, which the hub's own `coerceAtLeast(0)` cannot catch: a Long that far
+     * below the Int range narrows back to a *positive* Int, so it arrives already past that clamp
+     * and badges a false maximum.
+     */
+    @Test
+    fun `a count below the Int range clamps instead of wrapping`() =
+        runTest {
+            val discussion = channel(ChatChannelDomainEnum.DISCUSSION)
+            val hub = startAggregator(listOf(discussion))
+
+            discussion.setUnreadCount(Int.MIN_VALUE.toLong() - 1)
+
+            assertEquals(0, hub.unreadCount.value)
+        }
+
+    /**
      * `activateServiceFacades()` is not a once-per-process call — a Tor bootstrap retry deactivates
      * and activates the same singleton — so a second `start()` must not add a second collector.
      */
