@@ -268,15 +268,10 @@ fun <M : ChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
 
         JumpToBottomFloatingButton(
             visible = jumpToBottomVisible,
-            onClick = {
-                scope.launch {
-                    if (scrollState.firstVisibleItemIndex == unreadMarkerIndex) {
-                        scrollState.animateScrollToItem(0)
-                    } else {
-                        scrollState.animateScrollToItem(unreadMarkerIndex)
-                    }
-                }
-            },
+            // Index 0 is the newest message, which is the button's only destination: it carries a
+            // down arrow and the unread badge. Landing there reports everything read, so the badge
+            // clears and the button hides itself.
+            onClick = { scope.launch { scrollState.animateScrollToItem(0) } },
             jumpOffset = 12,
             badgeCount = unreadCount,
             modifier = Modifier.align(Alignment.BottomEnd),
