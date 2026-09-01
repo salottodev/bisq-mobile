@@ -201,7 +201,7 @@ class NodePublicChatServiceFacade(
                     .publishChatMessage(text, bisq2Citation, channel, sender)
                     .whenComplete(logIfFailed("Publishing a public chat message"))
                 Unit
-            }
+            }.onFailure { currentCoroutineContext().ensureActive() }
         }
 
     override suspend fun editChatMessage(
@@ -264,7 +264,7 @@ class NodePublicChatServiceFacade(
                         .whenComplete(logIfFailed("Publishing a public chat reaction"))
                 }
                 Unit
-            }
+            }.onFailure { currentCoroutineContext().ensureActive() }
         }
 
     override suspend fun removeChatMessageReaction(
