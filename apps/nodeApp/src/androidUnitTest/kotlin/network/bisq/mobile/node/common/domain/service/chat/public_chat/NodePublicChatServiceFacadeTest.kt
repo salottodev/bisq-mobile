@@ -157,10 +157,11 @@ class NodePublicChatServiceFacadeTest : NodeKoinIntegrationTestBase() {
      * A node upgraded from before v2.1.1 still holds the consolidated channel in its store. Its
      * `getId()` answers the migrated id and its equality is that id, so the store already holds one
      * channel per domain — filtering deprecated sub-domains would drop the only Discussions channel
-     * such a node has. The surviving instance decides only the title.
+     * such a node has. The title follows that migrated id rather than the raw field the surviving
+     * instance carries, which is what keeps the i18n key resolvable.
      */
     @Test
-    fun `a legacy discussion channel is exposed under its migrated id and keeps its own title`() =
+    fun `a legacy discussion channel is exposed under its migrated id and title`() =
         runTest {
             discussionChannels.add(channel(SubDomain.DISCUSSION_BITCOIN))
 
@@ -168,7 +169,24 @@ class NodePublicChatServiceFacadeTest : NodeKoinIntegrationTestBase() {
 
             val model = facade.channels.value.single { it.chatChannelDomain == ChatChannelDomainEnum.DISCUSSION }
             assertEquals("discussion.bisq", model.id)
-            assertEquals("bitcoin", model.channelTitle)
+            assertEquals("bisq", model.channelTitle)
+        }
+
+    /**
+     * The case a raw title cannot survive: `EVENTS` migrates to `DISCUSSION` while `getChannelTitle()`
+     * stays `conferences`, and `discussion.conferences.title` is in no bundle — the strings for that
+     * channel are filed under `events.`. Deriving from the migrated id sidesteps the pairing.
+     */
+    @Test
+    fun `a legacy events channel is exposed as the discussion channel`() =
+        runTest {
+            discussionChannels.add(channel(SubDomain.EVENTS_CONFERENCES))
+
+            facade.activate()
+
+            val model = facade.channels.value.single { it.chatChannelDomain == ChatChannelDomainEnum.DISCUSSION }
+            assertEquals("discussion.bisq", model.id)
+            assertEquals("bisq", model.channelTitle)
         }
 
     @Test
