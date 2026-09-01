@@ -118,20 +118,6 @@ fun CloseIcon(
 
 @ExcludeFromCoverage
 @Composable
-fun SaveIcon(
-    modifier: Modifier = Modifier.size(24.dp),
-    color: Color = Color.White,
-) {
-    Icon(
-        Icons.Filled.Check,
-        "save",
-        modifier = modifier,
-        tint = color,
-    )
-}
-
-@ExcludeFromCoverage
-@Composable
 fun CheckIcon(
     modifier: Modifier = Modifier.size(24.dp),
     color: Color = Color.White,
