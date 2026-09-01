@@ -1,12 +1,17 @@
 package network.bisq.mobile.presentation.common.ui.components.molecules.chat
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.text.TextRange
 import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.common.createMockCommonPublicChatMessage
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
@@ -31,6 +36,35 @@ class ChatInputFieldUiTest : BisqComposeUiTestBase() {
         composeTestRule.onNodeWithText("the original text").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Save icon").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Send icon").assertDoesNotExist()
+    }
+
+    /**
+     * Editing is a command to type, so the composer takes the focus — which opens the keyboard —
+     * instead of waiting for a tap on a field that is already full of text.
+     */
+    @Test
+    fun `entering an edit focuses the composer`() {
+        setTestContent { InputField(editingMessageId = "msg-1", editingInitialText = "the original text") }
+
+        composeTestRule.onNodeWithText("the original text").assertIsFocused()
+    }
+
+    /**
+     * The cursor lands after the text, not in front of it: an edit is almost always a correction at
+     * the end, and `BasicTextField`'s `String` overload starts its selection at zero.
+     */
+    @Test
+    fun `entering an edit puts the cursor at the end of the text`() {
+        setTestContent { InputField(editingMessageId = "msg-1", editingInitialText = "the original text") }
+
+        composeTestRule
+            .onNodeWithText("the original text")
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.TextSelectionRange,
+                    TextRange("the original text".length),
+                ),
+            )
     }
 
     @Test

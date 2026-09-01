@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.two_party.createMockTwoPartyPrivateChatMessage
@@ -54,7 +57,19 @@ fun ChatInputField(
     val isEditing = editingMessageId != null
     // Re-keyed on the edited message, so entering, switching and leaving an edit all reload the
     // composer. Known trade-off, matching desktop: an unsent draft is lost on entering an edit.
-    var text by remember(editingMessageId) { mutableStateOf(editingInitialText) }
+    // The value carries its selection because an edit opens with the cursor after the text, and the
+    // plain-string field has no say over where the cursor goes: it always starts at zero.
+    var textFieldValue by remember(editingMessageId) {
+        mutableStateOf(TextFieldValue(editingInitialText, TextRange(editingInitialText.length)))
+    }
+    val text = textFieldValue.text
+    // Entering an edit is a command to type, so the composer takes the focus — which opens the
+    // keyboard — rather than waiting for a tap on a field that is already full of text.
+    LaunchedEffect(editingMessageId) {
+        if (isEditing) {
+            focusRequester.requestFocus()
+        }
+    }
     val validationMessage =
         if (text.length > MAX_CHAT_INPUT_LENGTH) "mobile.tradeChat.chatInput.maxLength".i18n(MAX_CHAT_INPUT_LENGTH) else null
     val isTextValid = validationMessage == null
@@ -68,8 +83,8 @@ fun ChatInputField(
             QuotedMessage(quotedMessage, onCloseReply)
         }
         BisqTextFieldV0(
-            value = text,
-            onValueChange = { text = it },
+            value = textFieldValue,
+            onValueChange = { textFieldValue = it },
             modifier = Modifier.focusRequester(focusRequester),
             placeholder = placeholder,
             trailingIcon = {
@@ -84,7 +99,7 @@ fun ChatInputField(
                             // disabled and the user's text gone. On success clearEditing() re-keys the
                             // remember below, which empties the field anyway.
                             if (!isEditing) {
-                                text = ""
+                                textFieldValue = TextFieldValue()
                             }
                         }
                     },

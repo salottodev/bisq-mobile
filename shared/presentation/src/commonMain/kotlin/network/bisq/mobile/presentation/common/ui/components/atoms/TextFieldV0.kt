@@ -30,6 +30,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
@@ -100,6 +101,133 @@ fun BisqTextFieldV0(
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier =
+            modifier
+                .onFocusChanged { focusState ->
+                    isFocused = focusState.isFocused
+                },
+        enabled = enabled,
+        readOnly = readOnly,
+        textStyle = textStyle,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        singleLine = singleLine,
+        maxLines = maxLines,
+        minLines = minLines,
+        visualTransformation = visualTransformation,
+        interactionSource = interactionSource,
+        cursorBrush = SolidColor(BisqTheme.colors.primary),
+    ) { innerTextField ->
+        BisqTextFieldDecoration(
+            isEmpty = value.isEmpty(),
+            isFocused = isFocused,
+            enabled = enabled,
+            colors = colors,
+            label = label,
+            placeholder = placeholder,
+            leadingIcon = leadingIcon,
+            trailingIcon = trailingIcon,
+            prefix = prefix,
+            suffix = suffix,
+            isError = isError,
+            bottomMessage = bottomMessage,
+            innerTextField = innerTextField,
+        )
+    }
+}
+
+/**
+ * The same field, with the caller owning the selection as well as the text — which is what it takes
+ * to put the cursor anywhere but the start, since the `String` overload above keeps its selection to
+ * itself and starts it at zero. [value] and [onValueChange] carry no defaults, so a call that omits
+ * them still resolves to that overload instead of turning ambiguous.
+ */
+@Composable
+fun BisqTextFieldV0(
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    readOnly: Boolean = false,
+    color: Color = BisqTheme.colors.light_grey20,
+    colors: BisqTextFieldColors = BisqTextFieldColors.default(),
+    textStyle: TextStyle =
+        BisqTheme.typography.largeRegular.copy(color = color, textDecoration = TextDecoration.None),
+    label: String? = null,
+    placeholder: String? = null,
+    leadingIcon: @Composable (() -> Unit)? = null,
+    trailingIcon: @Composable (() -> Unit)? = null,
+    prefix: @Composable (() -> Unit)? = null,
+    suffix: @Composable (() -> Unit)? = null,
+    isError: Boolean = false,
+    bottomMessage: String? = null,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    singleLine: Boolean = false,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
+    minLines: Int = 1,
+    interactionSource: MutableInteractionSource? = null,
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier =
+            modifier
+                .onFocusChanged { focusState ->
+                    isFocused = focusState.isFocused
+                },
+        enabled = enabled,
+        readOnly = readOnly,
+        textStyle = textStyle,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        singleLine = singleLine,
+        maxLines = maxLines,
+        minLines = minLines,
+        visualTransformation = visualTransformation,
+        interactionSource = interactionSource,
+        cursorBrush = SolidColor(BisqTheme.colors.primary),
+    ) { innerTextField ->
+        BisqTextFieldDecoration(
+            isEmpty = value.text.isEmpty(),
+            isFocused = isFocused,
+            enabled = enabled,
+            colors = colors,
+            label = label,
+            placeholder = placeholder,
+            leadingIcon = leadingIcon,
+            trailingIcon = trailingIcon,
+            prefix = prefix,
+            suffix = suffix,
+            isError = isError,
+            bottomMessage = bottomMessage,
+            innerTextField = innerTextField,
+        )
+    }
+}
+
+@Composable
+private fun BisqTextFieldDecoration(
+    isEmpty: Boolean,
+    isFocused: Boolean,
+    enabled: Boolean,
+    colors: BisqTextFieldColors,
+    label: String?,
+    placeholder: String?,
+    leadingIcon: @Composable (() -> Unit)?,
+    trailingIcon: @Composable (() -> Unit)?,
+    prefix: @Composable (() -> Unit)?,
+    suffix: @Composable (() -> Unit)?,
+    isError: Boolean,
+    bottomMessage: String?,
+    innerTextField: @Composable () -> Unit,
+) {
     val resolvedBackgroundColor =
         when {
             !enabled -> colors.disabledBackgroundColor
@@ -126,108 +254,87 @@ fun BisqTextFieldV0(
             else -> BisqTheme.colors.white
         }
 
-    BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier =
-            modifier
-                .onFocusChanged { focusState ->
-                    isFocused = focusState.isFocused
-                },
-        enabled = enabled,
-        readOnly = readOnly,
-        textStyle = textStyle,
-        keyboardOptions = keyboardOptions,
-        keyboardActions = keyboardActions,
-        singleLine = singleLine,
-        maxLines = maxLines,
-        minLines = minLines,
-        visualTransformation = visualTransformation,
-        interactionSource = interactionSource,
-        cursorBrush = SolidColor(BisqTheme.colors.primary),
-    ) { innerTextField ->
-        Column {
-            if (!label.isNullOrBlank()) {
-                BisqText.BaseLight(
-                    color = labelColor,
-                    text = label,
-                    modifier = Modifier.padding(4.dp),
-                )
-            }
+    Column {
+        if (!label.isNullOrBlank()) {
+            BisqText.BaseLight(
+                color = labelColor,
+                text = label,
+                modifier = Modifier.padding(4.dp),
+            )
+        }
 
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = BisqUIConstants.BorderRadius,
-                                topEnd = BisqUIConstants.BorderRadius,
-                            ),
-                        ).background(resolvedBackgroundColor)
-                        .drawBehind {
-                            val strokeWidth = 4.dp.toPx()
-                            val y = size.height
-                            drawLine(
-                                color = indicatorColor,
-                                start = Offset(0f, y),
-                                end = Offset(size.width, y),
-                                strokeWidth = strokeWidth,
-                            )
-                        }.padding(12.dp),
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = BisqUIConstants.BorderRadius,
+                            topEnd = BisqUIConstants.BorderRadius,
+                        ),
+                    ).background(resolvedBackgroundColor)
+                    .drawBehind {
+                        val strokeWidth = 4.dp.toPx()
+                        val y = size.height
+                        drawLine(
+                            color = indicatorColor,
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = strokeWidth,
+                        )
+                    }.padding(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                leadingIcon?.let { icon ->
+                    icon()
+                }
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    leadingIcon?.let { icon ->
-                        icon()
+                    prefix?.let { prefixContent ->
+                        prefixContent()
                     }
 
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    Box(
+                        modifier =
+                            Modifier
+                                .weight(1f),
+                        propagateMinConstraints = true,
                     ) {
-                        prefix?.let { prefixContent ->
-                            prefixContent()
+                        if (isEmpty && placeholder != null) {
+                            BisqText.LargeLightGrey(placeholder)
                         }
-
-                        Box(
-                            modifier =
-                                Modifier
-                                    .weight(1f),
-                            propagateMinConstraints = true,
-                        ) {
-                            if (value.isEmpty() && placeholder != null) {
-                                BisqText.LargeLightGrey(placeholder)
-                            }
-                            innerTextField()
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        suffix?.let { suffixContent ->
-                            suffixContent()
-                        }
+                        innerTextField()
                     }
 
-                    trailingIcon?.let { icon ->
-                        icon()
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    suffix?.let { suffixContent ->
+                        suffixContent()
                     }
                 }
-            }
 
-            if (!bottomMessage.isNullOrBlank()) {
-                BisqText.SmallLight(
-                    text = bottomMessage,
-                    color = bottomMessageColor,
-                    modifier =
-                        Modifier
-                            .padding(4.dp),
-                )
+                trailingIcon?.let { icon ->
+                    icon()
+                }
             }
+        }
+
+        if (!bottomMessage.isNullOrBlank()) {
+            BisqText.SmallLight(
+                text = bottomMessage,
+                color = bottomMessageColor,
+                modifier =
+                    Modifier
+                        .padding(4.dp),
+            )
         }
     }
 }
