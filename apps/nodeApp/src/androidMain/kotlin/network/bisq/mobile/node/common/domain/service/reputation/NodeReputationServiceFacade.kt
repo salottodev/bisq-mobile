@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.ServiceFacade
 import network.bisq.mobile.data.service.reputation.ReputationServiceFacade
+import network.bisq.mobile.domain.utils.resultCatching
 import network.bisq.mobile.node.common.domain.mapping.Mappings
 import network.bisq.mobile.node.common.domain.service.AndroidApplicationService
 
@@ -48,40 +49,35 @@ class NodeReputationServiceFacade(
     }
 
     // API
+    // No profile id or profile age in any message below, same reasoning as
+    // NodePrivateChatServiceFacade.findOrCreateChannel: these are lookups of the peers this device
+    // viewed, the exception message becomes the Result.failure cause that BasePresenter.handleError
+    // logs verbatim, and device logs travel in bug reports. The caller already has the id it passed.
     override suspend fun getReputation(userProfileId: String): Result<ReputationScoreVO> =
         withContext(Dispatchers.Default) {
-            try {
+            resultCatching {
                 val score: ReputationScore = reputationService.getReputationScore(userProfileId)
-                val scoreVO = Mappings.ReputationScoreMapping.fromBisq2Model(score)
-                Result.success(scoreVO)
-            } catch (e: Exception) {
-                log.e(e) { "Failed to get reputation for userId=$userProfileId" }
-                Result.failure(e)
-            }
+                Mappings.ReputationScoreMapping.fromBisq2Model(score)
+            }.onFailure { e -> log.e(e) { "Failed to get reputation" } }
         }
 
     override suspend fun getProfileAge(userProfileId: String): Result<Long?> =
         withContext(Dispatchers.Default) {
-            try {
+            resultCatching {
                 val userService = applicationService.userService.get()
                 val userProfile = userService.userProfileService.findUserProfile(userProfileId)
-                if (userProfile.isPresent) {
-                    val profile = userProfile.get()
-                    val profileAge = reputationService.profileAgeService.getProfileAge(profile)
-
-                    if (profileAge.isPresent) {
-                        log.d { "Profile age from ProfileAgeService: ${profileAge.get()} for userId=$userProfileId" }
-                        Result.success(profileAge.get())
-                    } else {
-                        log.d { "No profile age data available from ProfileAgeService for userId=$userProfileId" }
-                        Result.success(null)
-                    }
-                } else {
-                    Result.failure(NoSuchElementException("UserProfile for userId=$userProfileId not found"))
+                if (!userProfile.isPresent) {
+                    throw NoSuchElementException("UserProfile not found")
                 }
-            } catch (e: Exception) {
-                log.e(e) { "Failed to get profile age for userId=$userProfileId" }
-                Result.failure(e)
-            }
+                val profileAge = reputationService.profileAgeService.getProfileAge(userProfile.get())
+
+                if (profileAge.isPresent) {
+                    log.d { "Profile age resolved from ProfileAgeService" }
+                    profileAge.get()
+                } else {
+                    log.d { "No profile age data available from ProfileAgeService" }
+                    null
+                }
+            }.onFailure { e -> log.e(e) { "Failed to get profile age" } }
         }
 }
