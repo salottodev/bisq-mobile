@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
@@ -13,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import bisqapps.shared.presentation.generated.resources.Res
 import bisqapps.shared.presentation.generated.resources.add_custom_green
@@ -65,6 +68,7 @@ import bisqapps.shared.presentation.generated.resources.leave_chat_green
 import bisqapps.shared.presentation.generated.resources.remove_offer
 import bisqapps.shared.presentation.generated.resources.up_arrow
 import network.bisq.mobile.data.utils.PlatformImage
+import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.common.ui.utils.LocalIsTest
 import org.jetbrains.compose.resources.DrawableResource
@@ -107,20 +111,6 @@ fun CloseIcon(
     Icon(
         Icons.Filled.Close,
         "close",
-        modifier = modifier,
-        tint = color,
-    )
-}
-
-@ExcludeFromCoverage
-@Composable
-fun SaveIcon(
-    modifier: Modifier = Modifier.size(24.dp),
-    color: Color = Color.White,
-) {
-    Icon(
-        Icons.Filled.Check,
-        "save",
         modifier = modifier,
         tint = color,
     )
@@ -346,6 +336,44 @@ fun ScanQrIcon(modifier: Modifier = Modifier) {
         resource = Res.drawable.icon_scan_qr,
         contentDescription = "Scan icon",
         modifier = modifier,
+    )
+}
+
+/**
+ * Vector rather than a drawable resource, unlike its neighbours: [EditIcon], [DeleteIcon] and
+ * [SaveIcon] arrived with public chat and material-icons-core is already on the classpath through
+ * material3, so three more PNGs would buy nothing.
+ */
+@ExcludeFromCoverage
+@Composable
+fun EditIcon(modifier: Modifier = Modifier.size(24.dp)) {
+    BisqVectorIcon(Icons.Default.Edit, "Edit icon", modifier)
+}
+
+@ExcludeFromCoverage
+@Composable
+fun DeleteIcon(modifier: Modifier = Modifier.size(24.dp)) {
+    BisqVectorIcon(Icons.Default.Delete, "Delete icon", modifier)
+}
+
+@ExcludeFromCoverage
+@Composable
+fun SaveIcon(modifier: Modifier = Modifier.size(24.dp)) {
+    BisqVectorIcon(Icons.Default.Check, "Save icon", modifier)
+}
+
+@ExcludeFromCoverage
+@Composable
+private fun BisqVectorIcon(
+    imageVector: ImageVector,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+) {
+    Icon(
+        imageVector = imageVector,
+        contentDescription = contentDescription,
+        modifier = modifier,
+        tint = BisqTheme.colors.white,
     )
 }
 

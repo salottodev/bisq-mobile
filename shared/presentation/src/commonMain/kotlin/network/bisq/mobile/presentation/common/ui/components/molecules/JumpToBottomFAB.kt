@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.presentation.common.ui.components.atoms.animations.AnimatedBadge
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ArrowDownIconDark
@@ -51,6 +52,7 @@ fun JumpToBottomFloatingButton(
         ) {
             SmallFloatingActionButton(
                 onClick = onClick,
+                modifier = Modifier.testTag("jump_to_bottom_button"),
                 shape = FloatingActionButtonDefaults.largeShape,
                 containerColor = BisqTheme.colors.light_grey10,
             ) {

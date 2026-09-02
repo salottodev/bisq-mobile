@@ -18,24 +18,22 @@ import network.bisq.mobile.domain.service.capabilities.Feature
  * Single source of truth for which Community hub segments are live, and for the hub's
  * aggregate unread count.
  *
- * `liveSegments = (shipped ∪ devForced) ∩ capabilities`:
- * - **shipped**: segments this app version implements ([SHIPPED_SEGMENTS]).
- * - **devForced**: developer override from `feature.communityHubDevSegments.client` / `.node`, defaulting
- *   empty in gradle.properties and set per developer in local.properties, so the gated UI
- *   can be exercised before its features ship. Release builds force it empty at the
- *   BuildConfig level, so it can never reach end users.
+ * `liveSegments = enabled ∩ capabilities`:
+ * - **enabled**: the rollout config from the `feature.communityHubSegments.client` / `.node`
+ *   build property. The value checked into gradle.properties is what a release ships — rolling
+ *   a segment out is a config edit, not a code edit — and local.properties overrides it per
+ *   developer, so the gated UI can be exercised before its features ship.
  * - **capabilities**: per-segment backend requirement ([REQUIRED_FEATURES]) checked against
  *   the trusted node's capability manifest, fail closed — the same gating the rest of the
  *   app uses via [BackendCapabilitiesService]. A segment with no entry has no backend
- *   dependency. The dev override does not bypass this filter. On the NODE app this filter
+ *   dependency. The rollout config does not bypass this filter. On the NODE app this filter
  *   passes by construction: requirements are typed [Feature] entries and the node's config
  *   facade reports the full Feature key set (it runs the core in-process), so node
- *   visibility depends only on shipped features and the dev override.
+ *   visibility depends only on the rollout config.
  */
 class CommunityHubService(
     backendCapabilitiesService: BackendCapabilitiesService,
-    private val shippedSegments: Set<CommunitySegment> = SHIPPED_SEGMENTS,
-    private val devForcedSegments: Set<CommunitySegment> = emptySet(),
+    private val enabledSegments: Set<CommunitySegment> = emptySet(),
     private val requiredFeatures: Map<CommunitySegment, Feature> = REQUIRED_FEATURES,
     dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
@@ -61,7 +59,8 @@ class CommunityHubService(
      * aggregate number is ambiguous about WHICH source needs attention — accepted by design;
      * the hub's per-segment tab counts and per-conversation rows resolve it one tap in
      * (the convention mainstream messengers use for their outermost badge).
-     * TODO feed from the Discussions unread source once it exists.
+     *
+     * Fed by [CommunityUnreadCountAggregator], which is the single writer.
      */
     val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
 
@@ -70,15 +69,12 @@ class CommunityHubService(
     }
 
     private fun computeLiveSegments(capabilities: BackendCapabilities): Set<CommunitySegment> =
-        (shippedSegments + devForcedSegments)
+        enabledSegments
             .filterTo(mutableSetOf()) { segment ->
                 requiredFeatures[segment]?.let { capabilities.isSupported(it) } ?: true
             }
 
     companion object {
-        /** Segments implemented in this app version. TODO add each segment as its wiring ships. */
-        val SHIPPED_SEGMENTS: Set<CommunitySegment> = emptySet()
-
         /**
          * Backend feature each segment requires from the trusted node; a segment without an
          * entry has no backend dependency. TODO register each segment's feature as it ships.
@@ -88,9 +84,9 @@ class CommunityHubService(
         /**
          * Parses a comma-separated list of [CommunitySegment] names, case-insensitively,
          * ignoring surrounding whitespace. Unknown names fail fast — this only ever parses
-         * a developer-supplied build property, identified by [propertyName] in the error.
+         * a build property, identified by [propertyName] in the error.
          */
-        fun parseDevForcedSegments(
+        fun parseSegments(
             raw: String,
             propertyName: String,
         ): Set<CommunitySegment> =

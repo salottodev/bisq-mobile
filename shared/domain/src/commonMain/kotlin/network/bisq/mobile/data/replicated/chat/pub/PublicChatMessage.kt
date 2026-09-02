@@ -24,6 +24,7 @@ abstract class PublicChatMessage<R : ChatMessageReaction>(
     myUserProfile: UserProfileVO,
     chatReactions: List<R>,
     wasEdited: Boolean,
+    isMyMessage: Boolean? = null,
 ) : ChatMessage<R>(
         id = id,
         chatMessageType = chatMessageType,
@@ -35,4 +36,5 @@ abstract class PublicChatMessage<R : ChatMessageReaction>(
         myUserProfile = myUserProfile,
         chatReactions = chatReactions,
         wasEdited = wasEdited,
+        isMyMessage = isMyMessage,
     )

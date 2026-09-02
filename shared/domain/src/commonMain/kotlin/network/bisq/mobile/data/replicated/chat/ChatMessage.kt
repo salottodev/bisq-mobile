@@ -17,9 +17,9 @@ import network.bisq.mobile.i18n.I18nSupport
  * message of either branch renders through the same list.
  *
  * Bisq 2 keeps only the author's id here and resolves the profile in the UI; mobile resolves it
- * once at construction ([senderUserProfile]) and derives [isMyMessage] from [myUserProfile], so a
- * composable never has to look a profile up. `channelId` and `chatChannelDomain` are left out for
- * the same reason as before: the channel that holds the message already carries both.
+ * once at construction ([senderUserProfile]), so a composable never has to look a profile up.
+ * `channelId` and `chatChannelDomain` are left out for the same reason as before: the channel that
+ * holds the message already carries both.
  *
  * Takes plain values rather than a DTO: the private chat DTOs are a client-side transport concern
  * and live in `apps/clientApp`, so a type in `:shared:domain` must not depend on one (the offerbook
@@ -33,6 +33,13 @@ import network.bisq.mobile.i18n.I18nSupport
  *
  * [wasEdited] sits on the base because upstream has it there, although only a public message can be
  * edited.
+ *
+ * `isMyMessage` and [myUserProfile] answer two different questions and must stay apart. Bisq 2
+ * authorizes edit and delete against ANY of my identities
+ * (`ChatMessage.isMyMessage` is `isUserIdentityPresent(authorUserProfileId)`), while reaction
+ * ownership is decided against the SELECTED profile, as desktop's `ReactionItem` does. A caller that
+ * knows the identity set states the answer; the private branch omits it and gets the sender/channel
+ * comparison, which is the same thing for a DM.
  */
 abstract class ChatMessage<R : ChatMessageReaction>(
     val id: String,
@@ -45,6 +52,7 @@ abstract class ChatMessage<R : ChatMessageReaction>(
     myUserProfile: UserProfileVO,
     chatReactions: List<R>,
     val wasEdited: Boolean = false,
+    isMyMessage: Boolean? = null,
 ) {
     private val myUserProfileId = myUserProfile.id
 
@@ -63,7 +71,7 @@ abstract class ChatMessage<R : ChatMessageReaction>(
     val citationAuthorUserName: String? = citationAuthorUserProfile?.userName
     val senderUserProfileId get() = senderUserProfile.id
     val senderUserName get() = senderUserProfile.userName
-    val isMyMessage: Boolean get() = senderUserProfileId == myUserProfileId
+    val isMyMessage: Boolean = isMyMessage ?: (senderUserProfile.id == myUserProfile.id)
 
     fun isMyChatReaction(reaction: R): Boolean = myUserProfileId == reaction.userProfileId
 

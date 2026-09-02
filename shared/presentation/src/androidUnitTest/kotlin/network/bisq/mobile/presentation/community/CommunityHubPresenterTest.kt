@@ -28,8 +28,7 @@ class CommunityHubPresenterTest : PresentationKoinTestBase() {
     }
 
     private fun kotlinx.coroutines.test.TestScope.createAttachedPresenter(
-        shipped: Set<CommunitySegment> = emptySet(),
-        devForced: Set<CommunitySegment> = emptySet(),
+        enabled: Set<CommunitySegment> = emptySet(),
         requiredFeatures: Map<CommunitySegment, Feature> = emptyMap(),
     ): CommunityHubPresenter {
         val hubService =
@@ -38,8 +37,7 @@ class CommunityHubPresenterTest : PresentationKoinTestBase() {
                     object : BackendCapabilitiesService {
                         override val capabilities: StateFlow<BackendCapabilities> = capabilitiesFlow
                     },
-                shippedSegments = shipped,
-                devForcedSegments = devForced,
+                enabledSegments = enabled,
                 requiredFeatures = requiredFeatures,
                 dispatcher = UnconfinedTestDispatcher(testScheduler),
             )
@@ -53,7 +51,7 @@ class CommunityHubPresenterTest : PresentationKoinTestBase() {
     fun `live segments render in declaration order with the first selected`() =
         runTest {
             val presenter =
-                createAttachedPresenter(devForced = setOf(CommunitySegment.MESSAGES, CommunitySegment.DISCUSSIONS))
+                createAttachedPresenter(enabled = setOf(CommunitySegment.MESSAGES, CommunitySegment.DISCUSSIONS))
 
             assertEquals(
                 listOf(CommunitySegment.DISCUSSIONS, CommunitySegment.MESSAGES),
@@ -66,7 +64,7 @@ class CommunityHubPresenterTest : PresentationKoinTestBase() {
     fun `selecting a live segment updates the selection`() =
         runTest {
             val presenter =
-                createAttachedPresenter(devForced = setOf(CommunitySegment.DISCUSSIONS, CommunitySegment.MESSAGES))
+                createAttachedPresenter(enabled = setOf(CommunitySegment.DISCUSSIONS, CommunitySegment.MESSAGES))
 
             presenter.onAction(CommunityHubUiAction.OnSegmentSelect(CommunitySegment.MESSAGES))
 
@@ -76,7 +74,7 @@ class CommunityHubPresenterTest : PresentationKoinTestBase() {
     @Test
     fun `selecting a segment that is not live is ignored`() =
         runTest {
-            val presenter = createAttachedPresenter(devForced = setOf(CommunitySegment.DISCUSSIONS))
+            val presenter = createAttachedPresenter(enabled = setOf(CommunitySegment.DISCUSSIONS))
 
             presenter.onAction(CommunityHubUiAction.OnSegmentSelect(CommunitySegment.CONTACTS))
 
@@ -88,8 +86,7 @@ class CommunityHubPresenterTest : PresentationKoinTestBase() {
         runTest {
             val presenter =
                 createAttachedPresenter(
-                    shipped = setOf(CommunitySegment.DISCUSSIONS),
-                    devForced = setOf(CommunitySegment.MESSAGES),
+                    enabled = setOf(CommunitySegment.DISCUSSIONS, CommunitySegment.MESSAGES),
                     requiredFeatures = mapOf(CommunitySegment.MESSAGES to Feature.NETWORK_INFO),
                 )
             capabilitiesFlow.value = BackendCapabilities(setOf(Feature.NETWORK_INFO.key))
@@ -116,7 +113,7 @@ class CommunityHubPresenterTest : PresentationKoinTestBase() {
     @Test
     fun `support quick access action is a safe no-op for now`() =
         runTest {
-            val presenter = createAttachedPresenter(devForced = setOf(CommunitySegment.DISCUSSIONS))
+            val presenter = createAttachedPresenter(enabled = setOf(CommunitySegment.DISCUSSIONS))
 
             presenter.onAction(CommunityHubUiAction.OnOpenSupportChannel)
             advanceUntilIdle()
@@ -128,7 +125,7 @@ class CommunityHubPresenterTest : PresentationKoinTestBase() {
     fun `deep-link segment is selected when already live`() =
         runTest {
             val presenter =
-                createAttachedPresenter(devForced = setOf(CommunitySegment.DISCUSSIONS, CommunitySegment.CONTACTS))
+                createAttachedPresenter(enabled = setOf(CommunitySegment.DISCUSSIONS, CommunitySegment.CONTACTS))
 
             presenter.selectInitialSegment(CommunitySegment.CONTACTS)
 
@@ -138,11 +135,10 @@ class CommunityHubPresenterTest : PresentationKoinTestBase() {
     @Test
     fun `deep-link segment is honored once it becomes live, then only once`() =
         runTest {
-            // CONTACTS is shipped but gated on a backend feature that is not supported yet.
+            // CONTACTS is enabled but gated on a backend feature that is not supported yet.
             val presenter =
                 createAttachedPresenter(
-                    shipped = setOf(CommunitySegment.DISCUSSIONS, CommunitySegment.CONTACTS),
-                    devForced = emptySet(),
+                    enabled = setOf(CommunitySegment.DISCUSSIONS, CommunitySegment.CONTACTS),
                     requiredFeatures = mapOf(CommunitySegment.CONTACTS to Feature.NETWORK_INFO),
                 )
             presenter.selectInitialSegment(CommunitySegment.CONTACTS)

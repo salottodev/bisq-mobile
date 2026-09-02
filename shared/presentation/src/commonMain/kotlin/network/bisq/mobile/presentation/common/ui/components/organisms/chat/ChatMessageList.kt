@@ -74,6 +74,12 @@ fun <M : ChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
     onDontShowAgainChatRulesWarningBox: () -> Unit = {},
     onUpdateReadCount: (Int) -> Unit = {},
     /**
+     * Null keeps Edit and Delete out of the context menu; only a public channel has them. See
+     * [network.bisq.mobile.presentation.common.ui.components.molecules.chat.ChatMessageContextMenu].
+     */
+    onEditMessage: ((M) -> Unit)? = null,
+    onDeleteMessage: ((M) -> Unit)? = null,
+    /**
      * Renders a [ChatMessageTypeEnum.LEAVE] message. Required rather than defaulted to the trade
      * wording: this component is generic now, and a default would let a non-trade caller compile
      * while rendering "has left the trade" — wrong copy that only surfaces on a rare event.
@@ -236,6 +242,8 @@ fun <M : ChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
                                         reaction,
                                     )
                                 },
+                                onEditMessage = onEditMessage?.let { edit -> { edit(message) } },
+                                onDeleteMessage = onDeleteMessage?.let { delete -> { delete(message) } },
                                 onReply = { onReply(message) },
                                 onCopy = { onCopy(message) },
                                 onIgnoreUser = { onIgnoreUser(message.senderUserProfileId) },
@@ -260,15 +268,10 @@ fun <M : ChatMessage<R>, R : ChatMessageReaction> ChatMessageList(
 
         JumpToBottomFloatingButton(
             visible = jumpToBottomVisible,
-            onClick = {
-                scope.launch {
-                    if (scrollState.firstVisibleItemIndex == unreadMarkerIndex) {
-                        scrollState.animateScrollToItem(0)
-                    } else {
-                        scrollState.animateScrollToItem(unreadMarkerIndex)
-                    }
-                }
-            },
+            // Index 0 is the newest message, which is the button's only destination: it carries a
+            // down arrow and the unread badge. Landing there reports everything read, so the badge
+            // clears and the button hides itself.
+            onClick = { scope.launch { scrollState.animateScrollToItem(0) } },
             jumpOffset = 12,
             badgeCount = unreadCount,
             modifier = Modifier.align(Alignment.BottomEnd),

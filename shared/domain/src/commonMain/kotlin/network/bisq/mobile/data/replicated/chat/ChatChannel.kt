@@ -35,6 +35,15 @@ abstract class ChatChannel<M : ChatMessage<*>>(
         }
     }
 
+    /**
+     * Public messages really disappear — a delete, the removal half of an edit, and the P2P store's
+     * TTL pruning, which arrives in bursts. The private branch never removes, which is why this had
+     * no counterpart until the public channels landed.
+     */
+    fun removeChatMessage(id: String) {
+        _chatMessages.update { current -> current.filterNot { it.id == id }.toSet() }
+    }
+
     fun setAllChatMessages(messages: Set<M>) {
         _chatMessages.value = messages.associateBy { it.id }.values.toSet()
     }

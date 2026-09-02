@@ -35,6 +35,7 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycleBackStackAware
 import network.bisq.mobile.presentation.community.contacts.ContactsTabContent
+import network.bisq.mobile.presentation.community.discussions.DiscussionsTabContent
 
 @ExcludeFromCoverage
 @Composable
@@ -56,6 +57,9 @@ fun CommunityHubScreen(initialSegment: CommunitySegment? = null) {
         topBar = { TopBar("mobile.community.title".i18n()) },
         segmentContent = { segment ->
             when (segment) {
+                CommunitySegment.DISCUSSIONS -> {
+                    { DiscussionsTabContent() }
+                }
                 CommunitySegment.CONTACTS -> {
                     { ContactsTabContent() }
                 }
@@ -92,9 +96,11 @@ fun CommunityHubScreenContent(
 
             BisqGap.V1()
 
-            // The pinned Support reference belongs to the Discussions context only (see
-            // CommunityHubScreenDesign.kt "SUPPORT — HUB-SIDE REFERENCE": it moves INTO the
-            // Discussions content when that ships). Directory/inbox segments don't carry it.
+            // The pinned Support reference belongs to the Discussions context only. It stays
+            // hub-side above the thread rather than moving inside it as CommunityHubScreenDesign.kt
+            // specs: this gate puts it in the same place on screen, and it keeps the segment body a
+            // plain thread that the Support screen can reuse unchanged. Directory/inbox segments
+            // don't carry it.
             if (uiState.selectedSegment == null || uiState.selectedSegment == CommunitySegment.DISCUSSIONS) {
                 SupportQuickAccessRow(onClick = { onAction(CommunityHubUiAction.OnOpenSupportChannel) })
             }

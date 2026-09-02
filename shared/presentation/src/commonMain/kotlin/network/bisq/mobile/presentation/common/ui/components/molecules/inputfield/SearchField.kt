@@ -98,10 +98,17 @@ fun BisqSearchField(
         },
     ) { measurables, constraints ->
         val textField = measurables[0].measure(constraints)
-        // Pin the overlay to the text field's height so it never expands the wrapper
+        // Pin the overlay to the text field's height so it never expands the wrapper.
+        // minWidth has to be released: a caller that fixes our width (fillMaxWidth) hands us exact
+        // constraints, and Constraints.constrain then stretches the overlay's own width() up to the
+        // full width, which leaves the clear button centred over the text instead of at the edge.
         val overlay =
             measurables[1].measure(
-                constraints.copy(minHeight = textField.height, maxHeight = textField.height),
+                constraints.copy(
+                    minWidth = 0,
+                    minHeight = textField.height,
+                    maxHeight = textField.height,
+                ),
             )
         layout(textField.width, textField.height) {
             textField.placeRelative(0, 0)

@@ -4,7 +4,7 @@
  * STATUS: PARTIALLY IMPLEMENTED. The hub SHELL — gated segments, tab row, entry icon,
  * navigation, dev override — is production code now:
  *   - gating: `domain/service/community/CommunityHubService` (liveSegments =
- *     (shipped ∪ devForced) ∩ capabilities, fail closed)
+ *     enabled ∩ capabilities, fail closed; enabled = the feature.communityHubSegments rollout config)
  *   - screen shell + segmented tab row: `presentation/community/CommunityHubScreen.kt`
  *     (including the Contacts muted-tab treatment and the shell previews)
  *   - entry icon + badge: `presentation/community/CommunityTopBarIcon.kt`
@@ -17,9 +17,10 @@
  * (no tab row while only one segment is live). [DiscussionsTabContent] below is the
  * target composition: the pinned Support reference on top, then the embedded channel
  * thread (`DiscussionsChannelScreenDesign.kt`, `showTopBar = false`). The production
- * shell's placeholder body gets replaced by exactly this composition. Note the pinned
- * Support row currently rendered at shell level in production moves INTO this content
- * when it ships.
+ * shell's placeholder body gets replaced by exactly this composition, with one deviation
+ * that shipped: the pinned Support row stayed at shell level, gated on Discussions being
+ * the selected segment. The rendered stack is identical either way, and keeping it in the
+ * shell keeps the segment body a plain thread that the Support screen can reuse as-is.
  *
  * ======================================================================================
  * SUPPORT — HUB-SIDE REFERENCE (not a segment)

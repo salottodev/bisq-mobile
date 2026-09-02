@@ -24,6 +24,7 @@ class CommonPublicChatMessage(
     myUserProfile: UserProfileVO,
     chatReactions: List<CommonPublicChatMessageReaction>,
     wasEdited: Boolean,
+    isMyMessage: Boolean? = null,
 ) : PublicChatMessage<CommonPublicChatMessageReaction>(
         id = id,
         chatMessageType = chatMessageType,
@@ -35,6 +36,7 @@ class CommonPublicChatMessage(
         myUserProfile = myUserProfile,
         chatReactions = chatReactions,
         wasEdited = wasEdited,
+        isMyMessage = isMyMessage,
     )
 
 /**
@@ -57,6 +59,7 @@ fun createMockCommonPublicChatMessage(
     myUserProfile: UserProfileVO = createMockUserProfile("Bob"),
     chatReactions: List<CommonPublicChatMessageReaction> = emptyList(),
     wasEdited: Boolean = false,
+    isMyMessage: Boolean? = null,
 ) = CommonPublicChatMessage(
     id = id,
     chatMessageType = chatMessageType,
@@ -68,4 +71,5 @@ fun createMockCommonPublicChatMessage(
     myUserProfile = myUserProfile,
     chatReactions = chatReactions,
     wasEdited = wasEdited,
+    isMyMessage = isMyMessage,
 )

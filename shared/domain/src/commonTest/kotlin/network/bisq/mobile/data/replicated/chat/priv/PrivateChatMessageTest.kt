@@ -9,6 +9,8 @@ import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.service.message_delivery.MessageDeliveryServiceFacade
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Only what the private branch adds to [network.bisq.mobile.data.replicated.chat.ChatMessage] — the
@@ -39,6 +41,17 @@ class PrivateChatMessageTest {
 
         message.removeMessageDeliveryStatusObserver(facade)
         assertEquals(listOf(MESSAGE_ID), facade.removed)
+    }
+
+    /**
+     * Regression net for the `isMyMessage` constructor parameter the public branch introduced: the
+     * private branch never passes it, so a DM's author must keep being decided by the channel
+     * identity.
+     */
+    @Test
+    fun `isMyMessage falls back to the channel identity`() {
+        assertFalse(createMockBisqEasyOpenTradeMessage(senderUserProfile = peer, myUserProfile = me).isMyMessage)
+        assertTrue(createMockBisqEasyOpenTradeMessage(senderUserProfile = me, myUserProfile = me).isMyMessage)
     }
 
     private fun createMessage() =

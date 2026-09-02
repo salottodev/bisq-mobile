@@ -411,6 +411,7 @@ sealed class AnalyticsEvent(
                     TakeOfferReview,
                     CommunityHub,
                     CommunityContacts,
+                    CommunityDiscussions,
                 )
             }
         }
@@ -455,6 +456,9 @@ sealed class AnalyticsEvent(
         data object CommunityHub : ScreenOpened("screen.community_hub_opened")
 
         data object CommunityContacts : ScreenOpened("screen.community_contacts_opened")
+
+        /** The Discussions tab of the hub; Support gets its own once #1746 wires an entry point. */
+        data object CommunityDiscussions : ScreenOpened("screen.community_discussions_opened")
     }
 
     /**

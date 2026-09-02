@@ -44,8 +44,7 @@ class TabContainerPresenterCommunityIconTest : PlatformPresentationKoinTestBase(
     }
 
     private fun kotlinx.coroutines.test.TestScope.buildPresenter(
-        shipped: Set<CommunitySegment> = emptySet(),
-        devForced: Set<CommunitySegment> = emptySet(),
+        enabled: Set<CommunitySegment> = emptySet(),
         requiredFeatures: Map<CommunitySegment, Feature> = emptyMap(),
     ): Pair<TabContainerPresenter, CommunityHubService> {
         val settingsServiceFacade = mockk<SettingsServiceFacade>(relaxed = true)
@@ -58,8 +57,7 @@ class TabContainerPresenterCommunityIconTest : PlatformPresentationKoinTestBase(
                     object : BackendCapabilitiesService {
                         override val capabilities: StateFlow<BackendCapabilities> = capabilitiesFlow
                     },
-                shippedSegments = shipped,
-                devForcedSegments = devForced,
+                enabledSegments = enabled,
                 requiredFeatures = requiredFeatures,
                 dispatcher = UnconfinedTestDispatcher(testScheduler),
             )
@@ -93,7 +91,7 @@ class TabContainerPresenterCommunityIconTest : PlatformPresentationKoinTestBase(
     @Test
     fun `icon is visible when a segment is live`() =
         runTest {
-            val (presenter, _) = buildPresenter(devForced = setOf(CommunitySegment.DISCUSSIONS))
+            val (presenter, _) = buildPresenter(enabled = setOf(CommunitySegment.DISCUSSIONS))
             presenter.onViewAttached()
             advanceUntilIdle()
 
@@ -105,7 +103,7 @@ class TabContainerPresenterCommunityIconTest : PlatformPresentationKoinTestBase(
         runTest {
             val (presenter, _) =
                 buildPresenter(
-                    shipped = setOf(CommunitySegment.DISCUSSIONS),
+                    enabled = setOf(CommunitySegment.DISCUSSIONS),
                     requiredFeatures = mapOf(CommunitySegment.DISCUSSIONS to Feature.NETWORK_INFO),
                 )
             presenter.onViewAttached()
@@ -121,7 +119,7 @@ class TabContainerPresenterCommunityIconTest : PlatformPresentationKoinTestBase(
     @Test
     fun `badge count follows the hub service unread count`() =
         runTest {
-            val (presenter, service) = buildPresenter(devForced = setOf(CommunitySegment.DISCUSSIONS))
+            val (presenter, service) = buildPresenter(enabled = setOf(CommunitySegment.DISCUSSIONS))
             presenter.onViewAttached()
             advanceUntilIdle()
             assertEquals(0, presenter.communityUnreadCount.value)
@@ -135,7 +133,7 @@ class TabContainerPresenterCommunityIconTest : PlatformPresentationKoinTestBase(
     @Test
     fun `open community hub navigates to the hub route`() =
         runTest {
-            val (presenter, _) = buildPresenter(devForced = setOf(CommunitySegment.DISCUSSIONS))
+            val (presenter, _) = buildPresenter(enabled = setOf(CommunitySegment.DISCUSSIONS))
             presenter.onViewAttached()
             advanceUntilIdle()
 
