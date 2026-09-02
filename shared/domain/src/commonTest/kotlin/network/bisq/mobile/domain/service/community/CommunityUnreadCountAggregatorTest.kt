@@ -170,7 +170,7 @@ class CommunityUnreadCountAggregatorTest {
     private fun TestScope.hubService(liveSegments: Set<CommunitySegment> = setOf(CommunitySegment.DISCUSSIONS)) =
         CommunityHubService(
             backendCapabilitiesService = NoCapabilities,
-            shippedSegments = liveSegments,
+            enabledSegments = liveSegments,
             requiredFeatures = emptyMap(),
             dispatcher = UnconfinedTestDispatcher(testScheduler),
         )

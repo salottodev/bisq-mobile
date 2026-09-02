@@ -82,18 +82,17 @@ val bisqDesktopPairingVersion: String by extra {
     findTomlVersion("bisq-desktop-pairing")
 }
 
-// Community hub dev override: comma-separated CommunitySegment names forced live so the
-// gated hub UI can be exercised before its features ship. Defaults empty in
-// gradle.properties, overridden per developer in local.properties (resolveProperty gives
-// local.properties precedence). Gated like ANALYTICS_DEV_ENABLED: release builds force the
-// empty string, so a forgotten local.properties entry cannot leak into
-// assembleRelease/bundleRelease/Xcode Release artifacts. Declared once for both app
-// BuildConfig classes — each app's DI injects its own class's value.
+// Community hub rollout config: comma-separated CommunitySegment names that are live in the
+// built app. The value checked into gradle.properties is what a release ships — rolling a
+// segment out is a config edit there, never a code edit — and local.properties overrides it
+// per developer (resolveProperty gives local.properties precedence) so the gated hub UI can
+// be exercised before its features ship. Declared once for both app BuildConfig classes —
+// each app's DI injects its own class's value.
 // Split per app type
-val communityHubDevSegmentsClient: String =
-    if (!isDebugBuild) "" else resolveProperty("feature.communityHubDevSegments.client")?.trim().orEmpty()
-val communityHubDevSegmentsNode: String =
-    if (!isDebugBuild) "" else resolveProperty("feature.communityHubDevSegments.node")?.trim().orEmpty()
+val communityHubSegmentsClient: String =
+    resolveProperty("feature.communityHubSegments.client")?.trim().orEmpty()
+val communityHubSegmentsNode: String =
+    resolveProperty("feature.communityHubSegments.node")?.trim().orEmpty()
 
 // NOTE: The following allow us to configure each app type independently and link for example with gradle.properties
 // local.properties overrides any property if you need to setup for example local networking
@@ -154,7 +153,7 @@ buildConfig {
                     ?: false
             }
         buildConfigField("ANALYTICS_DEV_ENABLED", analyticsDevEnabled)
-        buildConfigField("COMMUNITY_HUB_DEV_SEGMENTS", communityHubDevSegmentsClient)
+        buildConfigField("COMMUNITY_HUB_SEGMENTS", communityHubSegmentsClient)
         // DSNs are public per Sentry's threat model — the public key alone
         // cannot read data, only post. Empty default = effectively disabled.
         // Connect's BuildConfig holds both Android + iOS DSNs; the runtime
@@ -171,7 +170,7 @@ buildConfig {
     }
     forClass("network.bisq.mobile.android.node", className = "BuildNodeConfig") {
         buildConfigField("APP_NAME", project.findProperty("node.name").toString())
-        buildConfigField("COMMUNITY_HUB_DEV_SEGMENTS", communityHubDevSegmentsNode)
+        buildConfigField("COMMUNITY_HUB_SEGMENTS", communityHubSegmentsNode)
         buildConfigField("APP_VERSION", project.findProperty("node.android.version").toString())
         buildConfigField("TRADE_PROTOCOL_VERSION", "1.0")
         buildConfigField("TRADE_OFFER_VERSION", 1)

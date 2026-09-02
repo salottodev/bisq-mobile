@@ -46,7 +46,6 @@ import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesService
 import network.bisq.mobile.domain.service.capabilities.DefaultBackendCapabilitiesService
 import network.bisq.mobile.domain.service.community.CommunityHubService
-import network.bisq.mobile.domain.service.community.CommunitySegment
 import network.bisq.mobile.domain.service.community.CommunityUnreadCountAggregator
 import network.bisq.mobile.domain.utils.AndroidDeviceInfoProvider
 import network.bisq.mobile.domain.utils.DeviceInfoProvider
@@ -225,14 +224,10 @@ val androidNodeDomainModule =
         single {
             CommunityHubService(
                 get(),
-                // The node runs bisq2 core in-process, so Contacts ships here first; the client
-                // stays on the shared (Contacts-less) shipped set until the trusted-node API +
-                // capability probe land (#1238 PR 3).
-                shippedSegments = CommunityHubService.SHIPPED_SEGMENTS + CommunitySegment.CONTACTS,
-                devForcedSegments =
-                    CommunityHubService.parseDevForcedSegments(
-                        BuildNodeConfig.COMMUNITY_HUB_DEV_SEGMENTS,
-                        propertyName = "feature.communityHubDevSegments.node",
+                enabledSegments =
+                    CommunityHubService.parseSegments(
+                        BuildNodeConfig.COMMUNITY_HUB_SEGMENTS,
+                        propertyName = "feature.communityHubSegments.node",
                     ),
             )
         }

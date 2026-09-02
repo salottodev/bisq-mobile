@@ -14,8 +14,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
- * Pins the gating composition rule: `liveSegments = (shipped ∪ devForced) ∩ capabilities`,
- * fail closed on a missing backend capability, plus the dev-override parser and the
+ * Pins the gating composition rule: `liveSegments = enabled ∩ capabilities`,
+ * fail closed on a missing backend capability, plus the rollout-config parser and the
  * unread-count slot.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -30,13 +30,12 @@ class CommunityHubServiceTest {
     private fun supporting(feature: Feature) = BackendCapabilities(setOf(feature.key))
 
     @Test
-    fun `no shipped and no forced segments means nothing is live`() =
+    fun `no enabled segments means nothing is live`() =
         runTest {
             val state =
                 CommunityHubService(
                     backendCapabilitiesService = FakeCapabilities(),
-                    shippedSegments = emptySet(),
-                    devForcedSegments = emptySet(),
+                    enabledSegments = emptySet(),
                     requiredFeatures = emptyMap(),
                     dispatcher = UnconfinedTestDispatcher(testScheduler),
                 )
@@ -44,13 +43,12 @@ class CommunityHubServiceTest {
         }
 
     @Test
-    fun `shipped segment without a backend requirement is live`() =
+    fun `enabled segment without a backend requirement is live`() =
         runTest {
             val state =
                 CommunityHubService(
                     backendCapabilitiesService = FakeCapabilities(),
-                    shippedSegments = setOf(CommunitySegment.DISCUSSIONS),
-                    devForcedSegments = emptySet(),
+                    enabledSegments = setOf(CommunitySegment.DISCUSSIONS),
                     requiredFeatures = emptyMap(),
                     dispatcher = UnconfinedTestDispatcher(testScheduler),
                 )
@@ -58,13 +56,12 @@ class CommunityHubServiceTest {
         }
 
     @Test
-    fun `shipped segment with an unsupported backend feature is gated off`() =
+    fun `enabled segment with an unsupported backend feature is gated off`() =
         runTest {
             val state =
                 CommunityHubService(
                     backendCapabilitiesService = FakeCapabilities(),
-                    shippedSegments = setOf(CommunitySegment.DISCUSSIONS),
-                    devForcedSegments = emptySet(),
+                    enabledSegments = setOf(CommunitySegment.DISCUSSIONS),
                     requiredFeatures = mapOf(CommunitySegment.DISCUSSIONS to Feature.NETWORK_INFO),
                     dispatcher = UnconfinedTestDispatcher(testScheduler),
                 )
@@ -78,8 +75,7 @@ class CommunityHubServiceTest {
             val state =
                 CommunityHubService(
                     backendCapabilitiesService = capabilities,
-                    shippedSegments = setOf(CommunitySegment.DISCUSSIONS),
-                    devForcedSegments = emptySet(),
+                    enabledSegments = setOf(CommunitySegment.DISCUSSIONS),
                     requiredFeatures = mapOf(CommunitySegment.DISCUSSIONS to Feature.NETWORK_INFO),
                     dispatcher = UnconfinedTestDispatcher(testScheduler),
                 )
@@ -91,13 +87,12 @@ class CommunityHubServiceTest {
         }
 
     @Test
-    fun `dev forced segments are unioned with shipped ones`() =
+    fun `multiple enabled segments are all live`() =
         runTest {
             val state =
                 CommunityHubService(
                     backendCapabilitiesService = FakeCapabilities(),
-                    shippedSegments = setOf(CommunitySegment.DISCUSSIONS),
-                    devForcedSegments = setOf(CommunitySegment.MESSAGES),
+                    enabledSegments = setOf(CommunitySegment.DISCUSSIONS, CommunitySegment.MESSAGES),
                     requiredFeatures = emptyMap(),
                     dispatcher = UnconfinedTestDispatcher(testScheduler),
                 )
@@ -105,30 +100,29 @@ class CommunityHubServiceTest {
         }
 
     @Test
-    fun `dev forced segment does not bypass the capability gate`() =
+    fun `capability gate only drops the segment that requires the missing feature`() =
         runTest {
             val state =
                 CommunityHubService(
                     backendCapabilitiesService = FakeCapabilities(),
-                    shippedSegments = emptySet(),
-                    devForcedSegments = setOf(CommunitySegment.MESSAGES),
+                    enabledSegments = setOf(CommunitySegment.DISCUSSIONS, CommunitySegment.MESSAGES),
                     requiredFeatures = mapOf(CommunitySegment.MESSAGES to Feature.NETWORK_INFO),
                     dispatcher = UnconfinedTestDispatcher(testScheduler),
                 )
-            assertEquals(emptySet(), state.liveSegments.value)
+            assertEquals(setOf(CommunitySegment.DISCUSSIONS), state.liveSegments.value)
         }
 
     @Test
     fun `parse accepts empty and blank input as no segments`() {
-        assertEquals(emptySet(), CommunityHubService.parseDevForcedSegments("", propertyName = "test.prop"))
-        assertEquals(emptySet(), CommunityHubService.parseDevForcedSegments("  ", propertyName = "test.prop"))
+        assertEquals(emptySet(), CommunityHubService.parseSegments("", propertyName = "test.prop"))
+        assertEquals(emptySet(), CommunityHubService.parseSegments("  ", propertyName = "test.prop"))
     }
 
     @Test
     fun `parse is case insensitive and trims entries`() {
         assertEquals(
             setOf(CommunitySegment.DISCUSSIONS, CommunitySegment.MESSAGES),
-            CommunityHubService.parseDevForcedSegments(" discussions , MESSAGES ", propertyName = "test.prop"),
+            CommunityHubService.parseSegments(" discussions , MESSAGES ", propertyName = "test.prop"),
         )
     }
 
@@ -136,7 +130,7 @@ class CommunityHubServiceTest {
     fun `parse fails fast on an unknown segment name`() {
         val error =
             assertFailsWith<IllegalArgumentException> {
-                CommunityHubService.parseDevForcedSegments("DISCUSSIONS,TYPO", propertyName = "test.prop")
+                CommunityHubService.parseSegments("DISCUSSIONS,TYPO", propertyName = "test.prop")
             }
         assertTrue(error.message.orEmpty().contains("test.prop"))
     }
@@ -147,8 +141,7 @@ class CommunityHubServiceTest {
             val state =
                 CommunityHubService(
                     backendCapabilitiesService = FakeCapabilities(),
-                    shippedSegments = emptySet(),
-                    devForcedSegments = emptySet(),
+                    enabledSegments = emptySet(),
                     requiredFeatures = emptyMap(),
                     dispatcher = UnconfinedTestDispatcher(testScheduler),
                 )

@@ -352,10 +352,10 @@ val clientDomainModule =
         single {
             CommunityHubService(
                 get(),
-                devForcedSegments =
-                    CommunityHubService.parseDevForcedSegments(
-                        BuildConfig.COMMUNITY_HUB_DEV_SEGMENTS,
-                        propertyName = "feature.communityHubDevSegments.client",
+                enabledSegments =
+                    CommunityHubService.parseSegments(
+                        BuildConfig.COMMUNITY_HUB_SEGMENTS,
+                        propertyName = "feature.communityHubSegments.client",
                     ),
             )
         }
