@@ -36,6 +36,8 @@ import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.domain.service.capabilities.BackendCapabilities
 import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesService
 import network.bisq.mobile.domain.service.capabilities.Feature
+import network.bisq.mobile.domain.service.community.CommunityHubService
+import network.bisq.mobile.domain.service.community.CommunitySegment
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -80,16 +82,26 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
         coEvery { apiGateway.subscribeChannels() } returns channelsObserver
         coEvery { apiGateway.subscribeMessages() } returns messagesObserver
         coEvery { apiGateway.subscribeReactions() } returns reactionsObserver
-        facade =
-            ClientPublicChatServiceFacade(
-                apiGateway,
-                backendCapabilitiesService,
-                userProfileServiceFacade,
-                json,
-                globalUiManager,
-                testDispatcher,
-            )
+        facade = createFacade()
     }
+
+    /** [enabledSegments] is the Community-Hub rollout config; the shipped Connect value is empty. */
+    private fun createFacade(
+        enabledSegments: Set<CommunitySegment> = setOf(CommunitySegment.DISCUSSIONS),
+    ) = ClientPublicChatServiceFacade(
+        apiGateway,
+        backendCapabilitiesService,
+        userProfileServiceFacade,
+        CommunityHubService(
+            backendCapabilitiesService = backendCapabilitiesService,
+            enabledSegments = enabledSegments,
+            requiredFeatures = mapOf(CommunitySegment.DISCUSSIONS to Feature.PUBLIC_CHAT),
+            dispatcher = testDispatcher,
+        ),
+        json,
+        globalUiManager,
+        testDispatcher,
+    )
 
     override fun onTearDown() {
         try {
@@ -137,6 +149,38 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
             coVerify(exactly = 1) { apiGateway.subscribeChannels() }
             coVerify(exactly = 1) { apiGateway.subscribeMessages() }
             coVerify(exactly = 1) { apiGateway.subscribeReactions() }
+        }
+
+    /**
+     * The rollout is a precondition too, not only the node's capability. `feature.communityHubSegments.client`
+     * ships empty, and the hub's Discussions segment is the only route to a public chat thread —
+     * TabContainerPresenter hides the Community tab entirely while no segment is live. Subscribing
+     * anyway would pull both channels' full history over Tor for a screen the user cannot open.
+     */
+    @Test
+    fun `subscribes to nothing while the Discussions segment is not live`() =
+        runTest {
+            val facade = createFacade(enabledSegments = emptySet())
+
+            facade.activate()
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { apiGateway.subscribeChannels() }
+            coVerify(exactly = 0) { apiGateway.subscribeMessages() }
+            coVerify(exactly = 0) { apiGateway.subscribeReactions() }
+            assertTrue(facade.channels.value.isEmpty())
+        }
+
+    /** Discussions specifically, not "some segment": Contacts is live in configs that Discussions is not. */
+    @Test
+    fun `subscribes to nothing when another segment is live but Discussions is not`() =
+        runTest {
+            val facade = createFacade(enabledSegments = setOf(CommunitySegment.CONTACTS))
+
+            facade.activate()
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { apiGateway.subscribeChannels() }
         }
 
     /**

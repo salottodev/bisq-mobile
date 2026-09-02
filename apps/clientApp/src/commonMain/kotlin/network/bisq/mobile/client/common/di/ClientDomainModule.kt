@@ -506,6 +506,7 @@ val clientDomainModule =
                 get(),
                 get(),
                 get(),
+                get(),
             )
         }
         // A `single` is lazy, so ClientApplicationLifecycleService starts it explicitly — without

@@ -41,6 +41,8 @@ import network.bisq.mobile.data.service.chat.public_chat.PublicChatServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
 import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesService
 import network.bisq.mobile.domain.service.capabilities.Feature
+import network.bisq.mobile.domain.service.community.CommunityHubService
+import network.bisq.mobile.domain.service.community.CommunitySegment
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 
 /**
@@ -60,6 +62,7 @@ class ClientPublicChatServiceFacade(
     private val apiGateway: PublicChatApiGateway,
     private val backendCapabilitiesService: BackendCapabilitiesService,
     private val userProfileServiceFacade: UserProfileServiceFacade,
+    private val communityHubService: CommunityHubService,
     private val json: Json,
     private val globalUiManager: GlobalUiManager,
     // Injectable so tests can drive the subscription collectors on their virtual-time dispatcher.
@@ -105,7 +108,17 @@ class ClientPublicChatServiceFacade(
             // "unsupported" — silently leaving the feature dead for the whole session.
             backendCapabilitiesService.capabilities.first { it.isSupported(Feature.PUBLIC_CHAT) }
 
-            // The second precondition, and it has to be met BEFORE subscribing. On the node a null
+            // The second precondition: the rollout, not just the node. The hub's Discussions segment
+            // is the only route to a public chat thread, and TabContainerPresenter hides the Community
+            // tab outright while no segment is live — so without this a release build (which ships
+            // feature.communityHubSegments.client empty) would subscribe to three topics and hold both
+            // channels' full history for a screen the user cannot open. Same argument as
+            // CommunityUnreadCountAggregator, one layer down. Kept separate from the capability await
+            // above rather than folded into it: liveSegments happens to imply the capability today,
+            // through REQUIRED_FEATURES, and that is a mapping this file does not own.
+            communityHubService.liveSegments.first { CommunitySegment.DISCUSSIONS in it }
+
+            // The third precondition, and it has to be met BEFORE subscribing. On the node a null
             // selected profile means there is no identity at all, so it drops the message; here it
             // usually means the profile has not arrived yet, because ClientUserProfileServiceFacade
             // fetches it over the same WebSocket this subscription is racing. Dropping on that would
