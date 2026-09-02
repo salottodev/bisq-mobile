@@ -112,6 +112,73 @@ subprojects {
         }
     }
 
+    // #1363: Rewrite JetBrains dual-publish aliases → AndroidX on *metadata* classpaths.
+    // This deliberately covers native source-set metadata (iosMain/nativeMain/appleMain) too:
+    // rewriting commonMain while leaving nativeMain on org.jetbrains.* is precisely what puts
+    // two klibs with the same unique_name (e.g. runtime_commonMain) on one classpath.
+    // Platform klib classpaths (iosArm64CompileKlibraries) carry no "Metadata" in their names,
+    // so iOS binaries still link org.jetbrains.* — compose.ui depends on both.
+    val jetbrainsToAndroidx =
+        mapOf(
+            "org.jetbrains.compose.runtime" to
+                (
+                    "androidx.compose.runtime" to
+                        rootProject.libs.versions.androidx.compose.runtime
+                            .get()
+                ),
+            "org.jetbrains.androidx.lifecycle" to
+                (
+                    "androidx.lifecycle" to
+                        rootProject.libs.versions.androidx.lifecycle
+                            .get()
+                ),
+            "org.jetbrains.androidx.savedstate" to
+                (
+                    "androidx.savedstate" to
+                        rootProject.libs.versions.androidx.savedstate
+                            .get()
+                ),
+            "org.jetbrains.compose.annotation-internal" to
+                (
+                    "androidx.annotation" to
+                        rootProject.libs.versions.androidx.annotation
+                            .get()
+                ),
+            "org.jetbrains.compose.collection-internal" to
+                (
+                    "androidx.collection" to
+                        rootProject.libs.versions.androidx.collection
+                            .get()
+                ),
+        )
+    // Root alias modules only — skip runtime-iosarm64 / *-uikitarm64 / etc.
+    val platformArtifact =
+        Regex("(?i)-(ios|uikit|android|jvm|desktop|macos|linux|js|wasm|mingw|watchos|tvos)[a-z0-9]*$")
+    val renamedModules =
+        mapOf(
+            "org.jetbrains.compose.annotation-internal" to "annotation",
+            "org.jetbrains.compose.collection-internal" to "collection",
+        )
+    // Don't narrow this name match: `allSourceSetsCompileDependenciesMetadata` is KGP's
+    // reference configuration for consistent resolution, so leaving it out makes the strict
+    // versions it publishes contradict the substituted ones and resolution fails outright.
+    // Removal trigger: `contains("Metadata")` is a string match on KGP config names, so
+    // retest Android `releaseRuntimeClasspath` on every Kotlin / CMP bump. Delete this
+    // whole block when CMP stops dual-publishing the same klib unique_name under both
+    // org.jetbrains.* and androidx.*.
+    configurations.configureEach {
+        if (!name.contains("Metadata", ignoreCase = true)) return@configureEach
+
+        resolutionStrategy.eachDependency {
+            val group = requested.group ?: return@eachDependency
+            val (toGroup, version) = jetbrainsToAndroidx[group] ?: return@eachDependency
+            if (platformArtifact.containsMatchIn(requested.name)) return@eachDependency
+            val toModule = renamedModules[group] ?: requested.name
+            useTarget("$toGroup:$toModule:$version")
+            because("Prefer AndroidX over JetBrains alias on metadata classpath (#1363)")
+        }
+    }
+
     // Apply ktlint to all subprojects with KMP plugin
     plugins.withId("org.jetbrains.kotlin.multiplatform") {
         apply(

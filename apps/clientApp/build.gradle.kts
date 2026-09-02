@@ -1,5 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import java.util.Properties
+import java.io.File
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -298,9 +298,13 @@ kotlin {
     }
 }
 
-// -------------------- Local Properties --------------------
-val localProperties = Properties()
-localProperties.load(File(rootDir, "local.properties").inputStream())
+// -------------------- Local Properties / release signing --------------------
+apply(from = rootProject.file("gradle/releaseSigning.gradle.kts"))
+val releaseKeystoreFile: File? = extra["releaseKeystoreFile"] as File?
+
+@Suppress("UNCHECKED_CAST")
+val optionalSigningProp = extra["optionalSigningProp"] as (String) -> String
+extra["requiredCompanionProps"] = listOf("KEYSTORE_PASSWORD", "CLI_KEY_ALIAS", "CLI_KEY_PASSWORD")
 
 // -------------------- Android Configuration --------------------
 android {
@@ -311,12 +315,12 @@ android {
             .toInt()
 
     signingConfigs {
-        create("release") {
-            if (localProperties["KEYSTORE_PATH"] != null) {
-                storeFile = file(localProperties["KEYSTORE_PATH"] as String)
-                storePassword = localProperties["KEYSTORE_PASSWORD"] as String
-                keyAlias = localProperties["CLI_KEY_ALIAS"] as String
-                keyPassword = localProperties["CLI_KEY_PASSWORD"] as String
+        if (releaseKeystoreFile != null) {
+            create("release") {
+                storeFile = releaseKeystoreFile
+                storePassword = optionalSigningProp("KEYSTORE_PASSWORD")
+                keyAlias = optionalSigningProp("CLI_KEY_ALIAS")
+                keyPassword = optionalSigningProp("CLI_KEY_PASSWORD")
             }
         }
     }
@@ -393,7 +397,9 @@ android {
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            if (releaseKeystoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

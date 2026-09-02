@@ -11,6 +11,7 @@ import org.gradle.api.attributes.CompatibilityCheckDetails
 import org.gradle.api.file.FileSystemLocation
 import org.gradle.api.provider.Provider
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.io.File
 import java.util.Properties
 import java.util.jar.JarEntry
 import java.util.jar.JarFile
@@ -89,9 +90,14 @@ kotlin {
     }
 }
 
-// -------------------- Local Properties --------------------
-val localProperties = Properties()
-localProperties.load(File(rootDir, "local.properties").inputStream())
+// -------------------- Local Properties / release signing --------------------
+apply(from = rootProject.file("gradle/releaseSigning.gradle.kts"))
+val localProperties: Properties = extra["localProperties"] as Properties
+val releaseKeystoreFile: File? = extra["releaseKeystoreFile"] as File?
+
+@Suppress("UNCHECKED_CAST")
+val optionalSigningProp = extra["optionalSigningProp"] as (String) -> String
+extra["requiredCompanionProps"] = listOf("KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
 
 // -------------------- Android Configuration --------------------
 android {
@@ -106,12 +112,12 @@ android {
             .get()
 
     signingConfigs {
-        create("release") {
-            if (localProperties["KEYSTORE_PATH"] != null) {
-                storeFile = file(localProperties["KEYSTORE_PATH"] as String)
-                storePassword = localProperties["KEYSTORE_PASSWORD"] as String
-                keyAlias = localProperties["KEY_ALIAS"] as String
-                keyPassword = localProperties["KEY_PASSWORD"] as String
+        if (releaseKeystoreFile != null) {
+            create("release") {
+                storeFile = releaseKeystoreFile
+                storePassword = optionalSigningProp("KEYSTORE_PASSWORD")
+                keyAlias = optionalSigningProp("KEY_ALIAS")
+                keyPassword = optionalSigningProp("KEY_PASSWORD")
             }
         }
     }
@@ -233,7 +239,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("release")
+            if (releaseKeystoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             dependenciesInfo {
                 includeInApk = false
                 includeInBundle = false
@@ -254,6 +262,9 @@ android {
         }
         create("profile") {
             initWith(getByName("release"))
+            if (releaseKeystoreFile == null) {
+                signingConfig = signingConfigs.getByName("debug")
+            }
             // Make debuggable so Android Studio can attach allocation tracking on all devices
             isDebuggable = true
             // Easier symbol readability in profiler; flip to true to mimic release exactly
