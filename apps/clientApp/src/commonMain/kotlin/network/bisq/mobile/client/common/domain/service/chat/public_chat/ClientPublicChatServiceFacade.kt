@@ -310,7 +310,12 @@ class ClientPublicChatServiceFacade(
             runCatching { userProfileServiceFacade.getUserIdentityIds().toSet() }
                 .onFailure { currentCoroutineContext().ensureActive() }
                 .getOrElse { cause ->
-                    log.w(cause) { "Could not load the user identity ids; falling back to the selected profile" }
+                    // The class only, never the throwable: getUserIdentityIds() rethrows the REST
+                    // exception whose message is the node's response body verbatim.
+                    log.w {
+                        "Could not load the user identity ids (${cause::class.simpleName}); " +
+                            "falling back to the selected profile"
+                    }
                     setOfNotNull(userProfileServiceFacade.selectedUserProfile.value?.id)
                 }
         stateMutex.withLock { myIdentityIds = ids }
@@ -420,7 +425,8 @@ class ClientPublicChatServiceFacade(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                log.w(e) { "Dropped a ${webSocketEvent.topic} event that could not be processed" }
+                // The class only: a decode failure's message quotes the payload it choked on.
+                log.w { "Dropped a ${webSocketEvent.topic} event that could not be processed (${e::class.simpleName})" }
             }
         }
 

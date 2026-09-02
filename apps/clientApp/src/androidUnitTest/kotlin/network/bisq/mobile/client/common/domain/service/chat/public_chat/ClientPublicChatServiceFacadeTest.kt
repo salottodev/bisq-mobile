@@ -1,5 +1,8 @@
 package network.bisq.mobile.client.common.domain.service.chat.public_chat
 
+import co.touchlab.kermit.LogWriter
+import co.touchlab.kermit.Logger
+import co.touchlab.kermit.Severity
 import io.ktor.http.HttpStatusCode
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -77,6 +80,32 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
 
     private lateinit var facade: ClientPublicChatServiceFacade
 
+    private val capturedWarnings = mutableListOf<Pair<String, Throwable?>>()
+    private var originalLogWriters: List<LogWriter>? = null
+
+    /**
+     * Kermit writes to a global list, so swapping it is the only seam. Captures the throwable as well
+     * as the message: what leaks the node's response body is the cause chain, not the wording.
+     */
+    private fun captureWarnings() {
+        capturedWarnings.clear()
+        originalLogWriters = Logger.config.logWriterList.toList()
+        Logger.setLogWriters(
+            object : LogWriter() {
+                override fun log(
+                    severity: Severity,
+                    message: String,
+                    tag: String,
+                    throwable: Throwable?,
+                ) {
+                    if (severity == Severity.Warn) {
+                        capturedWarnings.add(message to throwable)
+                    }
+                }
+            },
+        )
+    }
+
     override fun onSetup() {
         ApplicationBootstrapFacade.isDemo = false
         coEvery { apiGateway.subscribeChannels() } returns channelsObserver
@@ -106,6 +135,7 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
     override fun onTearDown() {
         try {
             ApplicationBootstrapFacade.isDemo = false
+            originalLogWriters?.let { Logger.setLogWriters(*it.toTypedArray()) }
         } finally {
             super.onTearDown()
         }
@@ -228,6 +258,25 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
                     .associateBy { it.id }
             assertTrue(messages.getValue("m1").isMyMessage, "the selected profile is the fallback for what is mine")
             assertFalse(messages.getValue("m2").isMyMessage, "the fallback narrows to the selected profile only")
+        }
+
+    /**
+     * `getUserIdentityIds()` rethrows the REST exception whose message is the node's response body
+     * verbatim, and a throwable passed to the logger prints it. The same body `asDomainFailure` strips
+     * from every mutation failure must not come back in through the fallback's log line.
+     */
+    @Test
+    fun `the identity-load failure does not log the node's response body`() =
+        runTest {
+            captureWarnings()
+            coEvery { userProfileServiceFacade.getUserIdentityIds() } throws
+                IllegalStateException(NODE_RESPONSE_BODY)
+
+            activateAndSettle()
+
+            val warning = capturedWarnings.single { "identity ids" in it.first }
+            assertNull(warning.second, "the cause chain would carry the response body into the log")
+            assertFalse(NODE_RESPONSE_BODY in warning.first)
         }
 
     /**
@@ -389,6 +438,29 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
             advanceUntilIdle()
 
             assertEquals("m1", singleMessage().id)
+        }
+
+    /** kotlinx quotes the offending input in the exception message, which is the payload itself. */
+    @Test
+    fun `a dropped event does not log the payload that could not be decoded`() =
+        runTest {
+            captureWarnings()
+            activateAndSettle()
+
+            messagesObserver.setEvent(
+                WebSocketEvent(
+                    topic = Topic.PUBLIC_CHAT_MESSAGES,
+                    subscriberId = "messages",
+                    deferredPayload = NODE_RESPONSE_BODY,
+                    modificationType = ModificationType.ADDED,
+                    sequenceNumber = messageSequence++,
+                ),
+            )
+            advanceUntilIdle()
+
+            val warning = capturedWarnings.single { "Dropped a" in it.first }
+            assertNull(warning.second, "the exception message quotes the payload it failed to parse")
+            assertFalse(NODE_RESPONSE_BODY in warning.first)
         }
 
     // Removal, which is where this departs from private chat
@@ -1099,5 +1171,8 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
 
     private companion object {
         const val CHANNEL_ID = "discussion.bisq"
+
+        /** Stands in for whatever the node echoes back; recognisable if it reaches a log line. */
+        const val NODE_RESPONSE_BODY = "profileId=super-secret-identity"
     }
 }
