@@ -5,13 +5,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import network.bisq.mobile.data.service.alert.TradeRestrictingAlertServiceFacade
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.domain.service.capabilities.BackendCapabilities
-import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesService
 import network.bisq.mobile.domain.service.capabilities.Feature
 import network.bisq.mobile.domain.service.community.CommunityHubService
 import network.bisq.mobile.domain.service.community.CommunitySegment
@@ -22,6 +20,7 @@ import network.bisq.mobile.presentation.common.ui.animation.AnimationSettings
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.offer.create_offer.CreateOfferCoordinator
+import network.bisq.mobile.test.fixtures.testCommunityHubService
 import network.bisq.mobile.test.presentation.coroutines.PlatformPresentationKoinTestBase
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -52,13 +51,10 @@ class TabContainerPresenterCommunityIconTest : PlatformPresentationKoinTestBase(
         val tradeRestrictingAlertServiceFacade = mockk<TradeRestrictingAlertServiceFacade>(relaxed = true)
         every { tradeRestrictingAlertServiceFacade.alert } returns MutableStateFlow(null)
         val communityHubService =
-            CommunityHubService(
-                backendCapabilitiesService =
-                    object : BackendCapabilitiesService {
-                        override val capabilities: StateFlow<BackendCapabilities> = capabilitiesFlow
-                    },
-                enabledSegments = enabled,
+            testCommunityHubService(
+                enabled = enabled,
                 requiredFeatures = requiredFeatures,
+                capabilities = capabilitiesFlow,
                 dispatcher = UnconfinedTestDispatcher(testScheduler),
             )
         val mainPresenter =
