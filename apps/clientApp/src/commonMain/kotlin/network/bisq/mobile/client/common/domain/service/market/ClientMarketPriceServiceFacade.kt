@@ -1,16 +1,17 @@
 package network.bisq.mobile.client.common.domain.service.market
 
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
-import network.bisq.mobile.client.common.domain.websocket.subscription.WebSocketEventPayload
+import network.bisq.mobile.client.common.domain.websocket.subscription.collectPayloads
 import network.bisq.mobile.data.model.market.MarketPriceItem
 import network.bisq.mobile.data.model.offerbook.MarketListItem
 import network.bisq.mobile.data.replicated.common.currency.MarketVOFactory
 import network.bisq.mobile.data.service.market_price.MarketPriceServiceFacade
+import network.bisq.mobile.domain.coroutines.DispatcherProvider
 import network.bisq.mobile.domain.formatters.MarketPriceFormatter
 import network.bisq.mobile.domain.repository.SettingsRepository
 
@@ -18,6 +19,7 @@ class ClientMarketPriceServiceFacade(
     private val apiGateway: MarketPriceApiGateway,
     private val json: Json,
     settingsRepository: SettingsRepository,
+    private val dispatcherProvider: DispatcherProvider,
 ) : MarketPriceServiceFacade(settingsRepository) {
     // Misc
     private val quotes: MutableMap<String, network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVO> = mutableMapOf()
@@ -33,22 +35,18 @@ class ClientMarketPriceServiceFacade(
             updateMarketPriceItem()
         }
 
-        serviceScope.launch(Dispatchers.Default) {
+        serviceScope.launch(dispatcherProvider.default) {
             val observer = apiGateway.subscribeMarketPrice()
-            observer.webSocketEvent.collect { webSocketEvent ->
+            observer.collectPayloads<Map<String, network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVO>>(json) { marketPriceMap, _ ->
                 try {
-                    if (webSocketEvent?.deferredPayload == null) {
-                        return@collect
-                    }
-                    val webSocketEventPayload: WebSocketEventPayload<Map<String, network.bisq.mobile.data.replicated.common.monetary.PriceQuoteVO>> =
-                        WebSocketEventPayload.from(json, webSocketEvent)
-                    val marketPriceMap = webSocketEventPayload.payload
                     log.d { "Client received price data for ${marketPriceMap.size} market price map markets: ${marketPriceMap.keys.take(10)}" }
                     quotesMutex.withLock {
                         quotes.putAll(marketPriceMap)
                     }
                     updateMarketPriceItem()
                     triggerGlobalPriceUpdate()
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     log.e(e.toString(), e)
                 }
