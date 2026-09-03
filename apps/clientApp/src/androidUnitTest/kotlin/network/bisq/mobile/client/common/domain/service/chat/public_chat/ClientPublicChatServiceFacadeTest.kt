@@ -3,6 +3,7 @@ package network.bisq.mobile.client.common.domain.service.chat.public_chat
 import co.touchlab.kermit.LogWriter
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
+import co.touchlab.kermit.loggerConfigInit
 import io.ktor.http.HttpStatusCode
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -81,29 +82,39 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
     private lateinit var facade: ClientPublicChatServiceFacade
 
     private val capturedWarnings = mutableListOf<Pair<String, Throwable?>>()
-    private var originalLogWriters: List<LogWriter>? = null
+    private val capturedErrors = mutableListOf<Pair<String, Throwable?>>()
 
     /**
-     * Kermit writes to a global list, so swapping it is the only seam. Captures the throwable as well
-     * as the message: what leaks the node's response body is the cause chain, not the wording.
+     * Swaps the facade's own logger for a capturing one, set on the instance rather than through
+     * `Logger.setLogWriters`: under a Gradle invocation without "debug" in its task names (CI runs
+     * `clean test`) `getLogger()` hands out release loggers whose immutable StaticConfig drops
+     * warnings and ignores the global writer list, so a global swap captures nothing there.
+     * Captures the throwable as well as the message: what leaks the node's response body is the
+     * cause chain, not the wording.
      */
-    private fun captureWarnings() {
+    private fun captureLogs() {
         capturedWarnings.clear()
-        originalLogWriters = Logger.config.logWriterList.toList()
-        Logger.setLogWriters(
-            object : LogWriter() {
-                override fun log(
-                    severity: Severity,
-                    message: String,
-                    tag: String,
-                    throwable: Throwable?,
-                ) {
-                    if (severity == Severity.Warn) {
-                        capturedWarnings.add(message to throwable)
-                    }
-                }
-            },
-        )
+        capturedErrors.clear()
+        facade.log =
+            Logger(
+                loggerConfigInit(
+                    object : LogWriter() {
+                        override fun log(
+                            severity: Severity,
+                            message: String,
+                            tag: String,
+                            throwable: Throwable?,
+                        ) {
+                            when (severity) {
+                                Severity.Warn -> capturedWarnings.add(message to throwable)
+                                Severity.Error -> capturedErrors.add(message to throwable)
+                                else -> Unit
+                            }
+                        }
+                    },
+                ),
+                tag = "ClientPublicChatServiceFacade",
+            )
     }
 
     override fun onSetup() {
@@ -135,7 +146,6 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
     override fun onTearDown() {
         try {
             ApplicationBootstrapFacade.isDemo = false
-            originalLogWriters?.let { Logger.setLogWriters(*it.toTypedArray()) }
         } finally {
             super.onTearDown()
         }
@@ -268,7 +278,7 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
     @Test
     fun `the identity-load failure does not log the node's response body`() =
         runTest {
-            captureWarnings()
+            captureLogs()
             coEvery { userProfileServiceFacade.getUserIdentityIds() } throws
                 IllegalStateException(NODE_RESPONSE_BODY)
 
@@ -440,11 +450,15 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
             assertEquals("m1", singleMessage().id)
         }
 
-    /** kotlinx quotes the offending input in the exception message, which is the payload itself. */
+    /**
+     * An undecodable payload is skipped by [WebSocketEventPayload.from] returning null — its own
+     * log line is pinned payload-free by `WebSocketEventPayloadTest` — so the facade must neither
+     * log the payload itself nor lose the collector: the next valid event on the topic still lands.
+     */
     @Test
-    fun `a dropped event does not log the payload that could not be decoded`() =
+    fun `an undecodable event is skipped and the collector keeps collecting`() =
         runTest {
-            captureWarnings()
+            captureLogs()
             activateAndSettle()
 
             messagesObserver.setEvent(
@@ -458,9 +472,33 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
             )
             advanceUntilIdle()
 
-            val warning = capturedWarnings.single { "Dropped a" in it.first }
-            assertNull(warning.second, "the exception message quotes the payload it failed to parse")
-            assertFalse(NODE_RESPONSE_BODY in warning.first)
+            emitChannel()
+            emitMessage(messageId = "m1")
+            advanceUntilIdle()
+
+            assertEquals("m1", singleMessage().id)
+            assertTrue(capturedWarnings.none { NODE_RESPONSE_BODY in it.first })
+        }
+
+    /**
+     * The consume-notifications failure is this facade's one error-severity log line, and a
+     * [WebSocketRestApiException]'s message is the node's response body verbatim — logged as a
+     * throwable it would print. The class and the HTTP status are what the line keeps.
+     */
+    @Test
+    fun `a failed notification consumption does not log the node's response body`() =
+        runTest {
+            captureLogs()
+            coEvery { apiGateway.consumeNotifications(CHANNEL_ID) } returns
+                Result.failure(WebSocketRestApiException(HttpStatusCode.Forbidden, NODE_RESPONSE_BODY))
+
+            facade.consumeNotifications(CHANNEL_ID)
+
+            val error = capturedErrors.single { "consume notifications" in it.first }
+            assertNull(error.second, "a logged throwable prints the response body it carries")
+            assertFalse(NODE_RESPONSE_BODY in error.first)
+            assertTrue("WebSocketRestApiException" in error.first, "the class is what the log keeps")
+            assertTrue("HTTP 403" in error.first, "the status is what the log keeps")
         }
 
     // Removal, which is where this departs from private chat

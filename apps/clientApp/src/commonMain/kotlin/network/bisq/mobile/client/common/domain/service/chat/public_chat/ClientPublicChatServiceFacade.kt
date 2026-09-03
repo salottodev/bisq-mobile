@@ -1,5 +1,6 @@
 package network.bisq.mobile.client.common.domain.service.chat.public_chat
 
+import co.touchlab.kermit.Logger
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -43,6 +44,7 @@ import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesServic
 import network.bisq.mobile.domain.service.capabilities.Feature
 import network.bisq.mobile.domain.service.community.CommunityHubService
 import network.bisq.mobile.domain.service.community.CommunitySegment
+import network.bisq.mobile.domain.utils.getLogger
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 
 /**
@@ -69,6 +71,12 @@ class ClientPublicChatServiceFacade(
     private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ServiceFacade(),
     PublicChatServiceFacade {
+    // var so the log-assertion tests can substitute a capturing logger. Under a Gradle invocation
+    // without "debug" in its task names (CI runs `clean test`) getLogger() hands out release
+    // loggers whose immutable StaticConfig drops warnings and ignores Logger.setLogWriters, so a
+    // global writer swap captures nothing there (see Logging.kt).
+    override var log: Logger = getLogger("ClientPublicChatServiceFacade")
+
     override val isSupported: Flow<Boolean>
         get() =
             backendCapabilitiesService.capabilities
@@ -211,8 +219,13 @@ class ClientPublicChatServiceFacade(
         apiGateway
             .consumeNotifications(channelId)
             // The channel id is logged, unlike private chat's: "discussion.bisq" names a public room,
-            // not the two people in a conversation.
-            .onFailure { log.e(it) { "Failed to consume notifications of public chat channel $channelId" } }
+            // not the two people in a conversation. The class and status only, never the throwable:
+            // a WebSocketRestApiException's message is the node's response body verbatim, and a
+            // logged throwable prints it.
+            .onFailure { cause ->
+                val status = (cause as? WebSocketRestApiException)?.httpStatusCode?.let { ", HTTP ${it.value}" }.orEmpty()
+                log.e { "Failed to consume notifications of public chat channel $channelId (${cause::class.simpleName}$status)" }
+            }
     }
 
     // Private
@@ -323,8 +336,8 @@ class ClientPublicChatServiceFacade(
 
     private suspend fun subscribeChannels() {
         apiGateway.subscribeChannels().webSocketEvent.collectGuarded { webSocketEvent ->
-            val payload: WebSocketEventPayload<List<CommonPublicChatChannelDto>> =
-                WebSocketEventPayload.from(json, webSocketEvent)
+            val payload =
+                WebSocketEventPayload.from<List<CommonPublicChatChannelDto>>(json, webSocketEvent) ?: return@collectGuarded
             stateMutex.withLock {
                 // No branching on the type, unlike messages and reactions. The first event is always
                 // the snapshot WebSocketClientImpl synthesises as REPLACE, and after it the topic only
@@ -340,8 +353,8 @@ class ClientPublicChatServiceFacade(
 
     private suspend fun subscribeMessages() {
         apiGateway.subscribeMessages().webSocketEvent.collectGuarded { webSocketEvent ->
-            val payload: WebSocketEventPayload<List<CommonPublicChatMessageDto>> =
-                WebSocketEventPayload.from(json, webSocketEvent)
+            val payload =
+                WebSocketEventPayload.from<List<CommonPublicChatMessageDto>>(json, webSocketEvent) ?: return@collectGuarded
             stateMutex.withLock {
                 when (webSocketEvent.modificationType) {
                     // The snapshot, synthesised on every (re)subscribe from the node's full history of
@@ -374,8 +387,8 @@ class ClientPublicChatServiceFacade(
 
     private suspend fun subscribeReactions() {
         apiGateway.subscribeReactions().webSocketEvent.collectGuarded { webSocketEvent ->
-            val payload: WebSocketEventPayload<List<CommonPublicChatMessageReactionDto>> =
-                WebSocketEventPayload.from(json, webSocketEvent)
+            val payload =
+                WebSocketEventPayload.from<List<CommonPublicChatMessageReactionDto>>(json, webSocketEvent) ?: return@collectGuarded
             stateMutex.withLock {
                 when (webSocketEvent.modificationType) {
                     ModificationType.REPLACE -> {
@@ -409,11 +422,15 @@ class ClientPublicChatServiceFacade(
     }
 
     /**
-     * One throw — an undecodable payload above all, one node round-trip away once a newer bisq2 adds
-     * an enum constant — would cancel the collector, and through the shared parent the other two,
-     * for the rest of the session with nothing on screen to say so. The event is dropped instead;
-     * the next resubscribe snapshot repairs whatever it carried. Same guard, and the same reasoning,
-     * as the node twin's unread recount.
+     * One throw would cancel the collector, and through the shared parent the other two, for the
+     * rest of the session with nothing on screen to say so. The event is dropped instead; the next
+     * resubscribe snapshot repairs whatever it carried. Same guard, and the same reasoning, as the
+     * node twin's unread recount.
+     *
+     * An undecodable payload — one node round-trip away once a newer bisq2 adds an enum constant —
+     * no longer reaches this catch: [WebSocketEventPayload.from] returns null for it (logging topic
+     * and cause itself), and the call sites skip. What remains here is a failure in processing a
+     * decoded event.
      */
     private suspend fun Flow<WebSocketEvent?>.collectGuarded(block: suspend (WebSocketEvent) -> Unit) =
         collect { webSocketEvent ->
