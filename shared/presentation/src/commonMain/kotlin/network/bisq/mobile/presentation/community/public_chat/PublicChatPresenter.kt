@@ -37,8 +37,8 @@ import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.main.MainPresenter
 
 /**
- * A public chat thread, parameterized by domain so the same screen serves Discussions and — once
- * #1746 wires its entry points — Support.
+ * A public chat thread, parameterized by domain so the same screen serves the hub's Discussions
+ * segment and the pushed Support screen.
  *
  * Two things separate it from `PrivateChatPresenter`, and both are places a copy would misbehave in
  * silence: the channel is resolved by DOMAIN rather than by position or by a literal id, because the
@@ -51,6 +51,7 @@ class PublicChatPresenter(
     private val publicChatServiceFacade: PublicChatServiceFacade,
     private val userProfileServiceFacade: UserProfileServiceFacade,
     private val settingsRepository: SettingsRepository,
+    private val chatChannelDomain: ChatChannelDomainEnum,
 ) : BasePresenter(mainPresenter) {
     private companion object {
         /** Coalesces the scroll-driven read updates into one node round-trip. */
@@ -74,7 +75,6 @@ class PublicChatPresenter(
     val userProfileIconProvider: suspend (UserProfileVO) -> PlatformImage
         get() = userProfileServiceFacade::getUserProfileIcon
 
-    private var initializedDomain: ChatChannelDomainEnum? = null
     private var channelJob: Job? = null
 
     /** Extra buffer + DROP_OLDEST so the non-suspending [onUpdateReadCount] can never block or lose the latest. */
@@ -90,44 +90,34 @@ class PublicChatPresenter(
 
     private val searchQuery = MutableStateFlow("")
 
-    override fun analyticsScreenEvent() = AnalyticsEvent.ScreenOpened.CommunityDiscussions
-
     /**
-     * Idempotent on the domain, because the mounting composable re-runs whenever the tab is revealed —
-     * but only while the job it started is still alive. The hub mounts this tab with
-     * `RememberPresenterLifecycle`, which disposes `presenterScope` on detach, so a tab coming back
-     * would otherwise short-circuit here and render a frozen list forever.
+     * One presenter, two screens, and three chat domains it is never mounted on — the last of which
+     * is why this is nullable. The domain arrives at construction, so the answer is settled before
+     * the view can attach and ask.
      */
-    fun initialize(chatChannelDomain: ChatChannelDomainEnum) {
-        if (initializedDomain == chatChannelDomain) {
-            if (channelJob?.isActive != true) startChannelJob(chatChannelDomain)
-            return
+    override fun analyticsScreenEvent(): AnalyticsEvent.ScreenOpened? =
+        when (chatChannelDomain) {
+            ChatChannelDomainEnum.DISCUSSION -> AnalyticsEvent.ScreenOpened.CommunityDiscussions
+            ChatChannelDomainEnum.SUPPORT -> AnalyticsEvent.ScreenOpened.CommunitySupport
+            else -> null
         }
-        initializedDomain = chatChannelDomain
-        _uiState.value = PublicChatUiState()
-        reportedReadCount.value = null
-        searchQuery.value = ""
-        startChannelJob(chatChannelDomain)
-    }
 
     /**
-     * The other half of the same problem: on a re-attach the scope is recreated here, before the
-     * composable's `initialize` runs. Restarting from both ends is harmless — whichever runs first
-     * leaves an active job and the other returns.
+     * The only place the collectors start. `presenterScope` is cancelled on detach and recreated on
+     * the next attach, so a tab or screen coming back needs a fresh job; [startChannelJob] cancels
+     * whatever was there first, which is all an attach has to do.
      */
     override fun onViewAttached() {
         super.onViewAttached()
-        initializedDomain?.let { domain ->
-            if (channelJob?.isActive != true) startChannelJob(domain)
-        }
+        startChannelJob()
     }
 
-    private fun startChannelJob(chatChannelDomain: ChatChannelDomainEnum) {
+    private fun startChannelJob() {
         channelJob?.cancel()
         channelJob =
             presenterScope.launch {
-                // Children of the channel's job, so re-initialising on another domain takes them down
-                // with everything else the first one started.
+                // Children of the channel's job, so a restart on re-attach takes them down with
+                // everything else the previous one started.
                 launch {
                     settingsRepository.data.collect { settings ->
                         _uiState.update { it.copy(showChatRulesWarnBox = settings.showChatRulesWarnBox) }
@@ -143,7 +133,7 @@ class PublicChatPresenter(
                 // branch, and it clears its text the moment it hands the message over — so an early
                 // send costs the user what they wrote rather than just failing.
                 _isSendChatMessageEnabled.value = false
-                val channel = awaitChannel(chatChannelDomain)
+                val channel = awaitChannel()
                 _isSendChatMessageEnabled.value = true
                 // Read before consuming, because consuming zeroes it — synchronously on the node,
                 // where bisq2 publishes changedNotification from inside consume(). Reading afterwards
@@ -253,7 +243,7 @@ class PublicChatPresenter(
      * "the channel could not be loaded" against a healthy node. The terminal states are
      * [PublicChatUiState.isSupported] and an explicit facade failure, never a clock.
      */
-    private suspend fun awaitChannel(chatChannelDomain: ChatChannelDomainEnum): CommonPublicChatChannel =
+    private suspend fun awaitChannel(): CommonPublicChatChannel =
         publicChatServiceFacade.channels
             .mapNotNull { channels -> channels.firstOrNull { it.chatChannelDomain == chatChannelDomain } }
             .first()

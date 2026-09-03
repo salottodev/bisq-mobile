@@ -1,17 +1,17 @@
 package network.bisq.mobile.presentation.community
 
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import network.bisq.mobile.domain.service.capabilities.BackendCapabilities
-import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesService
 import network.bisq.mobile.domain.service.capabilities.Feature
-import network.bisq.mobile.domain.service.community.CommunityHubService
 import network.bisq.mobile.domain.service.community.CommunitySegment
+import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.main.MainPresenter
+import network.bisq.mobile.test.fixtures.testCommunityHubService
 import network.bisq.mobile.test.presentation.coroutines.PresentationKoinTestBase
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,13 +32,10 @@ class CommunityHubPresenterTest : PresentationKoinTestBase() {
         requiredFeatures: Map<CommunitySegment, Feature> = emptyMap(),
     ): CommunityHubPresenter {
         val hubService =
-            CommunityHubService(
-                backendCapabilitiesService =
-                    object : BackendCapabilitiesService {
-                        override val capabilities: StateFlow<BackendCapabilities> = capabilitiesFlow
-                    },
-                enabledSegments = enabled,
+            testCommunityHubService(
+                enabled = enabled,
                 requiredFeatures = requiredFeatures,
+                capabilities = capabilitiesFlow,
                 dispatcher = UnconfinedTestDispatcher(testScheduler),
             )
         val presenter = CommunityHubPresenter(mainPresenter, hubService)
@@ -110,14 +107,19 @@ class CommunityHubPresenterTest : PresentationKoinTestBase() {
             assertNull(presenter.uiState.value.selectedSegment)
         }
 
+    /**
+     * Support is pushed as its own screen rather than selected as a segment: it is not one, and the
+     * hub keeps the segment it was on so backing out lands where the user left.
+     */
     @Test
-    fun `support quick access action is a safe no-op for now`() =
+    fun `the support quick access pushes the support channel and keeps the segment`() =
         runTest {
             val presenter = createAttachedPresenter(enabled = setOf(CommunitySegment.DISCUSSIONS))
 
             presenter.onAction(CommunityHubUiAction.OnOpenSupportChannel)
             advanceUntilIdle()
 
+            verify { navigationManager.navigate(NavRoute.SupportChannel, any(), any()) }
             assertEquals(CommunitySegment.DISCUSSIONS, presenter.uiState.value.selectedSegment)
         }
 

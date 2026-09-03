@@ -146,6 +146,10 @@ interface NavRoute {
     @Serializable
     data object Support : NavRoute
 
+    /** The in-app Support chat channel, distinct from [Support], which lists external help links. */
+    @Serializable
+    data object SupportChannel : NavRoute
+
     @Serializable
     data object Faqs : NavRoute
 

@@ -6,6 +6,7 @@ import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.data.replicated.presentation.offerbook.OfferItemPresentationModel
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
@@ -76,6 +77,11 @@ import kotlin.test.assertEquals
  *  2. Add the override to the presenter (`override fun analyticsScreenEvent() = NewScreen`).
  *  3. Add a `"NewPresenter" to NewScreen` entry to [expectedCoverage].
  *  4. Add a `@Test` below that attaches the presenter and asserts the emission.
+ *
+ * A presenter that serves more than one screen (`PublicChatPresenter`, one per chat domain) gets one
+ * row per event, its name suffixed with what distinguishes them — [expectedCoverage] asserts both
+ * halves of every pair are unique. Such a presenter's event depends on state, so its emission test
+ * has to put it in that state before attaching.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScreenAnalyticsCoverageTest : PlatformPresentationKoinTestBase() {
@@ -93,6 +99,11 @@ class ScreenAnalyticsCoverageTest : PlatformPresentationKoinTestBase() {
     /**
      * The expected mapping from presenter class to its screen-view event.
      * Must stay in sync with [AnalyticsEvent.ScreenOpened.all].
+     *
+     * Both halves are checked: the event half for set equality against `ScreenOpened.all` and for
+     * uniqueness, the name half for uniqueness too. Only the name half is free-form, which is what
+     * lets a parameterized presenter carry its domain in the string — and having to keep that string
+     * unique is exactly what forces the domain suffix.
      */
     private val expectedCoverage: List<Pair<String, AnalyticsEvent.ScreenOpened>> =
         listOf(
@@ -118,7 +129,10 @@ class ScreenAnalyticsCoverageTest : PlatformPresentationKoinTestBase() {
             // Tier C — community
             "CommunityHubPresenter" to AnalyticsEvent.ScreenOpened.CommunityHub,
             "ContactsPresenter" to AnalyticsEvent.ScreenOpened.CommunityContacts,
-            "PublicChatPresenter" to AnalyticsEvent.ScreenOpened.CommunityDiscussions,
+            // One presenter, two screens: PublicChatPresenter is parameterized by chat domain, so the
+            // name carries the domain to keep this list's one-row-per-event contract.
+            "PublicChatPresenter (DISCUSSION)" to AnalyticsEvent.ScreenOpened.CommunityDiscussions,
+            "PublicChatPresenter (SUPPORT)" to AnalyticsEvent.ScreenOpened.CommunitySupport,
         )
 
     // ============== Contract test ====================================
@@ -274,14 +288,12 @@ class ScreenAnalyticsCoverageTest : PlatformPresentationKoinTestBase() {
 
     @Test
     fun `PublicChatPresenter emits ScreenOpened_CommunityDiscussions`() {
-        val presenter =
-            PublicChatPresenter(
-                mainPresenter = mainPresenter,
-                publicChatServiceFacade = mockk(relaxed = true),
-                userProfileServiceFacade = mockk(relaxed = true),
-                settingsRepository = SettingsRepositoryMock(),
-            )
-        assertEmitsOnAttach(presenter, AnalyticsEvent.ScreenOpened.CommunityDiscussions)
+        assertEmitsOnAttach(publicChatPresenter(ChatChannelDomainEnum.DISCUSSION), AnalyticsEvent.ScreenOpened.CommunityDiscussions)
+    }
+
+    @Test
+    fun `PublicChatPresenter emits ScreenOpened_CommunitySupport`() {
+        assertEmitsOnAttach(publicChatPresenter(ChatChannelDomainEnum.SUPPORT), AnalyticsEvent.ScreenOpened.CommunitySupport)
     }
 
     @Test
@@ -412,6 +424,18 @@ class ScreenAnalyticsCoverageTest : PlatformPresentationKoinTestBase() {
         verify(exactly = 0) { analyticsService.track(any()) }
     }
 
+    /**
+     * `PublicChatPresenter` answers per domain and only two of the five have a screen here. A third
+     * has to report none: falling through to the Discussions event would file every one of those
+     * views under a screen the user never opened.
+     */
+    @Test
+    fun `PublicChatPresenter emits nothing on a domain it does not serve`() {
+        publicChatPresenter(ChatChannelDomainEnum.BISQ_EASY_OPEN_TRADES).onViewAttached()
+
+        verify(exactly = 0) { analyticsService.track(ofType<AnalyticsEvent.ScreenOpened>()) }
+    }
+
     // ============== Helpers ==========================================
 
     /**
@@ -429,6 +453,15 @@ class ScreenAnalyticsCoverageTest : PlatformPresentationKoinTestBase() {
         verify(exactly = 1) { analyticsService.track(expected) }
         verify(exactly = 1) { analyticsService.track(ofType<AnalyticsEvent.ScreenOpened>()) }
     }
+
+    private fun publicChatPresenter(chatChannelDomain: ChatChannelDomainEnum) =
+        PublicChatPresenter(
+            mainPresenter = mainPresenter,
+            publicChatServiceFacade = mockk(relaxed = true),
+            userProfileServiceFacade = mockk(relaxed = true),
+            settingsRepository = SettingsRepositoryMock(),
+            chatChannelDomain = chatChannelDomain,
+        )
 
     private val marketPriceServiceFacade = FakeMarketPriceServiceFacade(SettingsRepositoryMock())
 

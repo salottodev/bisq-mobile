@@ -30,15 +30,20 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.BisqLinks
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
+import network.bisq.mobile.presentation.settings.support.SupportChannelLink
 import network.bisq.mobile.presentation.settings.support.SupportPresenter
 import network.bisq.mobile.presentation.settings.support.SupportWeblink
 import org.koin.compose.koinInject
 
-// TODO: Coverage exclusion rationale - Compose UI screen cannot be unit tested.
-// Requires Compose UI testing framework for proper coverage.
+// Coverage exclusion: a screen of static links and a debug panel. ClientSupportScreenUiTest
+// covers the one conditional part, the in-app Support entry.
 @ExcludeFromCoverage
 @Composable
-fun ClientSupportScreen() {
+fun ClientSupportScreen(
+    // Test seam: IS_DEBUG is a compile-time const whose value follows the gradle invocation, so a
+    // bare read leaves one branch untestable per run. Same seam as ClientReputationServiceFacade.
+    isDebug: Boolean = BuildConfig.IS_DEBUG,
+) {
     // Use the standard SupportPresenter for base functionality
     val supportPresenter: SupportPresenter = koinInject()
     val clientPresenter: ClientSupportPresenter = koinInject()
@@ -47,6 +52,7 @@ fun ClientSupportScreen() {
     RememberPresenterLifecycle(clientPresenter)
 
     val reportUrl by supportPresenter.reportUrl.collectAsState()
+    val isSupportChannelAvailable by supportPresenter.isSupportChannelAvailable.collectAsState()
 
     // Client-specific push notification state
     val deviceToken by clientPresenter.deviceToken.collectAsState()
@@ -65,6 +71,14 @@ fun ClientSupportScreen() {
             text = "mobile.support.intro".i18n(),
             color = BisqTheme.colors.light_grey50,
         )
+        if (isSupportChannelAvailable) {
+            BisqGap.V2()
+            SupportChannelLink(onClick = { supportPresenter.onOpenSupportChannel() })
+        }
+        BisqGap.V2()
+        // Caption so the external links read as one named, secondary group — with or without the
+        // in-app button above them.
+        BisqText.SmallRegularGrey("mobile.support.communityChannels".i18n())
         Column(verticalArrangement = Arrangement.spacedBy(BisqUIConstants.Zero)) {
             SupportWeblink(
                 text = "mobile.support.matrix".i18n(),
@@ -114,7 +128,7 @@ fun ClientSupportScreen() {
         )
 
         // Push Notifications Debug Section (only in debug builds)
-        if (BuildConfig.IS_DEBUG) {
+        if (isDebug) {
             BisqHDivider(modifier = Modifier.padding(top = BisqUIConstants.ScreenPadding2X, bottom = BisqUIConstants.ScreenPadding3X))
 
             BisqText.H3Light("Push Notifications (Debug)")

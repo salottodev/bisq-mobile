@@ -19,6 +19,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.button.LinkButton
+import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ChatIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.WebLinkIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqHDivider
@@ -36,6 +37,7 @@ fun SupportScreen() {
     RememberPresenterLifecycle(presenter)
 
     val reportUrl by presenter.reportUrl.collectAsState()
+    val isSupportChannelAvailable by presenter.isSupportChannelAvailable.collectAsState()
 
     BisqScrollScaffold(
         topBar = { TopBar("mobile.more.support".i18n(), showUserAvatar = false) },
@@ -49,6 +51,14 @@ fun SupportScreen() {
             text = "mobile.support.intro".i18n(),
             color = BisqTheme.colors.light_grey50,
         )
+        if (isSupportChannelAvailable) {
+            BisqGap.V2()
+            SupportChannelLink(onClick = { presenter.onOpenSupportChannel() })
+        }
+        BisqGap.V2()
+        // Caption so the external links read as one named, secondary group — with or without the
+        // in-app button above them.
+        BisqText.SmallRegularGrey("mobile.support.communityChannels".i18n())
         Column(verticalArrangement = Arrangement.spacedBy(BisqUIConstants.Zero)) {
             SupportWeblink(
                 text = "mobile.support.matrix".i18n(),
@@ -149,6 +159,23 @@ fun SupportScreen() {
             }
         }
     }
+}
+
+/**
+ * The in-app Support channel — the one route that stays in the app, so it gets button affordance
+ * the external links deliberately lack: `Outline` is what this screen already uses for real actions
+ * (Restart/Shutdown), while grey underline is its vocabulary for passive links. Not a
+ * [SupportWeblink] — there is no URL to open, so there is no leaving-the-app confirmation to show.
+ */
+@Composable
+fun SupportChannelLink(onClick: () -> Unit) {
+    BisqButton(
+        text = "mobile.community.support.openChannel".i18n(),
+        onClick = onClick,
+        type = BisqButtonType.Outline,
+        fullWidth = true,
+        leftIcon = { ChatIcon(modifier = Modifier.size(16.dp)) },
+    )
 }
 
 @Composable

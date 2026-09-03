@@ -80,7 +80,9 @@ val androidNodePresentationModule =
         factory<FaqPresenter> { FaqNodePresenter(get()) }
         factory { CommunityHubPresenter(get(), get()) }
         factory { ContactsPresenter(get(), get(), get()) }
-        factory { PublicChatPresenter(get(), get(), get(), get()) }
+        // Parameterized: the chat domain is a construction parameter, so the presenter's screen-view
+        // analytics event is settled before the view attaches.
+        factory { params -> PublicChatPresenter(get(), get(), get(), get(), params.get()) }
 
         factory { NodeNetworkOverviewPresenter(get(), get(), get()) }
 

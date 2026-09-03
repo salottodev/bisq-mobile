@@ -46,6 +46,8 @@ Do **not** extend `CoroutineTestBase` or `KoinIntegrationTestBase` directly.
 | `MutableAlertNotificationsServiceFacade` | `shared/presentation/src/androidUnitTest/kotlin/.../common/test_utils/MutableAlertNotificationsServiceFacade.kt` |
 | `FakeTradeReadStateRepository` | `shared/presentation/src/androidUnitTest/kotlin/.../common/test_utils/FakeTradeReadStateRepository.kt` |
 | `TestApplicationLifecycleService` | `shared/presentation/src/androidUnitTest/kotlin/.../common/test_utils/TestApplicationLifecycleService.kt` |
+| `testCommunityHubService(...)` | `shared/test-utils/src/commonMain/kotlin/.../test/fixtures/CommunityHubServiceTestFactory.kt` |
+| `testPublicChatChannel(...)`, `DISCUSSION_MESSAGE_TEXT`, `SUPPORT_MESSAGE_TEXT` | `shared/test-utils/src/commonMain/kotlin/.../test/fixtures/PublicChatChannelTestFactory.kt` |
 | `SettingsRepositoryMock(initial, fetchException)` | `shared/test-utils/src/commonMain/kotlin/.../test/mocks/SettingsRepositoryMock.kt` |
 | `SensitiveSettingsRepositoryMock` | `apps/clientApp/src/androidUnitTest/kotlin/.../common/domain/sensitive_settings/SensitiveSettingsRepositoryMock.kt` |
 | `UserRepositoryMock` | `shared/test-utils/src/commonMain/kotlin/.../test/mocks/UserRepositoryMock.kt` |
@@ -54,6 +56,25 @@ Do **not** extend `CoroutineTestBase` or `KoinIntegrationTestBase` directly.
 | `UnconfinedTestDispatcherProvider` | `shared/test-utils/src/commonMain/kotlin/.../test/coroutines/UnconfinedTestDispatcherProvider.kt` |
 | `jsonDataStoreSerializerTestSupport(...)` | `shared/test-utils/src/commonMain/kotlin/.../test/datastore/JsonDataStoreSerializerTestSupport.kt` |
 | `WebLinkDialogTestSupport` | `shared/presentation/src/androidUnitTest/kotlin/.../dialog/WebLinkDialogTestSupport.kt` |
+
+`testCommunityHubService(...)` builds a real `CommunityHubService` on a test dispatcher — never
+hand-roll the constructor plus an anonymous `BackendCapabilitiesService` again. Pass `capabilities`
+a `MutableStateFlow` to move the backend manifest mid-test, and `dispatcher =
+UnconfinedTestDispatcher(testScheduler)` from inside `runTest` so `advanceUntilIdle()` drives the
+service's own scope. `requiredFeatures` defaults to production's own map and `capabilities` to the
+fail-closed manifest, which is deliberate — a test asserting a segment is live goes red on the day
+that segment starts requiring a backend feature, which is exactly what you want to be told. Default
+it to `emptyMap()` instead and that test would keep quietly passing. So a test about anything other
+than the capability gate has to pass `requiredFeatures = emptyMap()` itself; omitting it makes the
+test's fate depend on a map it never mentions.
+
+`testPublicChatChannel(...)` builds a `CommonPublicChatChannel` holding one message, for seeding a
+mocked `PublicChatServiceFacade.channels`. Use `DISCUSSION_MESSAGE_TEXT` and `SUPPORT_MESSAGE_TEXT`
+as its text when a test has to tell the two channels apart: the facade serves every domain from one
+flow, so a thread on the wrong domain renders a plausible conversation instead of failing, and the
+assertion that catches it is "this text is displayed and that one is not". Build the channel list at
+the call site — which channel comes first decides whether a thread that ignores its domain is caught
+there or only by a sibling test.
 
 `SettingsRepositoryMock` is the **only** hand-rolled `SettingsRepository` fake — do not invent another
 class. Prefer it when you need mutable settings state. `mockk<SettingsRepository>()` is fine when the

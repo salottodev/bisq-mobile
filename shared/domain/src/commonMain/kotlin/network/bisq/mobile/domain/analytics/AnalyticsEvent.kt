@@ -413,6 +413,7 @@ sealed class AnalyticsEvent(
                     CommunityHub,
                     CommunityContacts,
                     CommunityDiscussions,
+                    CommunitySupport,
                 )
             }
         }
@@ -458,8 +459,11 @@ sealed class AnalyticsEvent(
 
         data object CommunityContacts : ScreenOpened("screen.community_contacts_opened")
 
-        /** The Discussions tab of the hub; Support gets its own once #1746 wires an entry point. */
+        /** The Discussions tab of the hub. Both come from `PublicChatPresenter`, one per chat domain. */
         data object CommunityDiscussions : ScreenOpened("screen.community_discussions_opened")
+
+        /** The Support channel, pushed from the hub's pinned quick access or More → Help, not a tab. */
+        data object CommunitySupport : ScreenOpened("screen.community_support_opened")
     }
 
     /**

@@ -20,6 +20,7 @@ import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.common.ui.navigation.NavUtils.getDeepLinkBasePath
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.community.CommunityHubScreen
+import network.bisq.mobile.presentation.community.public_chat.SupportChannelScreen
 import network.bisq.mobile.presentation.guide.trade_guide.TradeGuideOverview
 import network.bisq.mobile.presentation.guide.trade_guide.TradeGuideProcess
 import network.bisq.mobile.presentation.guide.trade_guide.TradeGuideSecurity
@@ -62,7 +63,12 @@ import kotlin.reflect.KType
 
 const val NAV_ANIM_MS = 300
 
-@ExcludeFromCoverage // declarative nav wiring (like the DI modules); not unit-testable in isolation
+// Declarative nav wiring, excluded from coverage the way the DI modules are: forty routes, and
+// asserting each one is registered would mostly restate this file back at itself. It is not
+// untestable, though — CommonNavGraphTest builds this graph with no Koin and no Compose runtime,
+// and pins NavRoute.SupportChannel there because two entry points share it and an unregistered
+// route fails silently. Pin any other route whose absence would be a dead tap rather than a crash.
+@ExcludeFromCoverage
 fun NavGraphBuilder.addCommonAppRoutes(animationsEnabled: () -> Boolean) {
     addScreen<NavRoute.UserAgreement>(animationsEnabled = animationsEnabled) { UserAgreementScreen() }
     addScreen<NavRoute.Onboarding>(animationsEnabled = animationsEnabled) { OnboardingScreen() }
@@ -134,6 +140,7 @@ fun NavGraphBuilder.addCommonAppRoutes(animationsEnabled: () -> Boolean) {
     addScreen<NavRoute.ChatRules>(animationsEnabled = animationsEnabled) { ChatRulesScreen() }
     addScreen<NavRoute.Settings>(animationsEnabled = animationsEnabled) { SettingsScreen() }
     addScreen<NavRoute.Support>(animationsEnabled = animationsEnabled) { SupportScreen() }
+    addScreen<NavRoute.SupportChannel>(animationsEnabled = animationsEnabled) { SupportChannelScreen() }
     addScreen<NavRoute.Faqs>(animationsEnabled = animationsEnabled) { FaqScreen() }
     addScreen<NavRoute.CommunityHub>(animationsEnabled = animationsEnabled) { backStackEntry ->
         val route: NavRoute.CommunityHub = backStackEntry.toRoute()

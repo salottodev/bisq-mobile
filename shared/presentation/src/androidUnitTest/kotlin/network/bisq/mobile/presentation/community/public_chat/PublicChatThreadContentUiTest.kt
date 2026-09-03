@@ -18,8 +18,9 @@ import kotlin.test.assertEquals
 /**
  * The thread body is a layout, not a scaffold: the hub mounts it inside its own `BisqScaffold` —
  * which already carries `imePadding()` — so a nested scaffold would apply the window insets twice
- * and reserve a bottom-bar height inside a weighted box. #1746's pushed Support screen wraps this in
- * `ChatScaffold` instead, which already owns the top bar and the input padding contract.
+ * and reserve a bottom-bar height inside a weighted box. `SupportChannelScreen` supplies the chrome
+ * from the other side with a `BisqScaffold` carrying only a top bar — not `ChatScaffold`, which owns a
+ * `ChatInputBottomBar` and would give the screen a second composer.
  */
 class PublicChatThreadContentUiTest : BisqComposeUiTestBase() {
     private val me: UserProfileVO = createMockUserProfile("me")
