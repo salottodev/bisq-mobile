@@ -31,22 +31,10 @@ class SupportPresenter(
         MutableStateFlow(CommunitySegment.DISCUSSIONS in communityHubService.liveSegments.value)
 
     /**
-     * Whether to offer the in-app Support channel alongside the external ones. Keyed on DISCUSSIONS
-     * being live because that segment carries the public chat rollout — the closest thing to a
-     * rollout switch the Help screen can read, and the precondition the Community hub's Support row
-     * is itself gated behind (that row additionally requires the segment to be *selected*).
-     *
-     * Not that the ungated entry would be unsafe to tap: a build with no public chat reports
-     * `isSupported == false`, and the thread renders that as a terminal "not available" hint. The
-     * gate is about the Help screen, which ships on every build — a permanently dead entry there is
-     * worse than no entry.
-     *
-     * This is a proxy, not the source of truth, and it holds only while [CommunityHubService.REQUIRED_FEATURES]
-     * carries no DISCUSSIONS entry to make it exact. Register that entry as part of shipping public
-     * chat on Connect: without it, flipping `feature.communityHubSegments.client` on offers the
-     * channel from every Connect build, including ones whose trusted node cannot serve it — the dead
-     * entry this gate exists to prevent. The exact predicate is `PublicChatServiceFacade.isSupported`,
-     * which the thread already collects; fold it in here if the two ever have to come apart.
+     * Offers the in-app Support channel when DISCUSSIONS is live — a proxy for public chat being
+     * served, exact only once [CommunityHubService.REQUIRED_FEATURES] carries a DISCUSSIONS entry.
+     * Register that entry when shipping public chat on Connect, or every Connect build offers a
+     * channel its node may not serve. Exact predicate: `PublicChatServiceFacade.isSupported`.
      */
     val isSupportChannelAvailable: StateFlow<Boolean> = _isSupportChannelAvailable.asStateFlow()
 

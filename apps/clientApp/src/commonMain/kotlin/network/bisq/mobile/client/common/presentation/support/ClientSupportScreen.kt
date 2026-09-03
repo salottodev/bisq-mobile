@@ -40,18 +40,8 @@ import org.koin.compose.koinInject
 @ExcludeFromCoverage
 @Composable
 fun ClientSupportScreen(
-    // Seam for tests. BuildConfig.IS_DEBUG is a compile-time const that Kotlin inlines at the call
-    // site, and which value it takes depends on the gradle invocation, not on the source set: any
-    // requested task name containing "debug" makes it true (shared/domain/build.gradle.kts:66), so
-    // testDebugUnitTest gets `true` and koverXmlReport gets `false`. Either way one branch is dead
-    // code for that whole run, so a bare read leaves it unreachable. Same seam, same reason, as
-    // ClientReputationServiceFacade.kt:18-20; the rule is docs/TESTING.md "Rules".
-    //
-    // Known limit of that seam: every ClientSupportScreenUiTest case passes this parameter, so the
-    // default expression is the one part no test evaluates. What the tests prove is that the panel
-    // is gated on this flag, not that the flag is the build's — hard-code the default either way and
-    // the suite stays green. A release build is what verifies the wiring, so keep the default a bare
-    // read of the const and nothing else.
+    // Test seam: IS_DEBUG is a compile-time const whose value follows the gradle invocation, so a
+    // bare read leaves one branch untestable per run. Same seam as ClientReputationServiceFacade.
     isDebug: Boolean = BuildConfig.IS_DEBUG,
 ) {
     // Use the standard SupportPresenter for base functionality
