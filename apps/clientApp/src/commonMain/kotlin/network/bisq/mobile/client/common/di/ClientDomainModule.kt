@@ -414,6 +414,7 @@ val clientDomainModule =
                 get(),
                 get(),
                 get(), // analyticsService
+                get(), // tradeStallClockRepository
             )
         }
 
