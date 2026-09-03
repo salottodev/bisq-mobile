@@ -19,6 +19,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.button.LinkButton
+import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ChatIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.WebLinkIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqHDivider
@@ -36,6 +37,7 @@ fun SupportScreen() {
     RememberPresenterLifecycle(presenter)
 
     val reportUrl by presenter.reportUrl.collectAsState()
+    val isSupportChannelAvailable by presenter.isSupportChannelAvailable.collectAsState()
 
     BisqScrollScaffold(
         topBar = { TopBar("mobile.more.support".i18n(), showUserAvatar = false) },
@@ -50,6 +52,9 @@ fun SupportScreen() {
             color = BisqTheme.colors.light_grey50,
         )
         Column(verticalArrangement = Arrangement.spacedBy(BisqUIConstants.Zero)) {
+            if (isSupportChannelAvailable) {
+                SupportChannelLink(onClick = { presenter.onOpenSupportChannel() })
+            }
             SupportWeblink(
                 text = "mobile.support.matrix".i18n(),
                 link = BisqLinks.MATRIX,
@@ -149,6 +154,27 @@ fun SupportScreen() {
             }
         }
     }
+}
+
+/**
+ * The in-app Support channel, listed with the community channels because that is what it is to the
+ * reader: one more way to reach the community, and the only one that stays in the app. Not a
+ * [SupportWeblink] — there is no URL to open, so there is no leaving-the-app confirmation to show.
+ */
+@Composable
+fun SupportChannelLink(onClick: () -> Unit) {
+    BisqButton(
+        text = "mobile.community.support.openChannel".i18n(),
+        onClick = onClick,
+        type = BisqButtonType.Underline,
+        color = BisqTheme.colors.mid_grey20,
+        leftIcon = { ChatIcon(modifier = Modifier.size(16.dp).alpha(0.5f)) },
+        padding =
+            PaddingValues(
+                horizontal = BisqUIConstants.ScreenPaddingHalf,
+                vertical = BisqUIConstants.Zero,
+            ),
+    )
 }
 
 @Composable

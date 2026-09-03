@@ -30,15 +30,30 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.BisqLinks
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
+import network.bisq.mobile.presentation.settings.support.SupportChannelLink
 import network.bisq.mobile.presentation.settings.support.SupportPresenter
 import network.bisq.mobile.presentation.settings.support.SupportWeblink
 import org.koin.compose.koinInject
 
-// TODO: Coverage exclusion rationale - Compose UI screen cannot be unit tested.
-// Requires Compose UI testing framework for proper coverage.
+// Coverage exclusion: a screen of static links and a debug panel. ClientSupportScreenUiTest
+// covers the one conditional part, the in-app Support entry.
 @ExcludeFromCoverage
 @Composable
-fun ClientSupportScreen() {
+fun ClientSupportScreen(
+    // Seam for tests. BuildConfig.IS_DEBUG is a compile-time const that Kotlin inlines at the call
+    // site, and which value it takes depends on the gradle invocation, not on the source set: any
+    // requested task name containing "debug" makes it true (shared/domain/build.gradle.kts:66), so
+    // testDebugUnitTest gets `true` and koverXmlReport gets `false`. Either way one branch is dead
+    // code for that whole run, so a bare read leaves it unreachable. Same seam, same reason, as
+    // ClientReputationServiceFacade.kt:18-20; the rule is docs/TESTING.md "Rules".
+    //
+    // Known limit of that seam: every ClientSupportScreenUiTest case passes this parameter, so the
+    // default expression is the one part no test evaluates. What the tests prove is that the panel
+    // is gated on this flag, not that the flag is the build's — hard-code the default either way and
+    // the suite stays green. A release build is what verifies the wiring, so keep the default a bare
+    // read of the const and nothing else.
+    isDebug: Boolean = BuildConfig.IS_DEBUG,
+) {
     // Use the standard SupportPresenter for base functionality
     val supportPresenter: SupportPresenter = koinInject()
     val clientPresenter: ClientSupportPresenter = koinInject()
@@ -47,6 +62,7 @@ fun ClientSupportScreen() {
     RememberPresenterLifecycle(clientPresenter)
 
     val reportUrl by supportPresenter.reportUrl.collectAsState()
+    val isSupportChannelAvailable by supportPresenter.isSupportChannelAvailable.collectAsState()
 
     // Client-specific push notification state
     val deviceToken by clientPresenter.deviceToken.collectAsState()
@@ -66,6 +82,9 @@ fun ClientSupportScreen() {
             color = BisqTheme.colors.light_grey50,
         )
         Column(verticalArrangement = Arrangement.spacedBy(BisqUIConstants.Zero)) {
+            if (isSupportChannelAvailable) {
+                SupportChannelLink(onClick = { supportPresenter.onOpenSupportChannel() })
+            }
             SupportWeblink(
                 text = "mobile.support.matrix".i18n(),
                 link = BisqLinks.MATRIX,
@@ -114,7 +133,7 @@ fun ClientSupportScreen() {
         )
 
         // Push Notifications Debug Section (only in debug builds)
-        if (BuildConfig.IS_DEBUG) {
+        if (isDebug) {
             BisqHDivider(modifier = Modifier.padding(top = BisqUIConstants.ScreenPadding2X, bottom = BisqUIConstants.ScreenPadding3X))
 
             BisqText.H3Light("Push Notifications (Debug)")

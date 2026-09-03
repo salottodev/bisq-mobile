@@ -94,7 +94,7 @@ val presentationModule =
 
         factory<ReputationPresenter> { ReputationPresenter(get(), get()) }
 
-        factory<SupportPresenter> { SupportPresenter(get(), get(), get()) }
+        factory<SupportPresenter> { SupportPresenter(get(), get(), get(), get()) }
 
         factory<ResourcesPresenter> { ResourcesPresenter(get(), get(), get()) }
 
