@@ -84,6 +84,7 @@ class ClientSupportScreenUiTest : ClientInjectComposeUiTestBase() {
         setClientSupportScreen()
 
         composeTestRule.onNodeWithText(openChannelLabel).assertIsDisplayed()
+        composeTestRule.onNodeWithText("mobile.support.communityChannels".i18n()).assertIsDisplayed()
     }
 
     /**
@@ -114,6 +115,7 @@ class ClientSupportScreenUiTest : ClientInjectComposeUiTestBase() {
         setClientSupportScreen()
 
         composeTestRule.onNodeWithText(openChannelLabel).assertDoesNotExist()
+        composeTestRule.onNodeWithText("mobile.support.communityChannels".i18n()).assertIsDisplayed()
         composeTestRule.onNodeWithText("mobile.support.matrix".i18n()).assertIsDisplayed()
     }
 }

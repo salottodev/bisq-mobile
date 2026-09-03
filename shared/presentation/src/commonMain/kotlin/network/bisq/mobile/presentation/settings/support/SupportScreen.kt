@@ -51,10 +51,15 @@ fun SupportScreen() {
             text = "mobile.support.intro".i18n(),
             color = BisqTheme.colors.light_grey50,
         )
+        if (isSupportChannelAvailable) {
+            BisqGap.V2()
+            SupportChannelLink(onClick = { presenter.onOpenSupportChannel() })
+        }
+        BisqGap.V2()
+        // Caption so the external links read as one named, secondary group — with or without the
+        // in-app button above them.
+        BisqText.SmallRegularGrey("mobile.support.communityChannels".i18n())
         Column(verticalArrangement = Arrangement.spacedBy(BisqUIConstants.Zero)) {
-            if (isSupportChannelAvailable) {
-                SupportChannelLink(onClick = { presenter.onOpenSupportChannel() })
-            }
             SupportWeblink(
                 text = "mobile.support.matrix".i18n(),
                 link = BisqLinks.MATRIX,
@@ -157,8 +162,9 @@ fun SupportScreen() {
 }
 
 /**
- * The in-app Support channel, listed with the community channels because that is what it is to the
- * reader: one more way to reach the community, and the only one that stays in the app. Not a
+ * The in-app Support channel — the one route that stays in the app, so it gets button affordance
+ * the external links deliberately lack: `Outline` is what this screen already uses for real actions
+ * (Restart/Shutdown), while grey underline is its vocabulary for passive links. Not a
  * [SupportWeblink] — there is no URL to open, so there is no leaving-the-app confirmation to show.
  */
 @Composable
@@ -166,14 +172,9 @@ fun SupportChannelLink(onClick: () -> Unit) {
     BisqButton(
         text = "mobile.community.support.openChannel".i18n(),
         onClick = onClick,
-        type = BisqButtonType.Underline,
-        color = BisqTheme.colors.mid_grey20,
-        leftIcon = { ChatIcon(modifier = Modifier.size(16.dp).alpha(0.5f)) },
-        padding =
-            PaddingValues(
-                horizontal = BisqUIConstants.ScreenPaddingHalf,
-                vertical = BisqUIConstants.Zero,
-            ),
+        type = BisqButtonType.Outline,
+        fullWidth = true,
+        leftIcon = { ChatIcon(modifier = Modifier.size(16.dp)) },
     )
 }
 

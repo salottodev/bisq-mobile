@@ -81,10 +81,15 @@ fun ClientSupportScreen(
             text = "mobile.support.intro".i18n(),
             color = BisqTheme.colors.light_grey50,
         )
+        if (isSupportChannelAvailable) {
+            BisqGap.V2()
+            SupportChannelLink(onClick = { supportPresenter.onOpenSupportChannel() })
+        }
+        BisqGap.V2()
+        // Caption so the external links read as one named, secondary group — with or without the
+        // in-app button above them.
+        BisqText.SmallRegularGrey("mobile.support.communityChannels".i18n())
         Column(verticalArrangement = Arrangement.spacedBy(BisqUIConstants.Zero)) {
-            if (isSupportChannelAvailable) {
-                SupportChannelLink(onClick = { supportPresenter.onOpenSupportChannel() })
-            }
             SupportWeblink(
                 text = "mobile.support.matrix".i18n(),
                 link = BisqLinks.MATRIX,
