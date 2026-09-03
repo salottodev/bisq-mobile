@@ -78,6 +78,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
                 publicChatServiceFacade,
                 userProfileServiceFacade,
                 settingsRepository,
+                ChatChannelDomainEnum.DISCUSSION,
             )
     }
 
@@ -86,7 +87,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
     fun `the channel is resolved by domain out of the two the facade serves`() =
         runTest {
             channels.value = listOf(supportChannel(), discussionChannel())
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             assertEquals("discussion.bisq", presenter.uiState.value.channelId)
@@ -100,7 +101,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
     @Test
     fun `no elapsed time alone reports the channel as missing`() =
         runTest {
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceTimeBy(60_000)
 
             assertTrue(presenter.uiState.value.isLoading, "waiting must never turn into a terminal state")
@@ -120,7 +121,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
             channel.setUnreadCount(3)
             channels.value = listOf(channel)
 
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             assertEquals(2, presenter.uiState.value.readCount)
@@ -130,7 +131,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
     @Test
     fun `sending is disabled until the channel resolves`() =
         runTest {
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             assertFalse(presenter.isSendChatMessageEnabled.value)
@@ -163,7 +164,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
                             ),
                     ),
                 )
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             assertEquals(
@@ -192,7 +193,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
                             ),
                     ),
                 )
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             presenter.onAction(PublicChatUiAction.OnSearchQueryChange("settle"))
@@ -218,7 +219,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
                         messages = listOf(message("m1", alice, date = 1), message("m2", bob, date = 2)),
                     ),
                 )
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             ignoredProfileIds.value = setOf(bob.id)
@@ -241,7 +242,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
                         messages = listOf(message("m1", alice, date = 1), message("m2", bob, date = 2)),
                     ),
                 )
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             presenter.onAction(PublicChatUiAction.OnIgnoreUserClick(bob.id))
@@ -257,7 +258,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
         runTest {
             val fromBob = message("m2", bob, date = 2)
             channels.value = listOf(discussionChannel(messages = listOf(message("m1", alice, date = 1), fromBob)))
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             presenter.onAction(PublicChatUiAction.OnReportUserClick(fromBob))
@@ -271,7 +272,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
             val mine = message("m1", me, date = 1, isMyMessage = true)
             channels.value = listOf(discussionChannel(messages = listOf(mine)))
             coEvery { publicChatServiceFacade.deleteChatMessage(any(), any()) } returns Result.success(Unit)
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             presenter.onAction(PublicChatUiAction.OnDeleteMessageClick(mine))
@@ -289,7 +290,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
             channels.value = listOf(discussionChannel())
             coEvery { publicChatServiceFacade.sendChatMessage(any(), any(), any()) } returns
                 Result.failure(IllegalStateException("no connection"))
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             presenter.onAction(PublicChatUiAction.OnSendMessage("hello"))
@@ -305,7 +306,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
             val mine = message("m1", me, date = 1, text = "original", isMyMessage = true)
             channels.value = listOf(discussionChannel(messages = listOf(mine)))
             coEvery { publicChatServiceFacade.editChatMessage(any(), any(), any()) } returns Result.success(Unit)
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             presenter.onAction(PublicChatUiAction.OnEditMessage(mine))
@@ -321,15 +322,14 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
 
     /**
      * The hub mounts this tab with `RememberPresenterLifecycle`, which cancels `presenterScope` on
-     * detach and recreates it on re-attach — so the collectors have to be restarted. `initialize` is
-     * idempotent on the domain and would short-circuit, leaving a tab that renders a frozen list and
-     * never sends again.
+     * detach and recreates it on re-attach — so the collectors have to be restarted. A guard that
+     * only asked whether the job had ever been started would short-circuit here, leaving a tab that
+     * renders a frozen list and never sends again.
      */
     @Test
     fun `re-attaching the tab restarts the channel collectors`() =
         runTest {
             channels.value = listOf(discussionChannel(messages = listOf(message("m1", alice, date = 1))))
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
             presenter.onViewAttached()
             advanceUntilIdle()
             assertEquals(
@@ -342,7 +342,6 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             presenter.onViewAttached()
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
             advanceUntilIdle()
 
             // A message arriving AFTER the re-attach: asserting on what is already in the state would
@@ -376,7 +375,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
                     PublicChatRemovalRejectedException("message") to "mobile.community.chat.removalRejected",
                 )
             channels.value = listOf(discussionChannel())
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             cases.forEach { (exception, key) ->
@@ -396,7 +395,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
             channels.value = listOf(discussionChannel())
             coEvery { publicChatServiceFacade.sendChatMessage(any(), any(), any()) } returns
                 Result.failure(PublicChatSendRefusedException(PublicChatSendRejection.UNKNOWN))
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             presenter.onAction(PublicChatUiAction.OnSendMessage("hello"))
@@ -412,7 +411,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
             channels.value = listOf(discussionChannel(messages = listOf(peers)))
             coEvery { publicChatServiceFacade.addChatMessageReaction(any(), any(), any()) } returns Result.success(Unit)
             coEvery { publicChatServiceFacade.removeChatMessageReaction(any(), any(), any()) } returns Result.success(Unit)
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
             val reaction = reaction(peers)
 
@@ -432,7 +431,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
             channels.value = listOf(discussionChannel(messages = listOf(peers)))
             coEvery { publicChatServiceFacade.addChatMessageReaction(any(), any(), any()) } returns
                 Result.failure(PublicChatSendRefusedException(PublicChatSendRejection.RATE_LIMIT_EXCEEDED))
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             presenter.onAction(PublicChatUiAction.OnAddReaction(peers, ReactionEnum.THUMBS_UP))
@@ -446,7 +445,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
         runTest {
             val peers = message("m1", alice, date = 1)
             channels.value = listOf(discussionChannel(messages = listOf(peers)))
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
 
             presenter.onAction(PublicChatUiAction.OnUndoIgnoreUserClick(alice.id))
@@ -466,7 +465,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
     fun `a burst of scrolls consumes the channel once`() =
         runTest {
             channels.value = listOf(discussionChannel(messages = listOf(message("m1", alice, date = 1))))
-            presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
+            presenter.onViewAttached()
             advanceUntilIdle()
             // Opening the thread consumes once on its own; what the scrolling adds is what is under test.
             clearMocks(publicChatServiceFacade, answers = false)

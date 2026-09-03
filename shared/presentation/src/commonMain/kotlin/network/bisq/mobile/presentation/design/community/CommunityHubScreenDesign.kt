@@ -1,14 +1,18 @@
 /**
  * CommunityHubScreenDesign.kt — Design PoC (Milestone 11 "Bisq community")
  *
- * STATUS: PARTIALLY IMPLEMENTED. The hub SHELL — gated segments, tab row, entry icon,
- * navigation, dev override — is production code now:
+ * STATUS: IMPLEMENTED. The hub SHELL — gated segments, tab row, entry icon,
+ * navigation, dev override — and the Discussions body are production code now:
  *   - gating: `domain/service/community/CommunityHubService` (liveSegments =
  *     enabled ∩ capabilities, fail closed; enabled = the feature.communityHubSegments rollout config)
  *   - screen shell + segmented tab row: `presentation/community/CommunityHubScreen.kt`
  *     (including the Contacts muted-tab treatment and the shell previews)
  *   - entry icon + badge: `presentation/community/CommunityTopBarIcon.kt`
- * What REMAINS design spec in this file is the SEGMENT CONTENT that has not shipped yet:
+ *   - the Discussions body specced below as [DiscussionsTabContent]:
+ *     `presentation/community/public_chat/PublicChatThread.kt`, which the Support screen
+ *     reuses unchanged on `ChatChannelDomainEnum.SUPPORT`
+ * Both sections below have now shipped, so read them as the spec the production code was
+ * built from and as the record of where it deviated, not as pending work:
  *
  * ======================================================================================
  * DISCUSSIONS TAB CONTENT — spec for the Discussions wiring
@@ -37,8 +41,8 @@
  * thread composable as Discussions, parameterized (see `DiscussionsChannelScreenDesign.kt`
  * "REUSED FOR THE SUPPORT CHANNEL").
  *
- * The previews render the milestone-11 main-screen composition (what the icon opens once
- * the Discussions wiring ships): TopBar, pinned Support reference, embedded thread.
+ * The previews render the milestone-11 main-screen composition as it was specced: TopBar,
+ * pinned Support reference, embedded thread.
  */
 package network.bisq.mobile.presentation.design.community
 
@@ -70,15 +74,15 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 
 // ============================================================================================
-// Content — DISCUSSIONS TAB (the milestone-11 hub body, not yet implemented)
+// Content — DISCUSSIONS TAB (the milestone-11 hub body, shipped as PublicChatThread.kt)
 // ============================================================================================
 
 /**
  * The Discussions segment's content: pinned Support reference, then the embedded channel
- * thread. This is the composition that replaces the production shell's placeholder body
- * when the Discussions wiring ships. If bisq2 ever ships a second live Discussion channel,
- * this is the reinsertion point for a channel picker (see
- * `DiscussionsChannelScreenDesign.kt` "REINTRODUCING A CHANNEL PICKER").
+ * thread. This is the composition that replaced the production shell's placeholder body.
+ * If bisq2 ever ships a second live Discussion channel, this is the reinsertion point for
+ * a channel picker (see `DiscussionsChannelScreenDesign.kt` "REINTRODUCING A CHANNEL
+ * PICKER").
  */
 @Composable
 internal fun DiscussionsTabContent(
@@ -134,7 +138,7 @@ private fun SupportChannelPinnedReference(onClick: () -> Unit) {
 private fun discussionsPreviewState() = DiscussionsChannelUiState(channelName = "Discussion", memberCount = 1284, messages = simulatedMessages())
 
 // ============================================================================================
-// Previews — the milestone-11 main-screen composition once the Discussions wiring ships
+// Previews — the milestone-11 main-screen composition as it was specced
 // (TopBar + pinned Support reference + embedded thread; no tab row with one live segment)
 // ============================================================================================
 

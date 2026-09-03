@@ -48,6 +48,14 @@
  * ======================================================================================
  * REUSED FOR THE SUPPORT CHANNEL
  * ======================================================================================
+ * This section has shipped: read it as the spec production was built from and as the
+ * record of where it deviated, not as pending work. The deviation is the top bar. There
+ * is no `showTopBar` parameter — the thread that shipped
+ * (`presentation/community/public_chat/PublicChatThread.kt`) owns no chrome of its own,
+ * so `presentation/community/public_chat/SupportChannelScreen.kt` wraps it in a
+ * `BisqScaffold(topBar = TopBar(...))` instead, and the domain arrives by constructor
+ * rather than as channel data. Both entry points below shipped together.
+ *
  * `CommunityHubScreenDesign.kt`'s pinned "Need help?" reference in the Discussions tab
  * (see that file's "SUPPORT — HUB-SIDE REFERENCE" section) pushes to THIS SAME
  * `DiscussionsChannelScreenContent`, parameterized with the Support channel's data
@@ -249,7 +257,8 @@ internal sealed interface DiscussionsChannelUiAction {
  *   owns ONE shared TopBar for all tabs — see that file's "LAYOUT" section. The
  *   search-toggle icon relocates accordingly; see file KDoc "SEARCH-IN-CHANNEL".
  * @param modifier applied to the root `Column`, in addition to `fillMaxSize()`. Lets a
- *   caller such as `DiscussionsTabContent` constrain this composable to a `weight(1f)`
+ *   caller such as `CommunityHubScreenDesign.kt`'s `DiscussionsTabContent` (production:
+ *   `community/public_chat/PublicChatThread.kt`) constrain this composable to a `weight(1f)`
  *   slice of a taller `Column` (e.g. below the pinned Support reference row) instead of
  *   claiming the full available height unconditionally.
  */

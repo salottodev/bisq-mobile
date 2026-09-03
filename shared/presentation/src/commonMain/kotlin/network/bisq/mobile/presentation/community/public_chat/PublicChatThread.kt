@@ -1,35 +1,34 @@
-package network.bisq.mobile.presentation.community.discussions
+package network.bisq.mobile.presentation.community.public_chat
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
-import network.bisq.mobile.presentation.community.public_chat.PublicChatPresenter
-import network.bisq.mobile.presentation.community.public_chat.PublicChatThreadContent
-import network.bisq.mobile.presentation.community.public_chat.PublicChatUiAction
 import network.bisq.mobile.presentation.report_user.ReportUserDialog
 import org.koin.compose.koinInject
+import org.koin.core.parameter.parametersOf
 
 /**
- * The Discussions segment's body inside the Community hub shell — #1744's glue between the facade and
- * the hub. Owns its presenter, like `ContactsTabContent`, so the hub screen stays presenter-agnostic
- * about segment content and its previews keep rendering without Koin.
+ * A public chat thread with its own presenter — the glue between the facade and whoever mounts it:
+ * the hub's Discussions segment and the pushed Support screen. Owns the presenter, like
+ * `ContactsTabContent`, so the hub screen stays presenter-agnostic about segment content and its
+ * previews keep rendering without Koin.
  *
- * No top bar: the hub already has one, and `PublicChatThreadContent` is a layout rather than a
- * scaffold. #1746's pushed Support screen supplies the chrome from its own side.
+ * No chrome. `PublicChatThreadContent` is a layout rather than a scaffold, so whoever mounts this
+ * supplies the top bar: the hub already has one, and the Support screen brings its own.
+ *
+ * The domain goes in at construction rather than through a post-construction call, because the
+ * presenter's screen-view analytics event is chosen by it and is emitted on attach. Nothing here
+ * starts work during composition: the presenter's collectors start in `onViewAttached`, which
+ * `RememberPresenterLifecycle` runs from an effect and unwinds on dispose.
  */
 @ExcludeFromCoverage
 @Composable
-fun DiscussionsTabContent() {
-    val presenter: PublicChatPresenter = koinInject()
+fun PublicChatThread(chatChannelDomain: ChatChannelDomainEnum) {
+    val presenter: PublicChatPresenter = koinInject { parametersOf(chatChannelDomain) }
     RememberPresenterLifecycle(presenter)
-
-    LaunchedEffect(presenter) {
-        presenter.initialize(ChatChannelDomainEnum.DISCUSSION)
-    }
 
     val uiState by presenter.uiState.collectAsState()
     val isSendChatMessageEnabled by presenter.isSendChatMessageEnabled.collectAsState()

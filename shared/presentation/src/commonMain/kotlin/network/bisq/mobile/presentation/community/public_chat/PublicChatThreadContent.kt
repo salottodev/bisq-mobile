@@ -36,15 +36,16 @@ import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.common.ui.utils.toClipEntry
 
 /**
- * A public chat thread, parameterized by domain through its presenter — Discussions today, Support
- * once #1746 wires an entry point.
+ * A public chat thread, parameterized by domain through its presenter — Discussions in the hub's
+ * segment, Support in its own pushed screen.
  *
  * **A layout, not a scaffold, and it owns no top bar.** The hub mounts a segment body inside its own
  * `BisqScaffold` → `Column` → `Box(weight(1f))`, and that scaffold already carries `imePadding()`; a
  * nested scaffold here would apply the window insets and the ime padding twice and reserve a
- * bottom-bar height inside a weighted box. Whoever mounts this owns the chrome: `DiscussionsTabContent`
- * mounts it bare, and a pushed Support screen wraps it in `ChatScaffold`, which already takes a
- * nullable `topBar` and owns the input/content padding contract.
+ * bottom-bar height inside a weighted box. Whoever mounts this owns the chrome: the hub mounts it
+ * bare, and `SupportChannelScreen` gives it a `BisqScaffold` with only a top bar — not `ChatScaffold`,
+ * which owns a `ChatInputBottomBar` and would leave the screen with two composers, since the
+ * `ChatInputField` below is this layout's own.
  *
  * @param reportDialog a slot rather than rendered here, since `ReportUserDialog` injects its own
  *   presenter — same reason `PrivateChatScreen` does it.
@@ -217,8 +218,8 @@ private fun ColumnScope.CenteredHint(text: String) {
 }
 
 /**
- * Rendered against SUPPORT rather than Discussions on purpose: the parameterization #1745 asked for is
- * the thing worth proving before #1746 wires an entry point to it.
+ * Rendered against SUPPORT rather than Discussions on purpose: the domain is what `SupportChannelScreen`
+ * varies, and a preview of the default would not exercise it.
  */
 @ExcludeFromCoverage
 @Preview(heightDp = 700)

@@ -19,11 +19,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.domain.service.community.CommunitySegment
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
+import network.bisq.mobile.presentation.common.ui.components.atoms.debouncedClickable
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ArrowRightIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.QuestionIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
@@ -35,7 +38,7 @@ import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycleBackStackAware
 import network.bisq.mobile.presentation.community.contacts.ContactsTabContent
-import network.bisq.mobile.presentation.community.discussions.DiscussionsTabContent
+import network.bisq.mobile.presentation.community.public_chat.PublicChatThread
 
 @ExcludeFromCoverage
 @Composable
@@ -44,7 +47,9 @@ fun CommunityHubScreen(initialSegment: CommunitySegment? = null) {
 
     // remember (not LaunchedEffect) so the deep-linked segment is selected DURING the first
     // composition — with LaunchedEffect the default segment (and its Support banner) renders
-    // for one frame before the switch. Idempotent: selectInitialSegment is honored once.
+    // for one frame before the switch. This slot is gone and rebuilt every time the screen leaves
+    // and re-enters composition, so it asks again on the way back from Support and on rotation;
+    // the presenter is what makes the second ask a no-op.
     remember(initialSegment) {
         initialSegment?.let { presenter.selectInitialSegment(it) }
     }
@@ -58,7 +63,7 @@ fun CommunityHubScreen(initialSegment: CommunitySegment? = null) {
         segmentContent = { segment ->
             when (segment) {
                 CommunitySegment.DISCUSSIONS -> {
-                    { DiscussionsTabContent() }
+                    { PublicChatThread(ChatChannelDomainEnum.DISCUSSION) }
                 }
                 CommunitySegment.CONTACTS -> {
                     { ContactsTabContent() }
@@ -100,8 +105,11 @@ fun CommunityHubScreenContent(
             // hub-side above the thread rather than moving inside it as CommunityHubScreenDesign.kt
             // specs: this gate puts it in the same place on screen, and it keeps the segment body a
             // plain thread that the Support screen can reuse unchanged. Directory/inbox segments
-            // don't carry it.
-            if (uiState.selectedSegment == null || uiState.selectedSegment == CommunitySegment.DISCUSSIONS) {
+            // don't carry it, and neither does the no-segment state: the row pushes a public chat
+            // thread, and Discussions being live is what says this build serves one. That last arm is
+            // hard to reach — TabContainerPresenter hides the hub icon while liveSegments is empty —
+            // but the state is representable, so the gate stays.
+            if (uiState.selectedSegment == CommunitySegment.DISCUSSIONS) {
                 SupportQuickAccessRow(onClick = { onAction(CommunityHubUiAction.OnOpenSupportChannel) })
             }
 
@@ -167,13 +175,18 @@ private fun CommunitySegmentTabRow(
     }
 }
 
+/**
+ * Debounced because it navigates and [network.bisq.mobile.presentation.common.ui.navigation.manager.NavigationManagerImpl]
+ * pushes without `launchSingleTop`: a double tap would otherwise leave two Support screens on the
+ * stack, and two backs to get out of them.
+ */
 @Composable
 private fun SupportQuickAccessRow(onClick: () -> Unit) {
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
+                .debouncedClickable(role = Role.Button, onClick = onClick)
                 .background(BisqTheme.colors.dark_grey40)
                 .padding(horizontal = BisqUIConstants.ScreenPadding, vertical = BisqUIConstants.ScreenPadding),
         horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalf),

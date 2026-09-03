@@ -10,6 +10,7 @@ import network.bisq.mobile.domain.analytics.AnalyticsEvent
 import network.bisq.mobile.domain.service.community.CommunityHubService
 import network.bisq.mobile.domain.service.community.CommunitySegment
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
+import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 import network.bisq.mobile.presentation.main.MainPresenter
 
 class CommunityHubPresenter(
@@ -32,7 +33,15 @@ class CommunityHubPresenter(
     // then cleared — later liveSegments updates must not yank the user's own selection back.
     private var pendingInitialSegment: CommunitySegment? = null
 
+    // The route argument outlives every composition of its back-stack entry, so the screen asks
+    // again on each one: after a trip to the Support screen, after a rotation. Only the first ask
+    // is a deep link; the rest would overwrite whatever the user picked in between. Never reset —
+    // a genuinely new deep link arrives on a new back-stack entry, and so on a new presenter.
+    private var initialSegmentAsked = false
+
     fun selectInitialSegment(segment: CommunitySegment) {
+        if (initialSegmentAsked) return
+        initialSegmentAsked = true
         pendingInitialSegment = segment
         _uiState.update { state ->
             if (segment in state.liveSegments) {
@@ -67,10 +76,9 @@ class CommunityHubPresenter(
                 _uiState.update { state ->
                     if (action.segment in state.liveSegments) state.copy(selectedSegment = action.segment) else state
                 }
-            CommunityHubUiAction.OnOpenSupportChannel -> {
-                // TODO push the in-app Support chat screen once it exists
-                log.i { "Support channel requested from the Community hub; screen not available yet" }
-            }
+            // Pushed rather than selected: Support is not a segment, so the hub keeps the segment it
+            // was on and backing out lands where the user left.
+            CommunityHubUiAction.OnOpenSupportChannel -> navigateTo(NavRoute.SupportChannel)
         }
     }
 }

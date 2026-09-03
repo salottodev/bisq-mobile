@@ -4,7 +4,7 @@ import network.bisq.mobile.data.replicated.chat.common.CommonPublicChatMessage
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 
 /**
- * State of a public chat thread — Discussions here, Support once #1746 wires its entry points.
+ * State of a public chat thread — the hub's Discussions segment and the pushed Support screen.
  *
  * [messages] holds domain models rather than flattened rows, for the reason `PrivateChatUiState`
  * documents: `ChatMessageList` subscribes to a `StateFlow` on each message for its reactions, so

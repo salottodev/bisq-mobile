@@ -70,11 +70,47 @@ class CommunityHubScreenUiTest : BisqComposeUiTestBase() {
         assertEquals(listOf<CommunityHubUiAction>(CommunityHubUiAction.OnOpenSupportChannel), actions)
     }
 
+    /**
+     * The row navigates as of #1746, and `NavigationManagerImpl.navigate` applies no `launchSingleTop`,
+     * so an undebounced double tap leaves two Support screens on the stack and two backs to get out.
+     *
+     * The one real-time dependency in this class: `rememberDebouncedClick` reads `Clock.System.now()`,
+     * not the test clock, so the two taps have to land within the 300 ms window in wall time. There is
+     * no virtual clock to advance instead — if this ever flakes red on a stalled CI box, that is why.
+     */
+    @Test
+    fun `a double tap on the support row opens the channel once`() {
+        setContent(
+            CommunityHubUiState(
+                liveSegments = listOf(CommunitySegment.DISCUSSIONS),
+                selectedSegment = CommunitySegment.DISCUSSIONS,
+            ),
+        )
+
+        val supportRow = composeTestRule.onNodeWithText(tabLabel("mobile.community.support.needHelp"))
+        supportRow.performClick()
+        supportRow.performClick()
+
+        assertEquals(listOf<CommunityHubUiAction>(CommunityHubUiAction.OnOpenSupportChannel), actions)
+    }
+
     @Test
     fun `no live segments renders the bare coming soon state`() {
         setContent(CommunityHubUiState())
 
         composeTestRule.onNodeWithText("mobile.community.comingSoon".i18n()).assertIsDisplayed()
+    }
+
+    /**
+     * The row now navigates, so offering it with no segment live would push a public chat thread in a
+     * build that serves none. Hard to reach in practice — `TabContainerPresenter` hides the hub icon
+     * while `liveSegments` is empty — but the state is representable, so the gate stays.
+     */
+    @Test
+    fun `support row is hidden when no segment is live`() {
+        setContent(CommunityHubUiState())
+
+        composeTestRule.onNodeWithText(tabLabel("mobile.community.support.needHelp")).assertDoesNotExist()
     }
 
     /** The pinned Support row is Discussions-context only — directory/inbox segments drop it. */
