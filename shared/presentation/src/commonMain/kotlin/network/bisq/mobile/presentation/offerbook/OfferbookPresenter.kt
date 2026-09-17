@@ -10,6 +10,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
@@ -35,6 +36,7 @@ import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.i
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.alert.TradeRestrictingAlertServiceFacade
 import network.bisq.mobile.data.service.config.ConfigServiceFacade
+import network.bisq.mobile.data.service.contacts.ContactsServiceFacade
 import network.bisq.mobile.data.service.market_price.MarketPriceServiceFacade
 import network.bisq.mobile.data.service.offers.OffersServiceFacade
 import network.bisq.mobile.data.service.reputation.ReputationServiceFacade
@@ -44,6 +46,8 @@ import network.bisq.mobile.data.utils.PlatformImage
 import network.bisq.mobile.domain.formatters.AmountFormatter
 import network.bisq.mobile.domain.formatters.PriceSpecFormatter
 import network.bisq.mobile.domain.repository.OfferbookFilterConfigRepository
+import network.bisq.mobile.domain.service.community.CommunityHubService
+import network.bisq.mobile.domain.service.community.CommunitySegment
 import network.bisq.mobile.domain.utils.BisqEasyTradeAmountLimits
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.i18n.i18n
@@ -73,6 +77,8 @@ open class OfferbookPresenter(
     private val offerbookFilterConfigRepository: OfferbookFilterConfigRepository,
     private val configServiceFacade: ConfigServiceFacade,
     private val appUpdateLinker: AppUpdateLinker,
+    private val contactsServiceFacade: ContactsServiceFacade,
+    private val communityHubService: CommunityHubService,
     private val computationDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : BasePresenter(mainPresenter) {
     private val _showTradeRestrictedDialog = MutableStateFlow<AlertNotificationUiState?>(null)
@@ -89,6 +95,9 @@ open class OfferbookPresenter(
 
     private val _sortedFilteredOffers = MutableStateFlow<List<OfferItemPresentationModel>>(emptyList())
     val sortedFilteredOffers: StateFlow<List<OfferItemPresentationModel>> = _sortedFilteredOffers.asStateFlow()
+
+    private val _contactTags = MutableStateFlow<Map<String, String>>(emptyMap())
+    val contactTags: StateFlow<Map<String, String>> = _contactTags.asStateFlow()
 
     // Offers that would show on the OTHER direction tab under the current filters. Drives the
     // direction-aware empty state: a market can advertise offers while the selected tab is
@@ -164,6 +173,7 @@ open class OfferbookPresenter(
         launchSlowLoadingHint()
         launchMyReputationWarmup()
         launchFirstTimeTraderWarmup()
+        launchContactTagsObservation()
     }
 
     /**
@@ -489,6 +499,18 @@ open class OfferbookPresenter(
         presenterScope.launch {
             val profile = userProfileServiceFacade.selectedUserProfile.filterNotNull().first()
             takeOfferCoordinator.warmUpFirstTimeTraderFlag(profile.id)
+        }
+    }
+
+    private fun launchContactTagsObservation() {
+        presenterScope.launch {
+            combine(contactsServiceFacade.contacts, communityHubService.liveSegments) { contacts, liveSegments ->
+                if (CommunitySegment.CONTACTS in liveSegments) {
+                    contacts.associate { it.userProfile.id to it.tag.orEmpty().trim() }
+                } else {
+                    emptyMap()
+                }
+            }.collect { _contactTags.value = it }
         }
     }
 
