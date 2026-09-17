@@ -1,22 +1,31 @@
 package network.bisq.mobile.presentation.common.ui.components.molecules.chat
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextInputSelection
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.text.TextRange
+import androidx.test.espresso.Espresso.pressBack
 import network.bisq.mobile.data.replicated.chat.ChatMessage
 import network.bisq.mobile.data.replicated.chat.common.createMockCommonPublicChatMessage
+import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.test.presentation.compose.BisqComposeUiTestBase
 import org.junit.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -143,6 +152,200 @@ class ChatInputFieldUiTest : BisqComposeUiTestBase() {
         composeTestRule.onNodeWithText("a new message").assertDoesNotExist()
     }
 
+    @Test
+    fun `an empty candidate list does not open the picker`() {
+        setTestContent { InputField(placeholder = "type a message") }
+
+        composeTestRule.onNodeWithText("type a message").performTextInput("@")
+
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun `typing an at token shows matching candidates and tap inserts the userName`() {
+        val john = createMockUserProfile("john")
+        val jane = createMockUserProfile("jane")
+        setTestContent {
+            InputField(placeholder = "type a message", mentionCandidates = listOf(john, jane))
+        }
+
+        composeTestRule.onNodeWithText("type a message").performTextInput("@jo")
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText("john").assertIsDisplayed()
+        composeTestRule.onNodeWithText("jane").assertDoesNotExist()
+
+        composeTestRule.onNodeWithText("john").performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("@john ").assertIsDisplayed()
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertDoesNotExist()
+    }
+
+    /**
+     * Insertion before punctuation adds no trailing space so the caret stays on the name.
+     * The picker must still stay closed — the same dismiss the back press uses.
+     */
+    @Test
+    fun `a tap still closes the picker when insertion leaves the caret in the token`() {
+        setTestContent {
+            InputField(
+                placeholder = "type a message",
+                mentionCandidates = listOf(createMockUserProfile("alice")),
+            )
+        }
+
+        composeTestRule.onNodeWithText("type a message").performTextInput("Hi @al,")
+        composeTestRule.onNodeWithText("Hi @al,").performTextInputSelection(TextRange("Hi @al".length))
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertIsDisplayed()
+
+        composeTestRule.onNodeWithText("alice").performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("Hi @alice,").assertIsDisplayed()
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertDoesNotExist()
+    }
+
+    /**
+     * A range selection is not a caret: inserting a name there would ignore the selection start
+     * and split the selected text, so the picker must stay closed until the selection collapses.
+     */
+    @Test
+    fun `a range selection ending inside a token keeps the picker closed`() {
+        val alice = createMockUserProfile("alice")
+        setTestContent {
+            InputField(placeholder = "type a message", mentionCandidates = listOf(alice))
+        }
+
+        composeTestRule.onNodeWithText("type a message").performTextInput("Hi @al")
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertIsDisplayed()
+
+        composeTestRule.onNodeWithText("Hi @al").performTextInputSelection(TextRange(0, "Hi @al".length))
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertDoesNotExist()
+
+        composeTestRule.onNodeWithText("Hi @al").performTextInputSelection(TextRange("Hi @al".length))
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a query with no matches shows the empty placeholder`() {
+        setTestContent {
+            InputField(
+                placeholder = "type a message",
+                mentionCandidates = listOf(createMockUserProfile("john")),
+            )
+        }
+
+        composeTestRule.onNodeWithText("type a message").performTextInput("@zzz")
+
+        composeTestRule.onNodeWithText("chat.atMentionPopup.placeholder".i18n()).assertIsDisplayed()
+    }
+
+    /**
+     * The picker is tap-only. Enter must still insert a newline while suggestions are open —
+     * desktop's Enter-to-complete has no mobile analogue because Enter is a newline here.
+     */
+    @Test
+    fun `enter inserts a newline while the picker is open`() {
+        setTestContent {
+            InputField(
+                placeholder = "type a message",
+                mentionCandidates = listOf(createMockUserProfile("john")),
+            )
+        }
+
+        composeTestRule.onNodeWithText("type a message").performTextInput("@")
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertIsDisplayed()
+
+        // Soft-keyboard Enter is a newline character here (maxLines is unbounded, no IME action).
+        composeTestRule.onNodeWithText("@").performTextInput("\n")
+        composeTestRule.waitForIdle()
+
+        val editable =
+            composeTestRule
+                .onNodeWithText("@", substring = true)
+                .fetchSemanticsNode()
+                .config[SemanticsProperties.EditableText]
+        assertTrue(editable.text.contains("\n"), "Enter must insert a newline rather than complete the mention")
+    }
+
+    @Test
+    fun `replacing a dismissed token at the same index reopens the picker`() {
+        val alice = createMockUserProfile("alice")
+        val bob = createMockUserProfile("bob")
+        setTestContent {
+            InputField(placeholder = "type a message", mentionCandidates = listOf(alice, bob))
+        }
+
+        composeTestRule.onNodeWithText("type a message").performTextInput("@al")
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText("alice").assertIsDisplayed()
+
+        pressBack()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertDoesNotExist()
+
+        composeTestRule.onNodeWithText("@al").performTextReplacement("@bo")
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText("bob").assertIsDisplayed()
+        composeTestRule.onNodeWithText("alice").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the picker inserts a mention while editing`() {
+        var saved: String? = null
+        setTestContent {
+            InputField(
+                editingMessageId = "msg-1",
+                editingInitialText = "hey @",
+                mentionCandidates = listOf(createMockUserProfile("Charlie")),
+                onMessageSend = { saved = it },
+            )
+        }
+
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Charlie").assertIsDisplayed()
+
+        composeTestRule.onNodeWithText("Charlie").performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("hey @Charlie ").assertIsDisplayed()
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertDoesNotExist()
+
+        composeTestRule.onNodeWithContentDescription("Save icon").performClick()
+        assertEquals("hey @Charlie ", saved)
+        composeTestRule.onNodeWithText("hey @Charlie ").assertIsDisplayed()
+    }
+
+    @Test
+    fun `switching edits reopens a picker dismissed on the previous message`() {
+        val alice = createMockUserProfile("alice")
+        var editingId by mutableStateOf("msg-1")
+        var editingText by mutableStateOf("hey @")
+        setTestContent {
+            InputField(
+                editingMessageId = editingId,
+                editingInitialText = editingText,
+                mentionCandidates = listOf(alice),
+            )
+        }
+
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertIsDisplayed()
+        pressBack()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertDoesNotExist()
+
+        editingId = "msg-2"
+        editingText = "bye @"
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag(CHAT_MENTION_PICKER_TAG).assertIsDisplayed()
+    }
+
     @Composable
     private fun InputField(
         quotedMessage: ChatMessage<*>? = null,
@@ -150,14 +353,17 @@ class ChatInputFieldUiTest : BisqComposeUiTestBase() {
         editingInitialText: String = "",
         placeholder: String = "",
         onCancelEdit: () -> Unit = {},
+        onMessageSend: (String) -> Unit = {},
+        mentionCandidates: List<UserProfileVO> = emptyList(),
     ) {
         ChatInputField(
-            onMessageSend = {},
+            onMessageSend = onMessageSend,
             quotedMessage = quotedMessage,
             placeholder = placeholder,
             editingMessageId = editingMessageId,
             editingInitialText = editingInitialText,
             onCancelEdit = onCancelEdit,
+            mentionCandidates = mentionCandidates,
         )
     }
 

@@ -4,13 +4,23 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
+import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
+import network.bisq.mobile.data.model.Settings
+import network.bisq.mobile.data.model.TradeReadStateMap
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeMessage
+import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
+import network.bisq.mobile.data.replicated.user.identity.UserIdentityVO
+import network.bisq.mobile.data.replicated.user.profile.UserProfileVO
+import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
+import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.service.chat.trade.TradeChatMessagesServiceFacade
 import network.bisq.mobile.data.service.message_delivery.MessageDeliveryServiceFacade
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
@@ -22,6 +32,7 @@ import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.test.presentation.coroutines.PresentationKoinTestBase
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -44,7 +55,7 @@ class TradeChatPresenterTest : PresentationKoinTestBase() {
 
     override fun beforeStartKoin() {
         super.beforeStartKoin()
-        globalUiManager = GlobalUiManager(testDispatcher)
+        globalUiManager = spyk(GlobalUiManager(testDispatcher))
     }
 
     override fun onKoinReady() {
@@ -54,7 +65,9 @@ class TradeChatPresenterTest : PresentationKoinTestBase() {
         every { tradeChatMessagesServiceFacade.chatMessagesSynced } returns chatMessagesSynced
         every { tradeChatMessagesServiceFacade.chatMessagesSyncFailed } returns chatMessagesSyncFailed
         every { userProfileServiceFacade.ignoredProfileIds } returns MutableStateFlow(emptySet())
-        every { settingsRepository.data } returns MutableStateFlow(mockk(relaxed = true))
+        every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(emptyList())
+        every { settingsRepository.data } returns MutableStateFlow(Settings())
+        every { tradeReadStateRepository.data } returns MutableStateFlow(TradeReadStateMap())
 
         presenter =
             TradeChatPresenter(
@@ -77,8 +90,8 @@ class TradeChatPresenterTest : PresentationKoinTestBase() {
                 Result.success(Unit)
             }
 
-            presenter.sendChatMessage("hello")
-            presenter.sendChatMessage("hello")
+            presenter.onAction(TradeChatUiAction.OnSendMessage("hello"))
+            presenter.onAction(TradeChatUiAction.OnSendMessage("hello"))
             advanceUntilIdle()
 
             coVerify { tradeChatMessagesServiceFacade.sendChatMessage("hello", null) }
@@ -92,14 +105,14 @@ class TradeChatPresenterTest : PresentationKoinTestBase() {
             every { quoted.text } returns "quoted"
             every { quoted.id } returns "q1"
             every { quoted.senderUserProfileId } returns "sender"
-            presenter.onReply(quoted)
+            presenter.onAction(TradeChatUiAction.OnReply(quoted))
             coEvery { tradeChatMessagesServiceFacade.sendChatMessage(any(), any()) } returns
                 Result.success(Unit)
 
-            presenter.sendChatMessage("hello")
+            presenter.onAction(TradeChatUiAction.OnSendMessage("hello"))
             advanceUntilIdle()
 
-            assertNull(presenter.quotedMessage.value)
+            assertNull(presenter.uiState.value.quotedMessage)
         }
 
     @Test
@@ -110,12 +123,12 @@ class TradeChatPresenterTest : PresentationKoinTestBase() {
             presenter.initialize("tid")
             runCurrent()
 
-            assertTrue(presenter.isLoading.value, "Messages have not arrived yet")
+            assertTrue(presenter.uiState.value.isLoading, "Messages have not arrived yet")
 
             messages.value = setOf(mockk<BisqEasyOpenTradeMessage>(relaxed = true))
             runCurrent()
 
-            assertFalse(presenter.isLoading.value)
+            assertFalse(presenter.uiState.value.isLoading)
         }
 
     @Test
@@ -126,12 +139,12 @@ class TradeChatPresenterTest : PresentationKoinTestBase() {
             presenter.initialize("tid")
             runCurrent()
 
-            assertTrue(presenter.isLoading.value, "Nothing has been delivered yet")
+            assertTrue(presenter.uiState.value.isLoading, "Nothing has been delivered yet")
 
             chatMessagesSynced.value = true
             runCurrent()
 
-            assertFalse(presenter.isLoading.value)
+            assertFalse(presenter.uiState.value.isLoading)
         }
 
     /** On the client a subscribe that fails once is only retried on the next reconnect. */
@@ -142,12 +155,12 @@ class TradeChatPresenterTest : PresentationKoinTestBase() {
 
             presenter.initialize("tid")
             runCurrent()
-            assertTrue(presenter.isLoading.value, "Nothing has been delivered yet")
+            assertTrue(presenter.uiState.value.isLoading, "Nothing has been delivered yet")
 
             chatMessagesSyncFailed.value = true
             runCurrent()
 
-            assertFalse(presenter.isLoading.value)
+            assertFalse(presenter.uiState.value.isLoading)
         }
 
     @Test
@@ -159,8 +172,8 @@ class TradeChatPresenterTest : PresentationKoinTestBase() {
             presenter.initialize("tid")
             advanceUntilIdle()
 
-            assertFalse(presenter.isLoading.value)
-            assertTrue(presenter.showTradeNotFoundDialog.value)
+            assertFalse(presenter.uiState.value.isLoading)
+            assertTrue(presenter.uiState.value.isTradeNotFound)
         }
 
     @Test
@@ -168,11 +181,25 @@ class TradeChatPresenterTest : PresentationKoinTestBase() {
         runTest {
             coEvery { userProfileServiceFacade.ignoreUserProfile("peer-1") } returns Unit
 
-            presenter.showIgnoreUserPopup("peer-1")
-            presenter.onConfirmedIgnoreUser("peer-1")
+            presenter.onAction(TradeChatUiAction.OnIgnoreUserClick("peer-1"))
+            presenter.onAction(TradeChatUiAction.OnConfirmIgnore)
             advanceUntilIdle()
 
             coVerify { userProfileServiceFacade.ignoreUserProfile("peer-1") }
+            assertNull(presenter.uiState.value.ignoreTargetProfileId)
+        }
+
+    @Test
+    fun `when the ignore call is cancelled then no error is surfaced to the user`() =
+        runTest {
+            coEvery { userProfileServiceFacade.ignoreUserProfile("peer-1") } throws
+                CancellationException("navigated away")
+
+            presenter.onAction(TradeChatUiAction.OnIgnoreUserClick("peer-1"))
+            presenter.onAction(TradeChatUiAction.OnConfirmIgnore)
+            advanceUntilIdle()
+
+            verify(exactly = 0) { globalUiManager.showSnackbar(any(), any(), any(), any()) }
         }
 
     @Test
@@ -180,18 +207,144 @@ class TradeChatPresenterTest : PresentationKoinTestBase() {
         runTest {
             coEvery { userProfileServiceFacade.undoIgnoreUserProfile("peer-2") } returns Unit
 
-            presenter.showUndoIgnoreUserPopup("peer-2")
-            presenter.onConfirmedUndoIgnoreUser("peer-2")
+            presenter.onAction(TradeChatUiAction.OnUndoIgnoreUserClick("peer-2"))
+            presenter.onAction(TradeChatUiAction.OnConfirmUndoIgnore)
             advanceUntilIdle()
 
             coVerify { userProfileServiceFacade.undoIgnoreUserProfile("peer-2") }
+            assertNull(presenter.uiState.value.undoIgnoreTargetProfileId)
         }
 
+    @Test
+    fun `myProfiles are the owned profiles the highlighter matches against`() =
+        runTest {
+            val me = createMockUserProfile("me")
+            val userProfiles = MutableStateFlow(listOf(me))
+            every { userProfileServiceFacade.userProfiles } returns userProfiles
+            givenTradeWithMessages()
+
+            presenter.initialize("tid")
+            runCurrent()
+
+            assertEquals(listOf(me), presenter.uiState.value.myProfiles)
+
+            val work = createMockUserProfile("work")
+            userProfiles.value = listOf(me, work)
+            runCurrent()
+
+            assertEquals(listOf(me, work), presenter.uiState.value.myProfiles)
+        }
+
+    @Test
+    fun `mention candidates are scoped to the trade own identity`() =
+        runTest {
+            val me = createMockUserProfile("me")
+            val myOther = createMockUserProfile("myOther")
+            val peer = createMockUserProfile("peer")
+            val mediator = createMockUserProfile("mediator")
+            val author = createMockUserProfile("author")
+            every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(listOf(me, myOther))
+
+            val messages =
+                MutableStateFlow(
+                    setOf(
+                        createMockBisqEasyOpenTradeMessage(
+                            id = "m1",
+                            text = "hello",
+                            senderUserProfile = author,
+                            myUserProfile = me,
+                        ),
+                    ),
+                )
+            givenTradeWithMessages(messages, traders = setOf(peer), mediator = mediator, myProfile = me)
+
+            presenter.initialize("tid")
+            runCurrent()
+
+            // Raw author, peer, mediator, and the identity this trade runs with — an unrelated
+            // owned profile is not mentionable in a trade chat.
+            assertEquals(
+                listOf(author.id, peer.id, mediator.id, me.id),
+                presenter.uiState.value.mentionCandidates
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun `a failed report draft is restored only for the same accused profile`() {
+        val accused = createMockUserProfile("accused")
+        val other = createMockUserProfile("other")
+        val fromAccused = createMockBisqEasyOpenTradeMessage(id = "a1", senderUserProfile = accused)
+        val fromOther = createMockBisqEasyOpenTradeMessage(id = "b1", senderUserProfile = other)
+
+        presenter.onAction(TradeChatUiAction.OnReportUserClick(fromAccused))
+        presenter.onAction(TradeChatUiAction.OnReportFailure("the typed report"))
+
+        assertNull(presenter.uiState.value.reportTargetMessage)
+        assertEquals("the typed report", presenter.uiState.value.reportDraft)
+        assertEquals(accused.id, presenter.uiState.value.reportDraftProfileId)
+
+        presenter.onAction(TradeChatUiAction.OnReportUserClick(fromOther))
+
+        assertEquals(fromOther, presenter.uiState.value.reportTargetMessage)
+        assertNull(presenter.uiState.value.reportDraft)
+        assertNull(presenter.uiState.value.reportDraftProfileId)
+    }
+
+    @Test
+    fun `reopening a failed report for the same profile restores the draft`() {
+        val accused = createMockUserProfile("accused")
+        val first = createMockBisqEasyOpenTradeMessage(id = "a1", senderUserProfile = accused)
+        val retry = createMockBisqEasyOpenTradeMessage(id = "a2", senderUserProfile = accused)
+
+        presenter.onAction(TradeChatUiAction.OnReportUserClick(first))
+        presenter.onAction(TradeChatUiAction.OnReportFailure("the typed report"))
+        presenter.onAction(TradeChatUiAction.OnReportUserClick(retry))
+
+        assertEquals(retry, presenter.uiState.value.reportTargetMessage)
+        assertEquals("the typed report", presenter.uiState.value.reportDraft)
+        assertEquals(accused.id, presenter.uiState.value.reportDraftProfileId)
+    }
+
+    @Test
+    fun `dismissing a report clears the draft and its owner`() {
+        val accused = createMockUserProfile("accused")
+        val message = createMockBisqEasyOpenTradeMessage(id = "a1", senderUserProfile = accused)
+
+        presenter.onAction(TradeChatUiAction.OnReportUserClick(message))
+        presenter.onAction(TradeChatUiAction.OnReportFailure("the typed report"))
+        presenter.onAction(TradeChatUiAction.OnReportUserClick(message))
+        presenter.onAction(TradeChatUiAction.OnDismissReportDialog)
+
+        assertNull(presenter.uiState.value.reportTargetMessage)
+        assertNull(presenter.uiState.value.reportDraft)
+        assertNull(presenter.uiState.value.reportDraftProfileId)
+    }
+
+    @Test
+    fun `a report failure with no open target does not retain an unowned draft`() {
+        presenter.onAction(TradeChatUiAction.OnReportFailure("stale draft"))
+
+        assertNull(presenter.uiState.value.reportTargetMessage)
+        assertNull(presenter.uiState.value.reportDraft)
+        assertNull(presenter.uiState.value.reportDraftProfileId)
+    }
+
     /** A trade the facade can resolve, with a channel whose messages the caller drives. */
-    private fun givenTradeWithMessages(): MutableStateFlow<Set<BisqEasyOpenTradeMessage>> {
-        val messages = MutableStateFlow<Set<BisqEasyOpenTradeMessage>>(emptySet())
+    private fun givenTradeWithMessages(
+        messages: MutableStateFlow<Set<BisqEasyOpenTradeMessage>> = MutableStateFlow(emptySet()),
+        traders: Set<UserProfileVO> = emptySet(),
+        mediator: UserProfileVO? = null,
+        myProfile: UserProfileVO = createMockUserProfile("me"),
+    ): MutableStateFlow<Set<BisqEasyOpenTradeMessage>> {
+        val myIdentity = mockk<UserIdentityVO>()
+        every { myIdentity.userProfile } returns myProfile
+
         val channel = mockk<BisqEasyOpenTradeChannel>(relaxed = true)
         every { channel.chatMessages } returns messages
+        every { channel.traders } returns traders
+        every { channel.mediator } returns mediator
+        every { channel.myUserIdentity } returns myIdentity
 
         val trade = mockk<TradeItemPresentationModel>(relaxed = true)
         every { trade.tradeId } returns "tid"

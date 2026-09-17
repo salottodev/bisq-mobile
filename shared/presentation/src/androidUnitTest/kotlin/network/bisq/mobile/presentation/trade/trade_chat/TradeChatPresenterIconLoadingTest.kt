@@ -10,9 +10,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import network.bisq.mobile.data.model.Settings
+import network.bisq.mobile.data.model.TradeReadStateMap
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel
 import network.bisq.mobile.data.replicated.chat.bisq_easy.open_trades.createMockBisqEasyOpenTradeMessage
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
+import network.bisq.mobile.data.replicated.user.identity.UserIdentityVO
 import network.bisq.mobile.data.replicated.user.profile.UserProfileVOExtension.id
 import network.bisq.mobile.data.replicated.user.profile.createMockUserProfile
 import network.bisq.mobile.data.service.chat.trade.TradeChatMessagesServiceFacade
@@ -64,8 +67,13 @@ class TradeChatPresenterIconLoadingTest : PlatformPresentationKoinTestBase() {
                 )
 
             val chatMessagesFlow = MutableStateFlow(setOf(model1, model2))
+            val myIdentity = mockk<UserIdentityVO>()
+            every { myIdentity.userProfile } returns myUserProfile
             val channelModel = mockk<BisqEasyOpenTradeChannel>()
             every { channelModel.chatMessages } returns chatMessagesFlow
+            every { channelModel.traders } returns emptySet()
+            every { channelModel.mediator } returns null
+            every { channelModel.myUserIdentity } returns myIdentity
 
             val trade = mockk<TradeItemPresentationModel>()
             every { trade.tradeId } returns "trade1"
@@ -81,6 +89,7 @@ class TradeChatPresenterIconLoadingTest : PlatformPresentationKoinTestBase() {
             val userProfileServiceFacade = mockk<UserProfileServiceFacade>(relaxed = true)
             coEvery { userProfileServiceFacade.getUserProfileIcon(any()) } returns mockImage
             every { userProfileServiceFacade.ignoredProfileIds } returns MutableStateFlow(emptySet())
+            every { userProfileServiceFacade.userProfiles } returns MutableStateFlow(emptyList())
 
             val mainPresenter = MainPresenterTestFactory.create()
 
@@ -88,13 +97,18 @@ class TradeChatPresenterIconLoadingTest : PlatformPresentationKoinTestBase() {
             every { tradeChatMessagesServiceFacade.chatMessagesSynced } returns MutableStateFlow(true)
             every { tradeChatMessagesServiceFacade.chatMessagesSyncFailed } returns MutableStateFlow(false)
 
+            val settingsRepository = mockk<SettingsRepository>(relaxed = true)
+            every { settingsRepository.data } returns MutableStateFlow(Settings())
+            val tradeReadStateRepository = mockk<TradeReadStateRepository>(relaxed = true)
+            every { tradeReadStateRepository.data } returns MutableStateFlow(TradeReadStateMap())
+
             val presenter =
                 TradeChatPresenter(
                     mainPresenter = mainPresenter,
                     tradesServiceFacade = tradesServiceFacade,
                     tradeChatMessagesServiceFacade = tradeChatMessagesServiceFacade,
-                    settingsRepository = mockk<SettingsRepository>(relaxed = true),
-                    tradeReadStateRepository = mockk<TradeReadStateRepository>(relaxed = true),
+                    settingsRepository = settingsRepository,
+                    tradeReadStateRepository = tradeReadStateRepository,
                     userProfileServiceFacade = userProfileServiceFacade,
                     notificationController = mockk<NotificationController>(relaxed = true),
                     messageDeliveryServiceFacade = mockk<MessageDeliveryServiceFacade>(relaxed = true),
