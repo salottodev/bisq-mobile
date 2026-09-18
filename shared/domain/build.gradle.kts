@@ -72,6 +72,33 @@ val isDebugBuild: Boolean =
                 System.getenv("KOTLIN_FRAMEWORK_BUILD_TYPE").equals("DEBUG", ignoreCase = true)
         )
 
+// Commit of the checkout this was built from, for identifying a build from its logs. Replaces a
+// BUILD_TS field generated from System.currentTimeMillis(), which made every build of either app
+// byte-different; a commit hash is fixed for a given source state, so the APKs stay reproducible.
+//
+// The full hash rather than `rev-parse --short`, whose length follows core.abbrev and git's own
+// scaling with repository size: two checkouts of the same commit can abbreviate it differently,
+// which would defeat the point. It also matches how bisq-core-commit is written in
+// libs.versions.toml.
+//
+// `providers.exec` rather than a plain call so the value stays a declared build input: with the
+// configuration cache on, reading it any other way bakes the hash in and later builds keep
+// reporting the commit the cache was created at. Degrades to "unknown" where there is no git
+// checkout (a source tarball) or no git binary.
+val buildCommit: String =
+    runCatching {
+        providers
+            .exec {
+                commandLine("git", "rev-parse", "HEAD")
+                isIgnoreExitValue = true
+            }.standardOutput
+            .asText
+            .get()
+            .trim()
+    }.getOrNull()
+        ?.takeIf { it.isNotBlank() }
+        ?: "unknown"
+
 val bisqCoreVersion: String by extra {
     findTomlVersion("bisq-core")
 }
@@ -114,7 +141,7 @@ buildConfig {
         buildConfigField("BISQ_API_VERSION", bisqApiVersion)
         buildConfigField("BISQ_DESKTOP_PAIRING_VERSION", bisqDesktopPairingVersion)
         buildConfigField("TOR_VERSION", torDaemonVersion) // is TOR DAEMON version, shown only when the node is reached over Tor
-        buildConfigField("BUILD_TS", System.currentTimeMillis())
+        buildConfigField("BUILD_COMMIT", buildCommit)
         // networking setup
         buildConfigField("WS_PORT", project.findProperty("client.x.trustednode.port").toString())
         buildConfigField("WS_ANDROID_HOST", project.findProperty("client.android.trustednode.ip").toString())
@@ -178,7 +205,7 @@ buildConfig {
         buildConfigField("TRADE_PROTOCOL_VERSION", "1.0")
         buildConfigField("TRADE_OFFER_VERSION", 1)
         buildConfigField("SHARED_LIBS_VERSION", project.version.toString())
-        buildConfigField("BUILD_TS", System.currentTimeMillis())
+        buildConfigField("BUILD_COMMIT", buildCommit)
         buildConfigField("BISQ_CORE_VERSION", bisqCoreVersion)
         // Note: Update when updating kmp-tor lib
         buildConfigField("TOR_VERSION", torDaemonVersion) // is TOR DAEMON version

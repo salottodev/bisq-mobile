@@ -80,6 +80,9 @@ class ClientPushNotificationServiceFacadeActivateTest : ClientKoinIntegrationTes
     private val savedKeyStoreFactory = network.bisq.mobile.data.crypto.pushNotificationKeyStoreFactory
 
     override fun onSetup() {
+        // The facade short-circuits activate() when the flavor reports no transport; a relaxed
+        // mock defaults this to false, which would skip everything under test here.
+        every { tokenProvider.isSupported } returns true
         every { mockContext.applicationContext } returns mockContext
         every { mockContext.contentResolver } returns mockContentResolver
         mockkStatic(Settings.Secure::class)
@@ -136,6 +139,28 @@ class ClientPushNotificationServiceFacadeActivateTest : ClientKoinIntegrationTes
             facade.activate()
             advanceUntilIdle()
             assertFalse(facade.isPushNotificationsEnabled.value)
+        }
+
+    @Test
+    fun `activate does nothing when the build ships no relayed push transport`() =
+        runTest {
+            // What the fdroid flavor's provider reports. Even with the opt-in persisted and
+            // onboarding finished, registering would rotate the symmetric key and hand the
+            // trusted node a token nothing can deliver to, so activation stops before any of it.
+            every { tokenProvider.isSupported } returns false
+            settingsRepository.update { it.copy(pushNotificationsEnabled = true) }
+            sensitiveSettingsRepository.update { SensitiveSettings(bisqApiUrl = "http://localhost:8080") }
+
+            facade.activate()
+            advanceUntilIdle()
+
+            assertFalse(facade.isRelayedPushSupported)
+            // The settings collector never starts, so the flow keeps its false default rather
+            // than mirroring an opt-in this build cannot honour.
+            assertFalse(facade.isPushNotificationsEnabled.value)
+            assertFalse(facade.isDeviceRegistered.value)
+            coVerify(exactly = 0) { tokenProvider.requestDeviceToken() }
+            coVerify(exactly = 0) { apiGateway.registerDevice(any(), any(), any(), any(), any(), any()) }
         }
 
     @Test

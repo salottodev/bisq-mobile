@@ -9,6 +9,18 @@ import network.bisq.mobile.data.service.LifeCycleAware
  */
 interface PushNotificationServiceFacade : LifeCycleAware {
     /**
+     * Whether this build can deliver relayed push notifications at all, independent of the
+     * user's opt-in. False where no transport is wired: the Node app, whose embedded Bisq2
+     * process notifies locally, and Connect's fdroid flavor, which ships without FCM because
+     * F-Droid rejects proprietary dependencies.
+     *
+     * Connect renders the settings section either way and disables the switch with an
+     * explanation when this is false, since a setting that simply vanishes reads as a bug. The
+     * Node app hides the section outright, through `SettingsPresenter.shouldShowPushNotificationsToggle`.
+     */
+    val isRelayedPushSupported: Boolean get() = true
+
+    /**
      * Whether push notifications are enabled by the user.
      */
     val isPushNotificationsEnabled: StateFlow<Boolean>
