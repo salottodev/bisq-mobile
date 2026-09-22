@@ -35,6 +35,7 @@ import network.bisq.mobile.presentation.common.ui.components.layout.BisqScrollSc
 import network.bisq.mobile.presentation.common.ui.components.molecules.TopBar
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.BisqDialog
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.WarningConfirmationDialog
+import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
@@ -44,6 +45,7 @@ import org.koin.compose.koinInject
 fun BackupScreen() {
     val presenter: BackupPresenter = koinInject()
     RememberPresenterLifecycle(presenter)
+    SecureScreenEffect()
 
     val uiState by presenter.uiState.collectAsState()
 
