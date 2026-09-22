@@ -1,4 +1,4 @@
-package network.bisq.mobile.client.common.presentation.ui.security
+package network.bisq.mobile.presentation.common.ui.security
 
 import androidx.compose.runtime.Composable
 
@@ -10,7 +10,8 @@ import androidx.compose.runtime.Composable
  *
  * Place this at the top of any Composable that renders secrets (e.g. the trusted-node
  * pairing screen, whose pairing code embeds the Tor client-auth secret, TLS fingerprint
- * and node URLs). The protection is scoped to the screen: it is applied while the
+ * and node URLs, or trade screens showing payment account data, BTC addresses and
+ * counterparty chat). The protection is scoped to the screen: it is applied while the
  * Composable is in the composition and removed when it leaves, so the rest of the app
  * keeps normal behaviour.
  *
