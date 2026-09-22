@@ -33,8 +33,8 @@ import network.bisq.mobile.presentation.common.notification.NotificationControll
 import network.bisq.mobile.presentation.common.ui.components.molecules.ITopBarPresenter
 import network.bisq.mobile.presentation.common.ui.components.molecules.PreviewTopBarPresenter
 import network.bisq.mobile.presentation.common.ui.components.molecules.chat.CHAT_MENTION_PICKER_TAG
-import network.bisq.mobile.presentation.common.ui.security.CaptureHostWindow
-import network.bisq.mobile.presentation.common.ui.security.isSecure
+import network.bisq.mobile.test.presentation.compose.CaptureHostWindow
+import network.bisq.mobile.test.presentation.compose.isSecure
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.presentation.report_user.ReportUserPresenter

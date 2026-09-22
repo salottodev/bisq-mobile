@@ -1,4 +1,4 @@
-package network.bisq.mobile.presentation.common.ui.security
+package network.bisq.mobile.test.presentation.compose
 
 import android.app.Activity
 import android.content.Context
@@ -11,7 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 
 /**
  * Reports the window hosting the composition, so a screen test on `createComposeRule()` can
- * assert that the screen applied [SecureScreenEffect].
+ * assert that the screen applied `SecureScreenEffect`.
  */
 @Composable
 fun CaptureHostWindow(onWindow: (Window) -> Unit) {
