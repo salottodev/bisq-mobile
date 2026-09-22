@@ -1,5 +1,6 @@
 package network.bisq.mobile.presentation.offer.take_offer.btc_address
 
+import android.view.Window
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
@@ -18,6 +19,8 @@ import network.bisq.mobile.presentation.common.test_utils.FakeTradesServiceFacad
 import network.bisq.mobile.presentation.common.test_utils.OfferTestFactory
 import network.bisq.mobile.presentation.common.ui.components.molecules.ITopBarPresenter
 import network.bisq.mobile.presentation.common.ui.components.molecules.PreviewTopBarPresenter
+import network.bisq.mobile.presentation.common.ui.security.CaptureHostWindow
+import network.bisq.mobile.presentation.common.ui.security.isSecure
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.presentation.offer.take_offer.TakeOfferCoordinator
 import network.bisq.mobile.test.mocks.SettingsRepositoryMock
@@ -25,6 +28,7 @@ import network.bisq.mobile.test.presentation.compose.PresentationKoinComposeTest
 import org.junit.Test
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import kotlin.test.assertTrue
 
 /**
  * The optional payout-address wizard step, rendered with a real presenter and coordinator so the
@@ -101,5 +105,17 @@ class TakeOfferBtcAddressScreenUiTest : PresentationKoinComposeTestBase() {
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText(continueLabel).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `payout address step blocks screenshots`() {
+        lateinit var window: Window
+
+        setTestContent {
+            CaptureHostWindow { window = it }
+            TakeOfferBtcAddressScreen()
+        }
+
+        assertTrue(window.isSecure)
     }
 }

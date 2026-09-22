@@ -1,5 +1,6 @@
 package network.bisq.mobile.presentation.private_chat
 
+import android.view.Window
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
@@ -32,6 +33,8 @@ import network.bisq.mobile.presentation.common.notification.NotificationControll
 import network.bisq.mobile.presentation.common.ui.components.molecules.ITopBarPresenter
 import network.bisq.mobile.presentation.common.ui.components.molecules.PreviewTopBarPresenter
 import network.bisq.mobile.presentation.common.ui.components.molecules.chat.CHAT_MENTION_PICKER_TAG
+import network.bisq.mobile.presentation.common.ui.security.CaptureHostWindow
+import network.bisq.mobile.presentation.common.ui.security.isSecure
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.presentation.report_user.ReportUserPresenter
@@ -41,6 +44,7 @@ import org.junit.Test
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Tests for [PrivateChatScreen] (issue #590).
@@ -269,5 +273,17 @@ class PrivateChatScreenUiTest : PresentationInjectComposeUiTestBase() {
 
         assertEquals(FontWeight.Medium, span.item.fontWeight)
         assertEquals(BisqTheme.colors.primary, span.item.color)
+    }
+
+    @Test
+    fun `private chat thread blocks screenshots`() {
+        lateinit var window: Window
+
+        setInjectTestContent {
+            CaptureHostWindow { window = it }
+            PrivateChatScreen(CHANNEL_ID)
+        }
+
+        assertTrue(window.isSecure)
     }
 }

@@ -13,6 +13,7 @@ import network.bisq.mobile.presentation.common.ui.components.layout.MultiScreenW
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.BitcoinLnAddressField
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.BitcoinLnAddressFieldType
 import network.bisq.mobile.presentation.common.ui.components.organisms.dialogs.BisqGeneralErrorDialog
+import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.offer.take_offer.TakeOfferCoordinator
 import org.koin.compose.koinInject
@@ -31,6 +32,7 @@ fun TakeOfferBtcAddressScreen() {
     val presenter: TakeOfferBtcAddressPresenter = koinInject()
     val takeOfferCoordinator: TakeOfferCoordinator = koinInject()
     RememberPresenterLifecycle(presenter)
+    SecureScreenEffect()
 
     val uiState by presenter.uiState.collectAsState()
 

@@ -41,6 +41,7 @@ import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.Co
 import network.bisq.mobile.presentation.common.ui.components.organisms.chat.ChatMessageList
 import network.bisq.mobile.presentation.common.ui.components.organisms.chat.UndoIgnoreDialog
 import network.bisq.mobile.presentation.common.ui.i18n.i18nText
+import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.EMPTY_STRING
@@ -62,6 +63,7 @@ import network.bisq.mobile.presentation.report_user.ReportUserDialog
 @Composable
 fun PrivateChatScreen(channelId: String) {
     val presenter = RememberPresenterLifecycleBackStackAware<PrivateChatPresenter>()
+    SecureScreenEffect()
     val uiState by presenter.uiState.collectAsState()
     val isSendChatMessageEnabled by presenter.isSendChatMessageEnabled.collectAsState()
     val isLeaveChatEnabled by presenter.isLeaveChatEnabled.collectAsState()
