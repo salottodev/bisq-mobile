@@ -19,6 +19,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.CircularLoadi
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.PaymentProofField
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.PaymentProofType
+import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
 
 @Composable
@@ -26,6 +27,7 @@ fun BuyerStateLightning3b(
     presenter: BuyerStateLightning3bPresenter,
 ) {
     RememberPresenterLifecycle(presenter)
+    SecureScreenEffect()
 
     val selectedTrade by presenter.selectedTrade.collectAsState()
     val isCompleteTradeEnabled by presenter.isCompleteTradeEnabled.collectAsState()
