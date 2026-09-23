@@ -7,8 +7,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import network.bisq.mobile.presentation.common.ui.components.molecules.ITopBarPresenter
 import network.bisq.mobile.presentation.common.ui.components.molecules.PreviewTopBarPresenter
 import network.bisq.mobile.test.presentation.compose.CaptureHostWindow
-import network.bisq.mobile.test.presentation.compose.isSecure
 import network.bisq.mobile.test.presentation.compose.PresentationKoinComposeTestBase
+import network.bisq.mobile.test.presentation.compose.isSecure
 import org.junit.Test
 import org.koin.core.module.Module
 import org.koin.dsl.module

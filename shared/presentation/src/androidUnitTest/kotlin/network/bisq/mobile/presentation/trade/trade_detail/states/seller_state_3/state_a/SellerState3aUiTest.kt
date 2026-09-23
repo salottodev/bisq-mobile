@@ -4,9 +4,9 @@ import android.view.Window
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import network.bisq.mobile.test.presentation.compose.BisqComposeUiTestBase
 import network.bisq.mobile.test.presentation.compose.CaptureHostWindow
 import network.bisq.mobile.test.presentation.compose.isSecure
-import network.bisq.mobile.test.presentation.compose.BisqComposeUiTestBase
 import org.junit.Test
 import kotlin.test.assertTrue
 

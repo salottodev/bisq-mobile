@@ -19,12 +19,12 @@ import network.bisq.mobile.presentation.common.test_utils.FakeTradesServiceFacad
 import network.bisq.mobile.presentation.common.test_utils.OfferTestFactory
 import network.bisq.mobile.presentation.common.ui.components.molecules.ITopBarPresenter
 import network.bisq.mobile.presentation.common.ui.components.molecules.PreviewTopBarPresenter
-import network.bisq.mobile.test.presentation.compose.CaptureHostWindow
-import network.bisq.mobile.test.presentation.compose.isSecure
 import network.bisq.mobile.presentation.main.MainPresenter
 import network.bisq.mobile.presentation.offer.take_offer.TakeOfferCoordinator
 import network.bisq.mobile.test.mocks.SettingsRepositoryMock
+import network.bisq.mobile.test.presentation.compose.CaptureHostWindow
 import network.bisq.mobile.test.presentation.compose.PresentationKoinComposeTestBase
+import network.bisq.mobile.test.presentation.compose.isSecure
 import org.junit.Test
 import org.koin.core.module.Module
 import org.koin.dsl.module
