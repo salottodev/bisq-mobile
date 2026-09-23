@@ -1,5 +1,6 @@
 package network.bisq.mobile.presentation.settings.payment_accounts
 
+import android.view.Window
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import io.mockk.every
@@ -9,10 +10,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.molecules.ITopBarPresenter
 import network.bisq.mobile.presentation.common.ui.components.molecules.PreviewTopBarPresenter
+import network.bisq.mobile.test.presentation.compose.CaptureHostWindow
 import network.bisq.mobile.test.presentation.compose.PresentationKoinComposeTestBase
+import network.bisq.mobile.test.presentation.compose.isSecure
 import org.junit.Test
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PaymentAccountsScreenUiTest : PresentationKoinComposeTestBase() {
@@ -42,5 +46,17 @@ class PaymentAccountsScreenUiTest : PresentationKoinComposeTestBase() {
         composeTestRule
             .onNodeWithText("paymentAccounts.noAccounts.info".i18n())
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun `account data entry blocks screenshots`() {
+        lateinit var window: Window
+
+        setTestContent {
+            CaptureHostWindow { window = it }
+            PaymentAccountsScreen()
+        }
+
+        assertTrue(window.isSecure)
     }
 }

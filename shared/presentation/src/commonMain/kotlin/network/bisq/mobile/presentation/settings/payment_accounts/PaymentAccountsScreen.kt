@@ -30,6 +30,7 @@ import network.bisq.mobile.presentation.common.ui.components.layout.BisqScaffold
 import network.bisq.mobile.presentation.common.ui.components.molecules.TopBar
 import network.bisq.mobile.presentation.common.ui.components.molecules.TopBarContent
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.ConfirmationDialog
+import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.utils.DataEntry
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
@@ -40,6 +41,7 @@ import org.koin.compose.koinInject
 fun PaymentAccountsScreen() {
     val presenter: PaymentAccountsPresenter = koinInject()
     RememberPresenterLifecycle(presenter)
+    SecureScreenEffect()
 
     val uiState by presenter.uiState.collectAsState()
     val isAddAccountEnabled by presenter.isAddAccountEnabled.collectAsState()
