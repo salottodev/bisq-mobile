@@ -13,6 +13,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqTextFieldV0
 import network.bisq.mobile.presentation.common.ui.components.atoms.button.CopyIconButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
+import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
 
 @Composable
@@ -20,6 +21,7 @@ fun BuyerState2a(
     presenter: BuyerState2aPresenter,
 ) {
     RememberPresenterLifecycle(presenter)
+    SecureScreenEffect()
 
     val selectedTrade by presenter.selectedTrade.collectAsState()
     val isConfirmFiatSentEnabled by presenter.isConfirmFiatSentEnabled.collectAsState()

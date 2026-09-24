@@ -1,4 +1,4 @@
-package network.bisq.mobile.client.common.presentation.ui.security
+package network.bisq.mobile.presentation.common.ui.security
 
 import android.app.Activity
 import android.content.Context

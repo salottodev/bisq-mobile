@@ -27,6 +27,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGa
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.BitcoinLnAddressField
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.PaymentProofField
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.PaymentProofType
+import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
 import org.jetbrains.compose.resources.painterResource
@@ -36,6 +37,7 @@ fun SellerState3a(
     presenter: SellerState3aPresenter,
 ) {
     RememberPresenterLifecycle(presenter)
+    SecureScreenEffect()
 
     val selectedTrade by presenter.selectedTrade.collectAsState()
     val trade = selectedTrade ?: return

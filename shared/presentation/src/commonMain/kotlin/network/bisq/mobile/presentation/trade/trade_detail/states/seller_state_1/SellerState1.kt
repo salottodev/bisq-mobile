@@ -15,6 +15,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.BisqDropdown
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqTextFieldV0
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
+import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.utils.DataEntry
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
@@ -24,6 +25,7 @@ fun SellerState1(
     presenter: SellerState1Presenter,
 ) {
     RememberPresenterLifecycle(presenter)
+    SecureScreenEffect()
 
     val paymentAccountDataEntry by presenter.paymentAccountDataEntry.collectAsState()
     val paymentAccountName by presenter.paymentAccountName.collectAsState()

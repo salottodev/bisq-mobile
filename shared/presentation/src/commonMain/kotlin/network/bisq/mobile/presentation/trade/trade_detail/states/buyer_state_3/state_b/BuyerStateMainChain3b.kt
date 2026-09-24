@@ -28,6 +28,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGa
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.ConfirmationDialog
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.PaymentProofField
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.PaymentProofType
+import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.trade.trade_detail.states.common.TxConfirmationState.CONFIRMED
@@ -41,6 +42,7 @@ fun BuyerStateMainChain3b(
     presenter: BuyerStateMainChain3bPresenter,
 ) {
     RememberPresenterLifecycle(presenter)
+    SecureScreenEffect()
 
     val selectedTrade by presenter.selectedTrade.collectAsState()
 

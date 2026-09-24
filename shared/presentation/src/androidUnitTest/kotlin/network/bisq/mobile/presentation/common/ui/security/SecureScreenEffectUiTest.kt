@@ -1,4 +1,4 @@
-package network.bisq.mobile.client.common.presentation.ui.security
+package network.bisq.mobile.presentation.common.ui.security
 
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -7,19 +7,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import network.bisq.mobile.client.common.test_utils.TestApplication
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.annotation.Config
 
 /**
  * Verifies the Android [SecureScreenEffect] toggles `FLAG_SECURE` on the host window in step
- * with the composition lifecycle, so the pairing screen is protected only while it is shown.
+ * with the composition lifecycle, so a sensitive screen is protected only while it is shown.
  */
-@Config(application = TestApplication::class)
 @RunWith(AndroidJUnit4::class)
 class SecureScreenEffectUiTest {
     @get:Rule

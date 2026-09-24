@@ -19,6 +19,7 @@ import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.Co
 import network.bisq.mobile.presentation.common.ui.components.organisms.chat.ChatMessageList
 import network.bisq.mobile.presentation.common.ui.components.organisms.chat.ChatScaffold
 import network.bisq.mobile.presentation.common.ui.components.organisms.chat.UndoIgnoreDialog
+import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.utils.EMPTY_STRING
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
@@ -30,6 +31,7 @@ import org.koin.compose.koinInject
 fun TradeChatScreen(tradeId: String) {
     val presenter: TradeChatPresenter = koinInject()
     RememberPresenterLifecycle(presenter)
+    SecureScreenEffect()
     LaunchedEffect(presenter, tradeId) {
         presenter.initialize(tradeId)
     }

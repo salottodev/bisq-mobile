@@ -1,4 +1,4 @@
-package network.bisq.mobile.client.common.presentation.ui.security
+package network.bisq.mobile.presentation.common.ui.security
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect

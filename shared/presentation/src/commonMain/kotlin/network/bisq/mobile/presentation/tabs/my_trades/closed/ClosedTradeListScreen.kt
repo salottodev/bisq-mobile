@@ -37,6 +37,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGa
 import network.bisq.mobile.presentation.common.ui.components.atoms.rememberStarPainters
 import network.bisq.mobile.presentation.common.ui.components.layout.BisqStaticLayout
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.SearchWithFilterField
+import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
@@ -51,6 +52,7 @@ import org.koin.compose.koinInject
 fun ClosedTradeListScreen() {
     val presenter: ClosedTradeListPresenter = koinInject()
     RememberPresenterLifecycle(presenter)
+    SecureScreenEffect()
 
     val uiState by presenter.uiState.collectAsState()
     val totalCount by presenter.totalCount.collectAsState()

@@ -23,6 +23,7 @@ import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.InfoGreenIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.BitcoinLnAddressField
+import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.theme.BisqUIConstants
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
 import network.bisq.mobile.presentation.common.ui.utils.spaceBetweenWithMin
@@ -32,6 +33,7 @@ fun BuyerState1a(
     presenter: BuyerState1aPresenter,
 ) {
     RememberPresenterLifecycle(presenter)
+    SecureScreenEffect()
 
     val headline by presenter.headline.collectAsState()
     val description by presenter.description.collectAsState()
