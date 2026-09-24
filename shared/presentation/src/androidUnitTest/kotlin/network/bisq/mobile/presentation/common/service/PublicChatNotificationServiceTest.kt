@@ -408,6 +408,28 @@ class PublicChatNotificationServiceTest : PresentationKoinTestBase() {
             assertSupportRoute()
         }
 
+    /**
+     * The level emission and the unread emission land in the same dispatch round: re-baselining live
+     * collectors would record the Support increase as seen before its collector processes it.
+     */
+    @Test
+    fun `changing one channel level while armed keeps a pending increase on the other channel`() =
+        runTest {
+            val discussions = channel(ChatChannelDomainEnum.DISCUSSION)
+            val support = channel(ChatChannelDomainEnum.SUPPORT)
+            channels.value = listOf(discussions, support)
+            startService(CommunityNotificationLevel.ALL)
+            goForeground()
+            goBackground()
+
+            settingsRepository.setNotificationLevel(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.MENTIONS_AND_REPLIES)
+            support.newMessage("need help")
+            advanceUntilIdle()
+
+            assertEquals(1, notifyCount)
+            assertSupportRoute()
+        }
+
     @Test
     fun `turning one channel on while backgrounded with both off arms observers`() =
         runTest {

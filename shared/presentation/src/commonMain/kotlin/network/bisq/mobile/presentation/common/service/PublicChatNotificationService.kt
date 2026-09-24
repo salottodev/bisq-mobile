@@ -139,7 +139,8 @@ class PublicChatNotificationService(
     /**
      * The preferences are live: both channels OFF disarms observers that are already running, and
      * turning either channel on while backgrounded arms them — no app restart needed for a setting
-     * to take effect.
+     * to take effect. Only arming re-baselines: live collectors already keep every channel's
+     * baseline, and a fresh snapshot would record an increase they have not processed yet as seen.
      */
     private fun setupLevelObserver() {
         if (levelObserverJob?.isActive == true) return
@@ -153,8 +154,7 @@ class PublicChatNotificationService(
                     if (!deliveryArmed()) {
                         unregisterObservers()
                     } else if (!isForegroundNow) {
-                        markCurrentCountsAsSeen()
-                        registerObservers()
+                        registerObservers(rebaseline = true)
                     }
                 }.launchIn(scope)
     }
@@ -163,10 +163,11 @@ class PublicChatNotificationService(
 
     private fun levelFor(channel: CommonPublicChatChannel): CommunityNotificationLevel = levelByDomain[channel.chatChannelDomain] ?: CommunityNotificationLevel.OFF
 
-    private suspend fun registerObservers() {
+    private suspend fun registerObservers(rebaseline: Boolean = false) {
         jobMutex.withLock {
             if (!deliveryArmed()) return@withLock
             if (observerJob?.isActive == true) return@withLock
+            if (rebaseline) markCurrentCountsAsSeen()
             observerJob =
                 scope.launch {
                     publicChatServiceFacade.channels.collectLatest { channels ->
