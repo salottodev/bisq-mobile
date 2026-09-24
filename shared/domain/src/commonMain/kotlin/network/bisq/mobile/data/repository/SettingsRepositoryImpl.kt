@@ -7,6 +7,8 @@ import network.bisq.mobile.data.model.PermissionState
 import network.bisq.mobile.data.model.Settings
 import network.bisq.mobile.data.model.market.MarketFilter
 import network.bisq.mobile.data.model.market.MarketSortBy
+import network.bisq.mobile.data.model.withNotificationLevel
+import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.domain.repository.SettingsRepository
 
 open class SettingsRepositoryImpl(
@@ -20,6 +22,11 @@ open class SettingsRepositoryImpl(
     override suspend fun setShowChatRulesWarnBox(value: Boolean) = set { it.copy(showChatRulesWarnBox = value) }
 
     override suspend fun setCommunityNotificationLevel(value: CommunityNotificationLevel) = set { it.copy(communityNotificationLevel = value) }
+
+    override suspend fun setNotificationLevel(
+        domain: ChatChannelDomainEnum,
+        level: CommunityNotificationLevel,
+    ) = set { it.withNotificationLevel(domain, level) }
 
     override suspend fun setSelectedMarketCode(value: String) = set { it.copy(selectedMarketCode = value) }
 
