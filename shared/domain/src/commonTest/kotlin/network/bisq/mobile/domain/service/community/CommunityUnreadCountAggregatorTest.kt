@@ -323,7 +323,7 @@ class CommunityUnreadCountAggregatorTest {
         }
 
     @Test
-    fun `the discussions level governs the badge, not the legacy level`() =
+    fun `the discussions level governs the badge instead of the legacy level`() =
         runTest {
             val discussion = channel(ChatChannelDomainEnum.DISCUSSION)
             val hub =
