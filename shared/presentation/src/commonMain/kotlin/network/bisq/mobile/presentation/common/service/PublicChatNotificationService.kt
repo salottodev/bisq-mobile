@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import network.bisq.mobile.data.model.CommunityNotificationLevel
+import network.bisq.mobile.data.model.notificationLevelFor
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.data.replicated.chat.common.CommonPublicChatChannel
 import network.bisq.mobile.data.replicated.chat.mentionsOrCites
@@ -39,7 +40,7 @@ import network.bisq.mobile.presentation.common.notification.model.android.Androi
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
 
 /**
- * Community notifications for the PUBLIC channels (Discussions and Support), governed by the global
+ * Community notifications for the PUBLIC channels (Discussions and Support), each governed by its own
  * [CommunityNotificationLevel] preference. Structure mirrors [PrivateChatNotificationService]
  * deliberately — unread-count deltas over a seen-baseline, so the channels' replayed history (10-day
  * P2P TTL) never storms on a cold start: a burst is at most one notification per channel.
@@ -48,7 +49,8 @@ import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
  * CommunityUnreadCountAggregator → CommunityHubService) has no writer here and cannot be disturbed.
  *
  * MENTIONS_AND_REPLIES classifies the burst's newest messages with the shared desktop-semantics
- * predicate [mentionsOrCites]; OFF never arms observers at all.
+ * predicate [mentionsOrCites]; OFF skips that channel, and observers are never armed while both
+ * channels are OFF.
  */
 @OptIn(FlowPreview::class)
 class PublicChatNotificationService(
@@ -61,6 +63,7 @@ class PublicChatNotificationService(
 ) : Logging {
     private companion object {
         const val FOREGROUND_DEBOUNCE_MS = 1000L
+        val PUBLIC_DOMAINS = listOf(ChatChannelDomainEnum.DISCUSSION, ChatChannelDomainEnum.SUPPORT)
     }
 
     // Same isolation rationale as PrivateChatNotificationService: never routed through
@@ -80,8 +83,9 @@ class PublicChatNotificationService(
     @kotlin.concurrent.Volatile
     private var isLocalDeliverySuppressed = false
 
+    // Empty until the first settings emission, which reads as OFF for every channel.
     @kotlin.concurrent.Volatile
-    private var currentLevel: CommunityNotificationLevel = CommunityNotificationLevel.OFF
+    private var levelByDomain: Map<ChatChannelDomainEnum, CommunityNotificationLevel> = emptyMap()
 
     @kotlin.concurrent.Volatile
     private var isForegroundNow = true
@@ -133,28 +137,31 @@ class PublicChatNotificationService(
     }
 
     /**
-     * The preference is live: OFF disarms observers that are already running, and leaving OFF while
-     * backgrounded arms them — no app restart needed for the setting to take effect.
+     * The preferences are live: both channels OFF disarms observers that are already running, and
+     * turning either channel on while backgrounded arms them — no app restart needed for a setting
+     * to take effect.
      */
     private fun setupLevelObserver() {
         if (levelObserverJob?.isActive == true) return
 
         levelObserverJob =
             settingsRepository.data
-                .map { it.communityNotificationLevel }
+                .map { settings -> PUBLIC_DOMAINS.associateWith { settings.notificationLevelFor(it) } }
                 .distinctUntilChanged()
-                .onEach { level ->
-                    currentLevel = level
-                    if (level == CommunityNotificationLevel.OFF) {
+                .onEach { levels ->
+                    levelByDomain = levels
+                    if (!deliveryArmed()) {
                         unregisterObservers()
-                    } else if (!isForegroundNow && deliveryArmed()) {
+                    } else if (!isForegroundNow) {
                         markCurrentCountsAsSeen()
                         registerObservers()
                     }
                 }.launchIn(scope)
     }
 
-    private fun deliveryArmed(): Boolean = !isLocalDeliverySuppressed && currentLevel != CommunityNotificationLevel.OFF
+    private fun deliveryArmed(): Boolean = !isLocalDeliverySuppressed && levelByDomain.values.any { it != CommunityNotificationLevel.OFF }
+
+    private fun levelFor(channel: CommonPublicChatChannel): CommunityNotificationLevel = levelByDomain[channel.chatChannelDomain] ?: CommunityNotificationLevel.OFF
 
     private suspend fun registerObservers() {
         jobMutex.withLock {
@@ -203,7 +210,9 @@ class PublicChatNotificationService(
                 previous
             }
         if (unreadCount <= previous) return
-        if (!burstQualifies(channel, (unreadCount - previous).toInt())) return
+        val level = levelFor(channel)
+        if (level == CommunityNotificationLevel.OFF) return
+        if (!burstQualifies(channel, level, (unreadCount - previous).toInt())) return
 
         val isSupport = channel.chatChannelDomain == ChatChannelDomainEnum.SUPPORT
         val channelName =
@@ -239,9 +248,10 @@ class PublicChatNotificationService(
      */
     private suspend fun burstQualifies(
         channel: CommonPublicChatChannel,
+        level: CommunityNotificationLevel,
         delta: Int,
     ): Boolean {
-        if (currentLevel == CommunityNotificationLevel.ALL) return true
+        if (level == CommunityNotificationLevel.ALL) return true
 
         // All owned profiles, like desktop checks all identities — a mention of a non-selected
         // profile's userName must still qualify. Empty only before the first profile load, where

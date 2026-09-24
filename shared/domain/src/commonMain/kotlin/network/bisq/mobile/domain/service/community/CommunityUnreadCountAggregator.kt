@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import network.bisq.mobile.data.model.CommunityNotificationLevel
+import network.bisq.mobile.data.model.notificationLevelFor
 import network.bisq.mobile.data.replicated.chat.ChatChannel
 import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.data.replicated.chat.common.CommonPublicChatChannel
@@ -109,15 +110,15 @@ class CommunityUnreadCountAggregator(
     }
 
     /**
-     * The Discussions addend honors the Community notifications preference, matching desktop,
+     * The Discussions addend honors the Discussions notification level, matching desktop,
      * where the nav badges count notifications and notifications respect the ALL / MENTION / OFF
      * setting: ALL badges every unread message, MENTIONS_AND_REPLIES only the unread messages that
      * mention one of the user's own profiles or cite one of their messages, OFF none. The Messages
-     * addend stays unfiltered — the preference is scoped to the public channels.
+     * addend stays unfiltered — the levels are scoped to the public channels.
      */
     private fun discussionBadgeCount(): Flow<Long> =
         combine(
-            settingsRepository.data.map { it.communityNotificationLevel }.distinctUntilChanged(),
+            settingsRepository.data.map { it.notificationLevelFor(ChatChannelDomainEnum.DISCUSSION) }.distinctUntilChanged(),
             ownProfiles,
             publicChatServiceFacade.channels,
         ) { level, profiles, channels ->
