@@ -24,8 +24,6 @@ interface SettingsRepository {
 
     suspend fun setShowChatRulesWarnBox(value: Boolean)
 
-    suspend fun setCommunityNotificationLevel(value: CommunityNotificationLevel)
-
     suspend fun setNotificationLevel(
         domain: ChatChannelDomainEnum,
         level: CommunityNotificationLevel,

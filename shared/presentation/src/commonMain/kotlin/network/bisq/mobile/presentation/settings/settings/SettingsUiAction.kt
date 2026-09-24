@@ -1,6 +1,7 @@
 package network.bisq.mobile.presentation.settings.settings
 
 import network.bisq.mobile.data.model.CommunityNotificationLevel
+import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 
 sealed interface SettingsUiAction {
     data class OnLanguageCodeChange(
@@ -87,7 +88,8 @@ sealed interface SettingsUiAction {
     /** User tapped a "Learn more" affordance in the relayed-push-notifications section. */
     data object OnPushNotificationsLearnMore : SettingsUiAction
 
-    data class OnCommunityNotificationLevelChange(
+    data class OnNotificationLevelChange(
+        val domain: ChatChannelDomainEnum,
         val level: CommunityNotificationLevel,
     ) : SettingsUiAction
 

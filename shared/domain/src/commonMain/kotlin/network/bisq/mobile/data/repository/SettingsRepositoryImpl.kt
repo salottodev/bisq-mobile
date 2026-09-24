@@ -21,8 +21,6 @@ open class SettingsRepositoryImpl(
 
     override suspend fun setShowChatRulesWarnBox(value: Boolean) = set { it.copy(showChatRulesWarnBox = value) }
 
-    override suspend fun setCommunityNotificationLevel(value: CommunityNotificationLevel) = set { it.copy(communityNotificationLevel = value) }
-
     override suspend fun setNotificationLevel(
         domain: ChatChannelDomainEnum,
         level: CommunityNotificationLevel,

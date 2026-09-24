@@ -317,7 +317,7 @@ class CommunityUnreadCountAggregatorTest {
             discussion.setUnreadCount(1)
             assertEquals(0, hub.unreadCount.value)
 
-            settingsRepository.setCommunityNotificationLevel(CommunityNotificationLevel.ALL)
+            settingsRepository.setNotificationLevel(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.ALL)
 
             assertEquals(1, hub.unreadCount.value)
         }
@@ -364,20 +364,6 @@ class CommunityUnreadCountAggregatorTest {
             support.setUnreadCount(2)
 
             assertEquals(0, hub.unreadCount.value)
-        }
-
-    @Test
-    fun `raising the discussions level mid session republishes the full count`() =
-        runTest {
-            val discussion = channel(ChatChannelDomainEnum.DISCUSSION)
-            val settingsRepository = SettingsRepositoryMock(Settings(discussionsNotificationLevel = CommunityNotificationLevel.OFF))
-            val hub = startAggregator(listOf(discussion), settingsRepository = settingsRepository)
-            discussion.setUnreadCount(2)
-            assertEquals(0, hub.unreadCount.value)
-
-            settingsRepository.setNotificationLevel(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.ALL)
-
-            assertEquals(2, hub.unreadCount.value)
         }
 
     private fun peerMessage(

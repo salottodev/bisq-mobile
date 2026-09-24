@@ -11,6 +11,8 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import io.mockk.mockk
 import io.mockk.verify
+import network.bisq.mobile.data.model.CommunityNotificationLevel
+import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.utils.DataEntry
 import network.bisq.mobile.test.presentation.compose.BisqComposeUiTestBase
@@ -643,6 +645,94 @@ class SettingsContentUiTest : BisqComposeUiTestBase() {
 
         // Then
         verify { mockOnAction(SettingsUiAction.OnNumDaysAfterRedactingTradeDataCancel) }
+    }
+
+    // ========== Community Notifications Tests ==========
+
+    @Test
+    fun `when normal state renders then shows one notification level per channel`() {
+        // Given
+        val uiState =
+            SettingsUiState(
+                i18nPairs = i18nPairs,
+                languageCode = "en",
+                supportedLanguageCodes = setOf("en"),
+                tradePriceTolerance = DataEntry(value = "5"),
+                numDaysAfterRedactingTradeData = DataEntry(value = "90"),
+                powFactor = DataEntry(value = "1"),
+                discussionsNotificationLevel = CommunityNotificationLevel.OFF,
+                supportNotificationLevel = CommunityNotificationLevel.MENTIONS_AND_REPLIES,
+                isFetchingSettings = false,
+            )
+
+        // When
+        setTestContent {
+            SettingsContent(
+                uiState = uiState,
+                onAction = mockOnAction,
+            )
+        }
+
+        // Then
+        composeTestRule.waitForIdle()
+        composeTestRule
+            .onNodeWithText("mobile.settings.communityNotifications.title".i18n())
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeTestRule
+            .onNodeWithText("mobile.communityNotifications.channel.discussions".i18n())
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeTestRule
+            .onNodeWithText("mobile.settings.communityNotifications.off".i18n())
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeTestRule
+            .onNodeWithText("mobile.communityNotifications.channel.support".i18n())
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeTestRule
+            .onNodeWithText("mobile.settings.communityNotifications.mentions".i18n())
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun `when a level is picked in the discussions row then triggers OnNotificationLevelChange for discussions`() {
+        // Given: each row shows a different level, so the Discussions field is identified by its value
+        val uiState =
+            SettingsUiState(
+                i18nPairs = i18nPairs,
+                languageCode = "en",
+                supportedLanguageCodes = setOf("en"),
+                tradePriceTolerance = DataEntry(value = "5"),
+                numDaysAfterRedactingTradeData = DataEntry(value = "90"),
+                powFactor = DataEntry(value = "1"),
+                discussionsNotificationLevel = CommunityNotificationLevel.MENTIONS_AND_REPLIES,
+                supportNotificationLevel = CommunityNotificationLevel.ALL,
+                isFetchingSettings = false,
+            )
+        setTestContent {
+            SettingsContent(
+                uiState = uiState,
+                onAction = mockOnAction,
+            )
+        }
+
+        // When
+        composeTestRule
+            .onNodeWithText("mobile.settings.communityNotifications.mentions".i18n())
+            .performScrollTo()
+            .performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule
+            .onNodeWithText("mobile.settings.communityNotifications.off".i18n())
+            .performClick()
+
+        // Then
+        verify {
+            mockOnAction(SettingsUiAction.OnNotificationLevelChange(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.OFF))
+        }
     }
 
     // ========== Display Settings Tests ==========

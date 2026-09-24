@@ -48,12 +48,6 @@ class SettingsRepositoryMock(
         }
     }
 
-    override suspend fun setCommunityNotificationLevel(value: CommunityNotificationLevel) {
-        mutableData.update {
-            it.copy(communityNotificationLevel = value)
-        }
-    }
-
     override suspend fun setNotificationLevel(
         domain: ChatChannelDomainEnum,
         level: CommunityNotificationLevel,

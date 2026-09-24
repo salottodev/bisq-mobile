@@ -131,32 +131,6 @@ class SettingsRepositoryImplTest {
         }
 
     @Test
-    fun `setCommunityNotificationLevel should update the level and preserve other fields`() =
-        runTest {
-            // Given
-            val updateSlot = slot<suspend (Settings) -> Settings>()
-            coEvery { mockDataStore.updateData(capture(updateSlot)) } returns Settings()
-
-            val originalSettings =
-                Settings(
-                    selectedMarketCode = "BTC/GBP",
-                )
-            // The shipped default: Discussions is one global channel, so ALL by default would be
-            // a firehose and OFF would bury the feature.
-            assertEquals(CommunityNotificationLevel.ALL, originalSettings.communityNotificationLevel)
-
-            // When
-            repository.setCommunityNotificationLevel(CommunityNotificationLevel.OFF)
-
-            // Then
-            coVerify { mockDataStore.updateData(any()) }
-
-            val updatedSettings = updateSlot.captured(originalSettings)
-            assertEquals(CommunityNotificationLevel.OFF, updatedSettings.communityNotificationLevel)
-            assertEquals("BTC/GBP", updatedSettings.selectedMarketCode)
-        }
-
-    @Test
     fun `setNotificationLevel should update only that channel's level`() =
         runTest {
             // Given

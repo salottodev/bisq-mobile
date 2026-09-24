@@ -257,7 +257,7 @@ class PublicChatNotificationServiceTest : PresentationKoinTestBase() {
         }
 
     @Test
-    fun `flipping the level to off mid session disarms armed observers`() =
+    fun `turning both channels off mid session disarms armed observers`() =
         runTest {
             val discussions = channel(ChatChannelDomainEnum.DISCUSSION)
             channels.value = listOf(discussions)
@@ -265,7 +265,8 @@ class PublicChatNotificationServiceTest : PresentationKoinTestBase() {
             goForeground()
             goBackground()
 
-            settingsRepository.setCommunityNotificationLevel(CommunityNotificationLevel.OFF)
+            settingsRepository.setNotificationLevel(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.OFF)
+            settingsRepository.setNotificationLevel(ChatChannelDomainEnum.SUPPORT, CommunityNotificationLevel.OFF)
             advanceUntilIdle()
 
             discussions.newMessage("after the flip")

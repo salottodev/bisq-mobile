@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import network.bisq.mobile.data.model.CommunityNotificationLevel
 import network.bisq.mobile.data.model.Settings
+import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.data.replicated.settings.DEFAULT_MAX_TRADE_PRICE_DEVIATION
 import network.bisq.mobile.data.replicated.settings.DEFAULT_NUM_DAYS_AFTER_REDACTING_TRADE_DATA
 import network.bisq.mobile.data.replicated.settings.SettingsVO
@@ -145,51 +146,58 @@ class SettingsPresenterTest : PresentationKoinTestBase() {
         )
 
     @Test
-    fun `community notification level reflects the persisted setting`() =
+    fun `each channel level reflects its persisted setting or the legacy level`() =
         runTest {
             coEvery { settingsServiceFacade.getSettings() } returns Result.success(sampleSettings)
             every { settingsRepository.data } returns
-                MutableStateFlow(Settings(communityNotificationLevel = CommunityNotificationLevel.OFF))
+                MutableStateFlow(
+                    Settings(
+                        communityNotificationLevel = CommunityNotificationLevel.OFF,
+                        discussionsNotificationLevel = CommunityNotificationLevel.MENTIONS_AND_REPLIES,
+                    ),
+                )
             val presenter = createPresenter()
             presenter.onViewAttached()
             advanceUntilIdle()
 
-            assertEquals(CommunityNotificationLevel.OFF, presenter.uiState.value.communityNotificationLevel)
+            assertEquals(CommunityNotificationLevel.MENTIONS_AND_REPLIES, presenter.uiState.value.discussionsNotificationLevel)
+            assertEquals(CommunityNotificationLevel.OFF, presenter.uiState.value.supportNotificationLevel)
             presenter.onViewUnattaching()
         }
 
     @Test
-    fun `changing the community notification level persists it`() =
+    fun `changing a channel level persists only that channel`() =
         runTest {
             coEvery { settingsServiceFacade.getSettings() } returns Result.success(sampleSettings)
             val presenter = createPresenter()
             presenter.onViewAttached()
             advanceUntilIdle()
 
-            presenter.onAction(SettingsUiAction.OnCommunityNotificationLevelChange(CommunityNotificationLevel.ALL))
+            presenter.onAction(SettingsUiAction.OnNotificationLevelChange(ChatChannelDomainEnum.SUPPORT, CommunityNotificationLevel.OFF))
             advanceUntilIdle()
 
-            coVerify { settingsRepository.setCommunityNotificationLevel(CommunityNotificationLevel.ALL) }
+            coVerify { settingsRepository.setNotificationLevel(ChatChannelDomainEnum.SUPPORT, CommunityNotificationLevel.OFF) }
+            coVerify(exactly = 0) { settingsRepository.setNotificationLevel(ChatChannelDomainEnum.DISCUSSION, any()) }
             presenter.onViewUnattaching()
         }
 
     @Test
-    fun `community notification level persistence failure is handled and keeps the shown level`() =
+    fun `channel level persistence failure is handled and keeps the shown level`() =
         runTest {
             coEvery { settingsServiceFacade.getSettings() } returns Result.success(sampleSettings)
             coEvery {
-                settingsRepository.setCommunityNotificationLevel(CommunityNotificationLevel.ALL)
+                settingsRepository.setNotificationLevel(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.OFF)
             } throws Exception("Error")
             val presenter = createPresenter()
             presenter.onViewAttached()
             advanceUntilIdle()
-            val shownBefore = presenter.uiState.value.communityNotificationLevel
+            val shownBefore = presenter.uiState.value.discussionsNotificationLevel
 
-            presenter.onAction(SettingsUiAction.OnCommunityNotificationLevelChange(CommunityNotificationLevel.ALL))
+            presenter.onAction(SettingsUiAction.OnNotificationLevelChange(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.OFF))
             advanceUntilIdle()
 
-            coVerify { settingsRepository.setCommunityNotificationLevel(CommunityNotificationLevel.ALL) }
-            assertEquals(shownBefore, presenter.uiState.value.communityNotificationLevel)
+            coVerify { settingsRepository.setNotificationLevel(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.OFF) }
+            assertEquals(shownBefore, presenter.uiState.value.discussionsNotificationLevel)
             presenter.onViewUnattaching()
         }
 
