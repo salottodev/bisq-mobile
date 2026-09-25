@@ -317,9 +317,53 @@ class CommunityUnreadCountAggregatorTest {
             discussion.setUnreadCount(1)
             assertEquals(0, hub.unreadCount.value)
 
-            settingsRepository.setCommunityNotificationLevel(CommunityNotificationLevel.ALL)
+            settingsRepository.setNotificationLevel(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.ALL)
 
             assertEquals(1, hub.unreadCount.value)
+        }
+
+    @Test
+    fun `the discussions level governs the badge instead of the legacy level`() =
+        runTest {
+            val discussion = channel(ChatChannelDomainEnum.DISCUSSION)
+            val hub =
+                startAggregator(
+                    listOf(discussion),
+                    settingsRepository =
+                        SettingsRepositoryMock(
+                            Settings(
+                                communityNotificationLevel = CommunityNotificationLevel.OFF,
+                                discussionsNotificationLevel = CommunityNotificationLevel.ALL,
+                            ),
+                        ),
+                )
+
+            discussion.setUnreadCount(3)
+
+            assertEquals(3, hub.unreadCount.value)
+        }
+
+    @Test
+    fun `discussions off keeps it out of the badge even with support on all`() =
+        runTest {
+            val discussion = channel(ChatChannelDomainEnum.DISCUSSION)
+            val support = channel(ChatChannelDomainEnum.SUPPORT)
+            val hub =
+                startAggregator(
+                    listOf(discussion, support),
+                    settingsRepository =
+                        SettingsRepositoryMock(
+                            Settings(
+                                discussionsNotificationLevel = CommunityNotificationLevel.OFF,
+                                supportNotificationLevel = CommunityNotificationLevel.ALL,
+                            ),
+                        ),
+                )
+
+            discussion.setUnreadCount(3)
+            support.setUnreadCount(2)
+
+            assertEquals(0, hub.unreadCount.value)
         }
 
     private fun peerMessage(

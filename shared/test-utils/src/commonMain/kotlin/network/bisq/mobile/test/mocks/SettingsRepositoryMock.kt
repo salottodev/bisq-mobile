@@ -10,6 +10,8 @@ import network.bisq.mobile.data.model.PermissionState
 import network.bisq.mobile.data.model.Settings
 import network.bisq.mobile.data.model.market.MarketFilter
 import network.bisq.mobile.data.model.market.MarketSortBy
+import network.bisq.mobile.data.model.withNotificationLevel
+import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.domain.utils.Logging
 
@@ -46,9 +48,12 @@ class SettingsRepositoryMock(
         }
     }
 
-    override suspend fun setCommunityNotificationLevel(value: CommunityNotificationLevel) {
+    override suspend fun setNotificationLevel(
+        domain: ChatChannelDomainEnum,
+        level: CommunityNotificationLevel,
+    ) {
         mutableData.update {
-            it.copy(communityNotificationLevel = value)
+            it.withNotificationLevel(domain, level)
         }
     }
 

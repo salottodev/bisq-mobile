@@ -16,6 +16,8 @@ import network.bisq.mobile.data.model.PermissionState
 import network.bisq.mobile.data.model.Settings
 import network.bisq.mobile.data.model.market.MarketFilter
 import network.bisq.mobile.data.model.market.MarketSortBy
+import network.bisq.mobile.data.model.notificationLevelFor
+import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -129,7 +131,7 @@ class SettingsRepositoryImplTest {
         }
 
     @Test
-    fun `setCommunityNotificationLevel should update the level and preserve other fields`() =
+    fun `setNotificationLevel should update only that channel's level`() =
         runTest {
             // Given
             val updateSlot = slot<suspend (Settings) -> Settings>()
@@ -138,20 +140,39 @@ class SettingsRepositoryImplTest {
             val originalSettings =
                 Settings(
                     selectedMarketCode = "BTC/GBP",
+                    communityNotificationLevel = CommunityNotificationLevel.MENTIONS_AND_REPLIES,
                 )
-            // The shipped default: Discussions is one global channel, so ALL by default would be
-            // a firehose and OFF would bury the feature.
-            assertEquals(CommunityNotificationLevel.ALL, originalSettings.communityNotificationLevel)
 
             // When
-            repository.setCommunityNotificationLevel(CommunityNotificationLevel.OFF)
+            repository.setNotificationLevel(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.OFF)
 
             // Then
             coVerify { mockDataStore.updateData(any()) }
 
             val updatedSettings = updateSlot.captured(originalSettings)
-            assertEquals(CommunityNotificationLevel.OFF, updatedSettings.communityNotificationLevel)
+            assertEquals(CommunityNotificationLevel.OFF, updatedSettings.notificationLevelFor(ChatChannelDomainEnum.DISCUSSION))
+            // Support keeps following the legacy level, which is never written
+            assertEquals(CommunityNotificationLevel.MENTIONS_AND_REPLIES, updatedSettings.notificationLevelFor(ChatChannelDomainEnum.SUPPORT))
+            assertEquals(CommunityNotificationLevel.MENTIONS_AND_REPLIES, updatedSettings.communityNotificationLevel)
             assertEquals("BTC/GBP", updatedSettings.selectedMarketCode)
+        }
+
+    @Test
+    fun `setNotificationLevel for Support should leave Discussions untouched`() =
+        runTest {
+            // Given
+            val updateSlot = slot<suspend (Settings) -> Settings>()
+            coEvery { mockDataStore.updateData(capture(updateSlot)) } returns Settings()
+
+            val originalSettings = Settings(discussionsNotificationLevel = CommunityNotificationLevel.OFF)
+
+            // When
+            repository.setNotificationLevel(ChatChannelDomainEnum.SUPPORT, CommunityNotificationLevel.MENTIONS_AND_REPLIES)
+
+            // Then
+            val updatedSettings = updateSlot.captured(originalSettings)
+            assertEquals(CommunityNotificationLevel.MENTIONS_AND_REPLIES, updatedSettings.supportNotificationLevel)
+            assertEquals(CommunityNotificationLevel.OFF, updatedSettings.discussionsNotificationLevel)
         }
 
     @Test

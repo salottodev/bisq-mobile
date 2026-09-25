@@ -13,6 +13,7 @@ import network.bisq.mobile.data.model.PermissionState
 import network.bisq.mobile.data.model.Settings
 import network.bisq.mobile.data.model.market.MarketFilter
 import network.bisq.mobile.data.model.market.MarketSortBy
+import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 
 interface SettingsRepository {
     val data: Flow<Settings>
@@ -23,7 +24,10 @@ interface SettingsRepository {
 
     suspend fun setShowChatRulesWarnBox(value: Boolean)
 
-    suspend fun setCommunityNotificationLevel(value: CommunityNotificationLevel)
+    suspend fun setNotificationLevel(
+        domain: ChatChannelDomainEnum,
+        level: CommunityNotificationLevel,
+    )
 
     suspend fun setSelectedMarketCode(value: String)
 

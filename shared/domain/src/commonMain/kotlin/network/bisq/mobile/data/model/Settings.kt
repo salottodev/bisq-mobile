@@ -12,9 +12,12 @@ data class Settings(
     val notificationPermissionState: PermissionState = PermissionState.NOT_GRANTED,
     val batteryOptimizationState: BatteryOptimizationState = BatteryOptimizationState.NOT_IGNORED,
     val pushNotificationsEnabled: Boolean = false,
-    // Default is the middle level: Discussions
-    // is one global channel, so ALL by default is a firehose and OFF buries the feature.
+    // Legacy global level from before #1877: no UI and never written. It is only the starting value
+    // of a channel below that has no level of its own, so upgrades keep the user's choice and
+    // downgrades still read it. Resolve with notificationLevelFor.
     val communityNotificationLevel: CommunityNotificationLevel = CommunityNotificationLevel.ALL,
+    val discussionsNotificationLevel: CommunityNotificationLevel? = null,
+    val supportNotificationLevel: CommunityNotificationLevel? = null,
     val keepConnectedInBackground: Boolean = false,
     val marketSortBy: MarketSortBy = MarketSortBy.MostOffers,
     val marketFilter: MarketFilter = MarketFilter.All,

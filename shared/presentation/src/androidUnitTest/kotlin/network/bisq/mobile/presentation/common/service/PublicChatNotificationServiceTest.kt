@@ -32,9 +32,10 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 
 /**
- * The Community notifications preference applied to the public channels: ALL notifies on any
+ * The per-channel Community notification levels applied to the public channels: ALL notifies on any
  * unread increase, MENTIONS_AND_REPLIES only when the fresh messages mention me (`@userName`, desktop
- * semantics) or cite one of my messages, OFF never arms observers at all. Structure mirrors
+ * semantics) or cite one of my messages, OFF skips that channel, and observers never arm while both
+ * channels are OFF. Structure mirrors
  * [PrivateChatNotificationServiceTest]: unread-count deltas with a seen-baseline, so channel history
  * (10-day TTL replay) never storms on a cold start — at most one notification per channel burst.
  */
@@ -75,8 +76,10 @@ class PublicChatNotificationServiceTest : PresentationKoinTestBase() {
         }
     }
 
-    private fun startService(level: CommunityNotificationLevel = CommunityNotificationLevel.ALL) {
-        settingsRepository = SettingsRepositoryMock(Settings(communityNotificationLevel = level))
+    private fun startService(level: CommunityNotificationLevel = CommunityNotificationLevel.ALL) = startService(Settings(communityNotificationLevel = level))
+
+    private fun startService(settings: Settings) {
+        settingsRepository = SettingsRepositoryMock(settings)
         service =
             PublicChatNotificationService(
                 notificationController,
@@ -254,7 +257,7 @@ class PublicChatNotificationServiceTest : PresentationKoinTestBase() {
         }
 
     @Test
-    fun `flipping the level to off mid session disarms armed observers`() =
+    fun `turning both channels off mid session disarms armed observers`() =
         runTest {
             val discussions = channel(ChatChannelDomainEnum.DISCUSSION)
             channels.value = listOf(discussions)
@@ -262,7 +265,8 @@ class PublicChatNotificationServiceTest : PresentationKoinTestBase() {
             goForeground()
             goBackground()
 
-            settingsRepository.setCommunityNotificationLevel(CommunityNotificationLevel.OFF)
+            settingsRepository.setNotificationLevel(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.OFF)
+            settingsRepository.setNotificationLevel(ChatChannelDomainEnum.SUPPORT, CommunityNotificationLevel.OFF)
             advanceUntilIdle()
 
             discussions.newMessage("after the flip")
@@ -270,6 +274,212 @@ class PublicChatNotificationServiceTest : PresentationKoinTestBase() {
 
             assertEquals(0, notifyCount)
         }
+
+    @Test
+    fun `discussions off with support all notifies only for support`() =
+        runTest {
+            val discussions = channel(ChatChannelDomainEnum.DISCUSSION)
+            val support = channel(ChatChannelDomainEnum.SUPPORT)
+            channels.value = listOf(discussions, support)
+            startService(
+                Settings(
+                    discussionsNotificationLevel = CommunityNotificationLevel.OFF,
+                    supportNotificationLevel = CommunityNotificationLevel.ALL,
+                ),
+            )
+            goForeground()
+            goBackground()
+
+            discussions.newMessage("fee talk")
+            support.newMessage("need help")
+            advanceUntilIdle()
+
+            assertEquals(1, notifyCount)
+            assertSupportRoute()
+        }
+
+    @Test
+    fun `support off with discussions all notifies only for discussions`() =
+        runTest {
+            val discussions = channel(ChatChannelDomainEnum.DISCUSSION)
+            val support = channel(ChatChannelDomainEnum.SUPPORT)
+            channels.value = listOf(discussions, support)
+            startService(
+                Settings(
+                    discussionsNotificationLevel = CommunityNotificationLevel.ALL,
+                    supportNotificationLevel = CommunityNotificationLevel.OFF,
+                ),
+            )
+            goForeground()
+            goBackground()
+
+            discussions.newMessage("fee talk")
+            support.newMessage("need help")
+            advanceUntilIdle()
+
+            assertEquals(1, notifyCount)
+            val action = assertNotNull(assertNotNull(lastConfig).android).pressAction
+            assertIs<NavRoute.CommunityHub>(assertIs<NotificationPressAction.Route>(action).route)
+        }
+
+    @Test
+    fun `an off channel drops a mention of mine while the other channel stays on`() =
+        runTest {
+            val discussions = channel(ChatChannelDomainEnum.DISCUSSION)
+            val support = channel(ChatChannelDomainEnum.SUPPORT)
+            channels.value = listOf(discussions, support)
+            startService(
+                Settings(
+                    discussionsNotificationLevel = CommunityNotificationLevel.OFF,
+                    supportNotificationLevel = CommunityNotificationLevel.ALL,
+                ),
+            )
+            goForeground()
+            goBackground()
+
+            discussions.newMessage("hey @${me.userName} are you there")
+            advanceUntilIdle()
+
+            assertEquals(0, notifyCount)
+        }
+
+    @Test
+    fun `an off channel drops a reply citing my message while the other channel stays on`() =
+        runTest {
+            val discussions = channel(ChatChannelDomainEnum.DISCUSSION)
+            val support = channel(ChatChannelDomainEnum.SUPPORT)
+            channels.value = listOf(discussions, support)
+            startService(
+                Settings(
+                    discussionsNotificationLevel = CommunityNotificationLevel.OFF,
+                    supportNotificationLevel = CommunityNotificationLevel.ALL,
+                ),
+            )
+            goForeground()
+            goBackground()
+
+            discussions.newMessage("I disagree", citationOfMine = true)
+            advanceUntilIdle()
+
+            assertEquals(0, notifyCount)
+        }
+
+    @Test
+    fun `mentions level on one channel filters plain messages only on that channel`() =
+        runTest {
+            val discussions = channel(ChatChannelDomainEnum.DISCUSSION)
+            val support = channel(ChatChannelDomainEnum.SUPPORT)
+            channels.value = listOf(discussions, support)
+            startService(
+                Settings(
+                    discussionsNotificationLevel = CommunityNotificationLevel.MENTIONS_AND_REPLIES,
+                    supportNotificationLevel = CommunityNotificationLevel.ALL,
+                ),
+            )
+            goForeground()
+            goBackground()
+
+            discussions.newMessage("nothing about anyone")
+            support.newMessage("nothing about anyone either")
+            advanceUntilIdle()
+
+            assertEquals(1, notifyCount)
+            assertSupportRoute()
+        }
+
+    @Test
+    fun `turning one channel off mid session keeps the other notifying`() =
+        runTest {
+            val discussions = channel(ChatChannelDomainEnum.DISCUSSION)
+            val support = channel(ChatChannelDomainEnum.SUPPORT)
+            channels.value = listOf(discussions, support)
+            startService(CommunityNotificationLevel.ALL)
+            goForeground()
+            goBackground()
+
+            settingsRepository.setNotificationLevel(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.OFF)
+            advanceUntilIdle()
+
+            discussions.newMessage("after the flip")
+            support.newMessage("need help")
+            advanceUntilIdle()
+
+            assertEquals(1, notifyCount)
+            assertSupportRoute()
+        }
+
+    /**
+     * The level emission and the unread emission land in the same dispatch round: re-baselining live
+     * collectors would record the Support increase as seen before its collector processes it.
+     */
+    @Test
+    fun `changing one channel level while armed keeps a pending increase on the other channel`() =
+        runTest {
+            val discussions = channel(ChatChannelDomainEnum.DISCUSSION)
+            val support = channel(ChatChannelDomainEnum.SUPPORT)
+            channels.value = listOf(discussions, support)
+            startService(CommunityNotificationLevel.ALL)
+            goForeground()
+            goBackground()
+
+            settingsRepository.setNotificationLevel(ChatChannelDomainEnum.DISCUSSION, CommunityNotificationLevel.MENTIONS_AND_REPLIES)
+            support.newMessage("need help")
+            advanceUntilIdle()
+
+            assertEquals(1, notifyCount)
+            assertSupportRoute()
+        }
+
+    @Test
+    fun `turning one channel on while backgrounded with both off arms observers`() =
+        runTest {
+            val discussions = channel(ChatChannelDomainEnum.DISCUSSION)
+            val support = channel(ChatChannelDomainEnum.SUPPORT)
+            channels.value = listOf(discussions, support)
+            startService(
+                Settings(
+                    discussionsNotificationLevel = CommunityNotificationLevel.OFF,
+                    supportNotificationLevel = CommunityNotificationLevel.OFF,
+                ),
+            )
+            goForeground()
+            goBackground()
+
+            discussions.newMessage("while both are off")
+            advanceUntilIdle()
+            assertEquals(0, notifyCount)
+
+            settingsRepository.setNotificationLevel(ChatChannelDomainEnum.SUPPORT, CommunityNotificationLevel.ALL)
+            advanceUntilIdle()
+            support.newMessage("need help")
+            advanceUntilIdle()
+
+            assertEquals(1, notifyCount)
+            assertSupportRoute()
+        }
+
+    @Test
+    fun `a legacy level with no channel levels applies to both channels`() =
+        runTest {
+            val discussions = channel(ChatChannelDomainEnum.DISCUSSION)
+            val support = channel(ChatChannelDomainEnum.SUPPORT)
+            channels.value = listOf(discussions, support)
+            startService(CommunityNotificationLevel.MENTIONS_AND_REPLIES)
+            goForeground()
+            goBackground()
+
+            discussions.newMessage("nothing about anyone")
+            support.newMessage("hey @${me.userName} can you help")
+            advanceUntilIdle()
+
+            assertEquals(1, notifyCount)
+            assertSupportRoute()
+        }
+
+    private fun assertSupportRoute() {
+        val action = assertNotNull(assertNotNull(lastConfig).android).pressAction
+        assertIs<NavRoute.SupportChannel>(assertIs<NotificationPressAction.Route>(action).route)
+    }
 
     /** The badge pipeline is read-only to this service: notifying must never move a channel's unread count. */
     @Test

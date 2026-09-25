@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import network.bisq.mobile.data.model.CommunityNotificationLevel
+import network.bisq.mobile.data.model.notificationLevelFor
+import network.bisq.mobile.data.replicated.chat.ChatChannelDomainEnum
 import network.bisq.mobile.data.replicated.settings.DEFAULT_MAX_TRADE_PRICE_DEVIATION
 import network.bisq.mobile.data.replicated.settings.DEFAULT_NUM_DAYS_AFTER_REDACTING_TRADE_DATA
 import network.bisq.mobile.data.service.common.LanguageServiceFacade
@@ -128,7 +130,7 @@ open class SettingsPresenter(
         fetchSettings()
         observePushNotificationsEnabled()
         observeKeepConnectedInBackground()
-        observeCommunityNotificationLevel()
+        observeNotificationLevels()
         observeAnalyticsEnabled()
         observeRememberOfferbookFilterPreferences()
     }
@@ -166,6 +168,19 @@ open class SettingsPresenter(
         }
     }
 
+    private fun observeNotificationLevels() {
+        presenterScope.launch {
+            settingsRepository.data.collect { settings ->
+                _uiState.update {
+                    it.copy(
+                        discussionsNotificationLevel = settings.notificationLevelFor(ChatChannelDomainEnum.DISCUSSION),
+                        supportNotificationLevel = settings.notificationLevelFor(ChatChannelDomainEnum.SUPPORT),
+                    )
+                }
+            }
+        }
+    }
+
     /**
      * Reflect the persisted analytics opt-in state into the UI. Source of truth
      * is `SettingsRepository.analyticsEnabled` — the DI module reads the same
@@ -173,16 +188,6 @@ open class SettingsPresenter(
      * gate, so a flip from here propagates to emission within the next track()
      * call without any extra plumbing.
      */
-    private fun observeCommunityNotificationLevel() {
-        presenterScope.launch {
-            settingsRepository.data.collect { settings ->
-                _uiState.update {
-                    it.copy(communityNotificationLevel = settings.communityNotificationLevel)
-                }
-            }
-        }
-    }
-
     private fun observeAnalyticsEnabled() {
         presenterScope.launch {
             settingsRepository.data.collect { settings ->
@@ -236,8 +241,8 @@ open class SettingsPresenter(
             SettingsUiAction.OnResetAllDontShowAgainClick -> onResetAllDontShowAgainClick()
             SettingsUiAction.OnRetryLoadSettingsClick -> fetchSettings()
             is SettingsUiAction.OnPushNotificationsToggle -> onPushNotificationsToggle(action.enabled)
-            is SettingsUiAction.OnCommunityNotificationLevelChange ->
-                onCommunityNotificationLevelChange(action.level)
+            is SettingsUiAction.OnNotificationLevelChange ->
+                onNotificationLevelChange(action.domain, action.level)
             SettingsUiAction.OnPushNotificationsLearnMore ->
                 navigateToUrl(BisqLinks.BISQ_CONNECT_PUSH_NOTIFICATIONS_WIKI_URL)
 
@@ -524,10 +529,13 @@ open class SettingsPresenter(
         }
     }
 
-    private fun onCommunityNotificationLevelChange(level: CommunityNotificationLevel) {
+    private fun onNotificationLevelChange(
+        domain: ChatChannelDomainEnum,
+        level: CommunityNotificationLevel,
+    ) {
         presenterScope.launch {
             try {
-                settingsRepository.setCommunityNotificationLevel(level)
+                settingsRepository.setNotificationLevel(domain, level)
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
