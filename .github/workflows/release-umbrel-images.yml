@@ -311,6 +311,16 @@ jobs:
           path: store
           fetch-depth: 0 # need real history to branch off the store's default branch and push non-shallow
 
+      - name: Checkout release notes from this repo
+        if: steps.target.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          path: mobile
+          persist-credentials: false
+          sparse-checkout: |
+            docs/releases/trusted-node
+            .github/scripts
+
       - name: Pin digests + bump version & release notes on a branch off the store's default branch
         id: pin
         if: steps.target.outputs.enabled == 'true'
@@ -344,25 +354,49 @@ jobs:
           git checkout -B "$branch" "upstream/${BASE}"
           cd bisq2-node
 
-          # Release notes: workflow_dispatch override if given, else generated from the ACTUAL source
-          # delta. The previous release's bisq2 commit is recovered from the store's CURRENT manifest
-          # (we embed "bisq2 @ <hash>" in every generated note precisely so the next run can diff
-          # against it) — must be read BEFORE the python block below rewrites the file. Fallbacks:
-          # no prior hash recorded -> compare against the released api tag; same source -> say so
-          # instead of linking an empty compare.
+          # Release notes, by priority: workflow_dispatch override -> docs/releases/trusted-node/<version>.md
+          # from this repo -> generated default. The previous release's bisq2 commit is recovered from the
+          # store's CURRENT manifest (we embed "bisq2 @ <hash>" in every note precisely so the next run can
+          # diff against it; maintainers may rewrite the note and drop it) — must be read BEFORE the python
+          # block below rewrites the file. Fallbacks: no prior hash recorded -> compare against the released
+          # api tag; same source -> no compare link (packaging-only change).
           API_PART="$(echo "$VERSION" | cut -d. -f1-3)"
           SHORT="$(echo "$BISQ2_REF" | cut -c1-7)"
+          PREV_REF="$(grep -oE 'bisq2 @ [0-9a-f]{7,40}' umbrel-app.yml | head -1 | awk '{print $3}' || true)"
+          if [ -n "$PREV_REF" ] && [ "${BISQ2_REF#"$PREV_REF"}" = "$BISQ2_REF" ]; then
+            COMPARE_URL="https://github.com/bisq-network/bisq2/compare/${PREV_REF}...${SHORT}"
+          elif [ -n "$PREV_REF" ]; then
+            COMPARE_URL=""
+          else
+            COMPARE_URL="https://github.com/bisq-network/bisq2/compare/v${API_PART}...${SHORT}"
+          fi
           NOTES="${RELEASE_NOTES:-}"
           if [ -z "$NOTES" ]; then
-            PREV_REF="$(grep -oE 'bisq2 @ [0-9a-f]{7,40}' umbrel-app.yml | head -1 | awk '{print $3}' || true)"
-            if [ -n "$PREV_REF" ] && [ "${BISQ2_REF#"$PREV_REF"}" = "$BISQ2_REF" ]; then
-              NOTES="Maintenance update with the latest Bisq 2 upstream fixes and improvements (Bisq 2 API ${API_PART}, bisq2 @ ${SHORT}). Full changes: https://github.com/bisq-network/bisq2/compare/${PREV_REF}...${SHORT}"
-            elif [ -n "$PREV_REF" ]; then
-              NOTES="Packaging update — no Bisq 2 source changes (Bisq 2 API ${API_PART}, bisq2 @ ${SHORT})."
-            else
-              NOTES="Update to Bisq 2 API ${API_PART} (bisq2 @ ${SHORT}). Full changes: https://github.com/bisq-network/bisq2/compare/v${API_PART}...${SHORT}"
-            fi
+            NOTES="$(python3 "${GITHUB_WORKSPACE}/mobile/.github/scripts/trusted-node-notes.py" \
+              "${GITHUB_WORKSPACE}/mobile/docs/releases/trusted-node/CHANGELOG.md" "$VERSION")"
+            [ -z "$NOTES" ] || echo "::notice::release notes read from docs/releases/trusted-node/CHANGELOG.md"
           fi
+          if [ -n "$NOTES" ]; then
+            if [ -n "$COMPARE_URL" ]; then
+              NOTES="${NOTES} — Full changes: ${COMPARE_URL} (bisq2 @ ${SHORT})"
+            else
+              NOTES="${NOTES} — (bisq2 @ ${SHORT})"
+            fi
+          elif [ -n "$PREV_REF" ] && [ -n "$COMPARE_URL" ]; then
+            NOTES="Maintenance update with the latest Bisq 2 upstream fixes and improvements (Bisq 2 API ${API_PART}, bisq2 @ ${SHORT}). Full changes: ${COMPARE_URL}"
+          elif [ -n "$PREV_REF" ]; then
+            NOTES="Packaging update — no Bisq 2 source changes (Bisq 2 API ${API_PART}, bisq2 @ ${SHORT})."
+          else
+            NOTES="Update to Bisq 2 API ${API_PART} (bisq2 @ ${SHORT}). Full changes: ${COMPARE_URL}"
+          fi
+          # One line, single spaces, no leading/trailing whitespace (also strips a CR or BOM-adjacent
+          # blank so the "Security" prefix check below cannot be defeated by editor artefacts).
+          NOTES="$(printf '%s' "$NOTES" | tr -s '[:space:]' ' ' | sed -E 's/^ +| +$//g')"
+          SECURITY=false; case "$NOTES" in Security*) SECURITY=true ;; esac
+          {
+            echo "notes=$NOTES"
+            echo "security=$SECURITY"
+          } >> "$GITHUB_OUTPUT"
 
           # Set version + releaseNotes in umbrel-app.yml via Python (not sed) so it handles BOTH the
           # official store's single-line `releaseNotes: ""` and our community store's `releaseNotes: >-`
@@ -429,6 +463,8 @@ jobs:
           BASE: ${{ steps.target.outputs.base }}
           FAST: ${{ steps.target.outputs.fast }}
           CHANNEL: ${{ matrix.channel }}
+          NOTES: ${{ steps.pin.outputs.notes }}
+          SECURITY: ${{ steps.pin.outputs.security }}
         run: |
           set -euo pipefail
           cd store
@@ -445,9 +481,15 @@ jobs:
           fi
           # Open the cross-repo PR; treat ONLY the duplicate-PR case as a notice and fail on real
           # errors (auth/permission/API) instead of masking them as success.
+          title="Release Bisq 2 Node ${VERSION}"
+          body="Automated by the Release trusted-node images workflow (channel: ${CHANNEL}), opened from fork \`${FORK}\` (we have pull-only access to \`${UPSTREAM}\`). Digest-pins the freshly-built images and bumps the manifest version to \`${VERSION}\`. Merge to publish."
+          if [ "$SECURITY" = "true" ]; then
+            title="${title} — security update"
+            body="$(printf '%s\n\n%s' "**Security update — please prioritise review and merge.**" "$body")"
+          fi
+          body="$(printf '%s\n\n%s\n\n> %s' "$body" "Release notes (as set in \`umbrel-app.yml\`):" "$NOTES")"
           if out="$(gh pr create --repo "$UPSTREAM" --base "$BASE" --head "${fork_owner}:${branch}" \
-              --title "Release Bisq 2 Node ${VERSION}" \
-              --body "Automated by the Release Umbrel images workflow (channel: ${CHANNEL}), opened from fork \`${FORK}\` (we have pull-only access to \`${UPSTREAM}\`). Digest-pins the freshly-built images and bumps the manifest version to \`${VERSION}\`. Merge to publish." 2>&1)"; then
+              --title "$title" --body "$body" 2>&1)"; then
             echo "$out"
           elif printf '%s' "$out" | grep -qi "already exists"; then
             echo "::notice::PR already exists for ${fork_owner}:${branch}"
@@ -512,6 +554,16 @@ jobs:
           path: store
           fetch-depth: 0
 
+      - name: Checkout release notes from this repo
+        if: steps.target.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          path: mobile
+          persist-credentials: false
+          sparse-checkout: |
+            docs/releases/trusted-node
+            .github/scripts
+
       - name: Pin digest + bump package version & localized release notes
         id: pin
         if: steps.target.outputs.enabled == 'true'
@@ -547,13 +599,22 @@ jobs:
           # All rewrites in Python (not sed): the dockerTag literal may be bare-tag or already
           # digest-pinned and may sit on its own line, and the five-locale releaseNotes block needs
           # structured regeneration. Values pass via env — no shell escaping of note text.
-          IMAGE_REF="${NS}/bisq2-api:${VERSION}@${NODE_DIGEST}" python3 - <<'PY'
-          import json, os, re
+          IMAGE_REF="${NS}/bisq2-api:${VERSION}@${NODE_DIGEST}" \
+          MOBILE="${GITHUB_WORKSPACE}/mobile" python3 - <<'PY'
+          import json, os, re, subprocess
 
           version = os.environ["VERSION"]
           image_ref = os.environ["IMAGE_REF"]
           short = os.environ["BISQ2_REF"][:7]
           override = " ".join(os.environ.get("RELEASE_NOTES", "").split())
+          mobile = os.environ["MOBILE"]
+
+          def read_changelog(locale):
+              args = ["python3", f"{mobile}/.github/scripts/trusted-node-notes.py",
+                      f"{mobile}/docs/releases/trusted-node/CHANGELOG.md", version]
+              if locale != "en_US":
+                  args.append(locale)
+              return subprocess.run(args, check=True, capture_output=True, text=True).stdout.strip() or None
 
           # -- startos/manifest/index.ts: swap the quoted image literal (matches bare tag or tag@digest).
           # The leading char class admits only registry-path characters — it cannot cross whitespace,
@@ -591,7 +652,17 @@ jobs:
               "pl_PL": "Aktualizacja pakietu — bez zmian w kodzie źródłowym Bisq 2 (API Bisq 2 {v}, bisq2 @ {s}).",
               "fr_FR": "Mise à jour du paquet — aucun changement du code source de Bisq 2 (API Bisq 2 {v}, bisq2 @ {s}).",
           }
+          # Localized "Full changes" suffix appended to file-based notes so every note carries the
+          # compare link + the "bisq2 @ <hash>" marker the next run diffs against.
+          FULL_CHANGES = {
+              "en_US": "Full changes: {url} (bisq2 @ {s})",
+              "es_ES": "Cambios completos: {url} (bisq2 @ {s})",
+              "de_DE": "Alle Änderungen: {url} (bisq2 @ {s})",
+              "pl_PL": "Pełna lista zmian: {url} (bisq2 @ {s})",
+              "fr_FR": "Liste complète des changements : {url} (bisq2 @ {s})",
+          }
           api_part = ".".join(version.split(".")[:3])
+          url = None
           if prev and not os.environ["BISQ2_REF"].startswith(prev):
               url = f"https://github.com/bisq-network/bisq2/compare/{prev}...{short}"
               notes = {k: t.format(v=version, s=short, url=url) for k, t in UPDATE.items()}
@@ -600,17 +671,26 @@ jobs:
           else:
               url = f"https://github.com/bisq-network/bisq2/compare/v{api_part}...{short}"
               notes = {k: t.format(v=version, s=short, url=url) for k, t in UPDATE.items()}
+          # CHANGELOG.md notes from this repo: the version section is English, its ### <locale>
+          # subsections the translations. A locale without one keeps the generated template — we have
+          # no translation step here, and a wrong-language note is worse than a generic one.
+          def suffix(loc):
+              return "— " + (FULL_CHANGES[loc].format(url=url, s=short) if url else f"(bisq2 @ {short})")
+          for loc in notes:
+              text = read_changelog(loc)
+              if text:
+                  notes[loc] = f"{text} {suffix(loc)}"
+                  print(f"notes[{loc}] read from docs/releases/trusted-node/CHANGELOG.md")
           if override:
-              # A manual note replaces English only; other locales keep the generated template —
-              # we have no translation step here, and a wrong-language note is worse than a generic one.
-              notes["en_US"] = override
+              # A manual note replaces English only (see above); it gets the same compare-link marker.
+              notes["en_US"] = f"{override} {suffix('en_US')}"
 
           src, n = re.subn(r"version:\s*'[^']*'", f"version: '{version}:0'", src)
           assert n == 1, f"{path}: expected exactly 1 version literal, found {n}"
 
           # TS string literal, prettier-style: single quotes unless the text contains one.
           def ts_str(s):
-              if "'" not in s:
+              if "'" not in s and "\\" not in s:
                   return "'" + s + "'"
               return json.dumps(s, ensure_ascii=False)
 
@@ -635,6 +715,9 @@ jobs:
           assert replaced, f"{path}: releaseNotes block not found"
           open(path, "w").write("\n".join(out))
           print(f"pinned {image_ref}; version {version}:0; notes en_US={notes['en_US']!r}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"notes={notes['en_US']}\n")
+              out.write(f"security={'true' if notes['en_US'].startswith('Security') else 'false'}\n")
           PY
           # Post-rewrite guards (same rationale as the umbrel job: a silent no-op must not ship).
           grep -qF "/bisq2-api:${VERSION}@${NODE_DIGEST}" startos/manifest/index.ts \
@@ -658,21 +741,28 @@ jobs:
           FORK: ${{ steps.target.outputs.fork }}
           BASE: ${{ steps.target.outputs.base }}
           CHANNEL: ${{ matrix.channel }}
+          NOTES: ${{ steps.pin.outputs.notes }}
+          SECURITY: ${{ steps.pin.outputs.security }}
         run: |
           set -euo pipefail
           cd store
           branch="release/bisq2-node-${VERSION}-${CHANNEL}"
           fork_owner="${FORK%%/*}"
           git push -f -u origin "$branch"
+          title="Update Bisq 2 Node to bisq2-api ${VERSION}"
           body="Automated by the Release trusted-node images workflow (startos ${CHANNEL} channel), opened from fork \`${FORK}\`. Digest-pins the freshly-built \`bisq2-api:${VERSION}\` image and bumps the package version to \`${VERSION}:0\` with regenerated release notes in all five locales."
           if [ "$CHANNEL" = "community" ]; then
             body="$body Merge, then tag \`v${VERSION}_0\` to release to the Start9 community registry."
           else
             body="$body Merge to keep the mirror in sync with the community package."
           fi
+          if [ "$SECURITY" = "true" ]; then
+            title="${title} — security update"
+            body="$(printf '%s\n\n%s' "**Security update — please prioritise review, merge and tagging.**" "$body")"
+          fi
+          body="$(printf '%s\n\n%s\n\n> %s' "$body" "Release notes (en_US, as set in \`startos/versions/current.ts\`):" "$NOTES")"
           if out="$(gh pr create --repo "$UPSTREAM" --base "$BASE" --head "${fork_owner}:${branch}" \
-              --title "Update Bisq 2 Node to bisq2-api ${VERSION}" \
-              --body "$body" 2>&1)"; then
+              --title "$title" --body "$body" 2>&1)"; then
             echo "$out"
           elif printf '%s' "$out" | grep -qi "already exists"; then
             echo "::notice::PR already exists for ${fork_owner}:${branch}"
@@ -690,7 +780,11 @@ jobs:
 # - The community fork's default branch is force-updated each release (it is a throwaway contribution fork,
 #   not a source of truth); its only jobs are being the PR head and an instant test store. The official
 #   fork is NOT fast-laned, so its default branch is left alone.
-# - Release notes: pass `release_notes` on a manual run to set the store manifest note; otherwise a default
-#   is generated from the version + bisq2 commit. Edit the opened PR if you want richer notes before merge.
+# - Release notes, in priority order: the `release_notes` dispatch input (English only), then the
+#   `## <version>` section of docs/releases/trusted-node/CHANGELOG.md from THIS repo (English; its
+#   `### <locale>` subsections feed StartOS es_ES/de_DE/pl_PL/fr_FR, a missing locale keeps the
+#   templated line), then a generated default from the version + bisq2 commit. A compare link +
+#   the "bisq2 @ <hash>" marker is appended in every case so the next run can diff against it.
+#   Notes starting with "Security" mark the store PRs as a security update in title + body.
 # - SPEED: if emulated arm64 gets slow, split into a matrix of native runners (ubuntu-latest +
 #   ubuntu-24.04-arm), build per-arch by digest, then merge with `docker buildx imagetools create`.

@@ -1,0 +1,9 @@
+# Trusted-node (bisq2-api docker) release notes
+
+`CHANGELOG.md` is the single source for the user-facing note of every trusted-node image release. The `Release trusted-node images` workflow reads it (via `.github/scripts/trusted-node-notes.py`) when the `umbrel-image-version` line in `gradle/libs.versions.toml` changes on `main`, and falls back to a generated line when the version has no section.
+
+Layout: a `## <version>` heading per release (newest first). The paragraph(s) under it are the English note, used verbatim for both Umbrel stores (`releaseNotes` in `umbrel-app.yml`) and as `en_US` for the StartOS packages. Optional `### <locale>` subsections (`es_ES`, `de_DE`, `pl_PL`, `fr_FR`, the locales the StartOS package is translated in) hold the StartOS translations; a missing locale falls back to the workflow's templated line.
+
+The section must land in the same commit (or PR) as the `umbrel-image-version` bump: the workflow reads the changelog at the commit that triggered it, so a note merged later is never picked up. Write one paragraph for a user deciding whether to update now: what changed, why it matters, what they must do. Start a security release with the word `Security` — the workflow then titles every distribution PR as a security update and puts the note in the PR body. The workflow appends the bisq2 compare link and the `bisq2 @ <hash>` marker itself; do not add them.
+
+Sources for the note: the bisq2 release notes for the pinned `bisq-api` version and, when the image's Tor changes, the Tor Project release announcement. On Linux the image runs the `tor` package it installs at build time (see `apps/api-app/docker/Dockerfile` in bisq2), not the Tor binary bundled with the desktop app, so name the version the Dockerfile's `TOR_MIN_VERSION` gate enforces.
