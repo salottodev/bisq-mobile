@@ -117,6 +117,7 @@ jobs:
           OVERRIDE: ${{ inputs.version }}
           EVENT: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
         run: |
           set -euo pipefail
           read_v() { grep -E "^$1 " gradle/libs.versions.toml | sed -E 's/.*"([^"]+)".*/\1/'; }
@@ -153,6 +154,19 @@ jobs:
               exit 1
             fi
             echo "::warning::umbrel-image-version '$version' lags bisq-api ($bisq_api) — bump it when the $bisq_api image is released"
+          fi
+
+          # Notes guard, BEFORE anything is built or pushed: a release must carry its user-facing note
+          # (docs/releases/trusted-node/CHANGELOG.md `## <version>` section) unless a dispatch override
+          # was given. A missing/misspelled section would otherwise silently ship the generic template
+          # to every store — unacceptable for a security release.
+          if [ "$should_build" = "true" ] && [ -z "${RELEASE_NOTES:-}" ]; then
+            note="$(python3 .github/scripts/trusted-node-notes.py docs/releases/trusted-node/CHANGELOG.md "$version")"
+            if [ -z "$note" ]; then
+              echo "::error::docs/releases/trusted-node/CHANGELOG.md has no '## $version' section — add the release note (same commit as the version bump) or pass release_notes on dispatch"
+              exit 1
+            fi
+            echo "::notice::release note found for $version: ${note:0:120}..."
           fi
 
           {
