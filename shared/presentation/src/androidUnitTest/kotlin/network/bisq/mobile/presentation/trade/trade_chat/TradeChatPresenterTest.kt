@@ -333,7 +333,12 @@ class TradeChatPresenterTest : PresentationKoinTestBase() {
         presenter.onAction(TradeChatUiAction.OnReportUserClick(second))
 
         assertEquals(
-            ReportedMessage(channel = "Trade chat, trade ${second.tradeId}", date = second.date, text = "second"),
+            ReportedMessage(
+                channel = "Trade chat, trade ${second.tradeId}",
+                date = second.date,
+                id = "a2",
+                text = "second",
+            ),
             presenter.uiState.value.reportedMessage,
         )
     }

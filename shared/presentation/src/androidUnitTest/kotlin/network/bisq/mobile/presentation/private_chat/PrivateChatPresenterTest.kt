@@ -233,7 +233,7 @@ class PrivateChatPresenterTest : PresentationKoinTestBase() {
             val state = presenter.uiState.value
             assertTrue(state.showReportDialog)
             assertEquals(
-                ReportedMessage(channel = "Private chat", date = 1_000, text = "text-m1"),
+                ReportedMessage(channel = "Private chat", date = 1_000, id = "m1", text = "text-m1"),
                 state.reportedMessage,
             )
         }

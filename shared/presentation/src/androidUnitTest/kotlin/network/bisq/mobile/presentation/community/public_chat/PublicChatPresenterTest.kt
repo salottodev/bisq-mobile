@@ -269,7 +269,7 @@ class PublicChatPresenterTest : PresentationKoinTestBase() {
 
             assertEquals(bob, presenter.uiState.value.reportTargetUserProfile)
             assertEquals(
-                ReportedMessage(channel = "discussion.bisq", date = 2, text = "text of m2"),
+                ReportedMessage(channel = "discussion.bisq", date = 2, id = "m2", text = "text of m2"),
                 presenter.uiState.value.reportedMessage,
             )
         }

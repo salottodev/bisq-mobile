@@ -124,6 +124,7 @@ class ReportUserDialogUiTest : PresentationKoinComposeTestBase() {
     private companion object {
         const val STALE_DRAFT = "kept after the failed report"
         const val EDITED_DRAFT = "what the user is typing now"
-        val REPORTED_MESSAGE = ReportedMessage(channel = "discussion.bisq", date = 0, text = "buy my coin")
+        val REPORTED_MESSAGE =
+            ReportedMessage(channel = "discussion.bisq", date = 0, id = "msg-1", text = "buy my coin")
     }
 }

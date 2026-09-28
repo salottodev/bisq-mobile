@@ -13,6 +13,7 @@ const val REPORTED_MESSAGE_MAX_LENGTH = 5000
 data class ReportedMessage(
     val channel: String,
     val date: Long,
+    val id: String,
     val text: String,
 ) {
     val metadata: String
@@ -21,6 +22,7 @@ data class ReportedMessage(
                 appendLine("--- Reported message ---")
                 appendLine("Channel: $channel")
                 appendLine("Sent: ${Instant.fromEpochSeconds(date / 1000)}")
+                appendLine("Id: $id")
                 append("Message: ${text.truncate(REPORTED_MESSAGE_MAX_LENGTH, ellipsis = "…")}")
             }
 
@@ -34,6 +36,7 @@ data class ReportedMessage(
         fun of(
             message: ChatMessage<*>,
             channel: String,
-        ): ReportedMessage = ReportedMessage(channel = channel, date = message.date, text = message.textString)
+        ): ReportedMessage =
+            ReportedMessage(channel = channel, date = message.date, id = message.id, text = message.textString)
     }
 }

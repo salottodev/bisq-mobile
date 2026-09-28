@@ -8,13 +8,15 @@ import kotlin.test.assertTrue
 
 class ReportedMessageTest {
     @Test
-    fun `metadata lists the channel the UTC send time and the message`() {
-        val reported = ReportedMessage(channel = "discussion.bisq", date = 1_234_567_890_123L, text = "buy my coin")
+    fun `metadata lists the channel the UTC send time the id and the message`() {
+        val reported =
+            ReportedMessage(channel = "discussion.bisq", date = 1_234_567_890_123L, id = "msg-1", text = "buy my coin")
 
         assertEquals(
             "--- Reported message ---\n" +
                 "Channel: discussion.bisq\n" +
                 "Sent: 2009-02-13T23:31:30Z\n" +
+                "Id: msg-1\n" +
                 "Message: buy my coin",
             reported.metadata,
         )
@@ -22,7 +24,7 @@ class ReportedMessageTest {
 
     @Test
     fun `the metadata goes after the reason separated by a blank line`() {
-        val reported = ReportedMessage(channel = "c", date = 0, text = "t")
+        val reported = ReportedMessage(channel = "c", date = 0, id = "i", text = "t")
 
         assertEquals("spam\n\n${reported.metadata}", reported.appendTo("spam"))
     }
@@ -38,7 +40,8 @@ class ReportedMessageTest {
 
     @Test
     fun `a message over the quote limit is cut with an ellipsis`() {
-        val reported = ReportedMessage(channel = "c", date = 0, text = "x".repeat(REPORTED_MESSAGE_MAX_LENGTH + 1))
+        val text = "x".repeat(REPORTED_MESSAGE_MAX_LENGTH + 1)
+        val reported = ReportedMessage(channel = "c", date = 0, id = "i", text = text)
 
         assertEquals(
             "x".repeat(REPORTED_MESSAGE_MAX_LENGTH - 1) + "…",
@@ -50,7 +53,9 @@ class ReportedMessageTest {
     fun `a message at the quote limit is kept whole`() {
         val text = "x".repeat(REPORTED_MESSAGE_MAX_LENGTH)
 
-        assertEquals(text, ReportedMessage(channel = "c", date = 0, text = text).metadata.substringAfter("Message: "))
+        val reported = ReportedMessage(channel = "c", date = 0, id = "i", text = text)
+
+        assertEquals(text, reported.metadata.substringAfter("Message: "))
     }
 
     @Test
@@ -59,6 +64,7 @@ class ReportedMessageTest {
             ReportedMessage(
                 channel = ReportedMessage.tradeChat("t".repeat(36)),
                 date = 1_234_567_890_123L,
+                id = "i".repeat(36),
                 text = "x".repeat(CHAT_MESSAGE_MAX_LENGTH),
             )
 

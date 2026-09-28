@@ -199,6 +199,6 @@ class ReportUserPresenterTest : PresentationKoinTestBase() {
         const val PADDED_MESSAGE = "  This user violated chat rules  "
         const val TRIMMED_MESSAGE = "This user violated chat rules"
         val REPORTED_MESSAGE =
-            ReportedMessage(channel = "discussion.bisq", date = 1_234_567_890_123L, text = "buy my coin")
+            ReportedMessage(channel = "discussion.bisq", date = 1_234_567_890_123L, id = "msg-1", text = "buy my coin")
     }
 }
