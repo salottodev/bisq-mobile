@@ -67,6 +67,7 @@ fun ReportUserDialog(
         onMessageChange = { presenter.onAction(ReportUserUiAction.OnMessageChange(it)) },
         onReportClick = { presenter.onAction(ReportUserUiAction.OnReportClick) },
         onDismiss = onReportSuccess,
+        isMessageAttached = reportedMessage != null,
     )
 }
 
@@ -77,6 +78,7 @@ private fun ReportUserDialogContent(
     onMessageChange: (String) -> Unit,
     onDismiss: () -> Unit,
     onReportClick: () -> Unit,
+    isMessageAttached: Boolean = false,
 ) {
     BisqDialog {
         BisqText.H6Regular(
@@ -87,6 +89,12 @@ private fun ReportUserDialogContent(
         BisqText.BaseRegularGrey(
             text = "chat.reportToModerator.info".i18n(),
         )
+        if (isMessageAttached) {
+            BisqGap.V1()
+            BisqText.BaseRegularGrey(
+                text = "mobile.chat.reportToModerator.messageAttached".i18n(),
+            )
+        }
         BisqGap.V2()
         BisqTextFieldV0(
             value = state.message,
@@ -140,6 +148,7 @@ private fun ReportUserDialogPreview() {
             onMessageChange = {},
             onDismiss = {},
             onReportClick = {},
+            isMessageAttached = true,
         )
     }
 }

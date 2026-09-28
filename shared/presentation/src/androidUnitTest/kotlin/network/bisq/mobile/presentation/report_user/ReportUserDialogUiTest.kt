@@ -121,7 +121,26 @@ class ReportUserDialogUiTest : PresentationKoinComposeTestBase() {
         }
     }
 
+    @Test
+    fun `a report opened from a message tells the reporter the message is attached`() {
+        setTestContent {
+            ReportUserDialog(accusedUserProfile = accusedUserProfile, reportedMessage = REPORTED_MESSAGE)
+        }
+
+        composeTestRule.onNodeWithText(MESSAGE_ATTACHED_KEY.i18n()).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a profile report does not mention an attached message`() {
+        setTestContent {
+            ReportUserDialog(accusedUserProfile = accusedUserProfile)
+        }
+
+        composeTestRule.onNodeWithText(MESSAGE_ATTACHED_KEY.i18n()).assertDoesNotExist()
+    }
+
     private companion object {
+        const val MESSAGE_ATTACHED_KEY = "mobile.chat.reportToModerator.messageAttached"
         const val STALE_DRAFT = "kept after the failed report"
         const val EDITED_DRAFT = "what the user is typing now"
         val REPORTED_MESSAGE =

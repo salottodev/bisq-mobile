@@ -36,7 +36,6 @@ data class ReportedMessage(
         fun of(
             message: ChatMessage<*>,
             channel: String,
-        ): ReportedMessage =
-            ReportedMessage(channel = channel, date = message.date, id = message.id, text = message.textString)
+        ): ReportedMessage = ReportedMessage(channel = channel, date = message.date, id = message.id, text = message.textString)
     }
 }
