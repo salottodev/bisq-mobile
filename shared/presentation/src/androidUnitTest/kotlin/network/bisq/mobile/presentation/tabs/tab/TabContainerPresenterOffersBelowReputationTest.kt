@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import network.bisq.mobile.data.replicated.common.currency.MarketVOFactory
 import network.bisq.mobile.data.service.alert.TradeRestrictingAlertServiceFacade
+import network.bisq.mobile.data.service.offers.OffersServiceFacade
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.domain.service.community.CommunityHubService
 import network.bisq.mobile.domain.service.offers.OffendingOffer
@@ -41,6 +42,10 @@ class TabContainerPresenterOffersBelowReputationTest : PlatformPresentationKoinT
         mockk<OffersBelowReputationService>(relaxed = true) {
             every { state } returns serviceState
             coEvery { removeOffers() } returns true
+        }
+    private val offersService =
+        mockk<OffersServiceFacade> {
+            every { selectOfferbookMarket(any()) } returns Result.success(Unit)
         }
 
     @Test
@@ -187,6 +192,34 @@ class TabContainerPresenterOffersBelowReputationTest : PlatformPresentationKoinT
             assertTrue(presenter.offersBelowReputationUiState.value.isDialogVisible)
         }
 
+    @Test
+    fun `go to market opens that market with only my offers and closes the dialog`() =
+        runTest {
+            val presenter = attachPresenter()
+            presenter.onOffersBelowReputationAction(OffersBelowReputationUiAction.OpenDialog)
+
+            presenter.onOffersBelowReputationAction(OffersBelowReputationUiAction.GoToMarket(offer))
+            runCurrent()
+
+            verify { offersService.selectOfferbookMarket(match { it.market == offer.market }) }
+            verify { navigationManager.navigate(NavRoute.Offerbook(onlyMyOffers = true), any(), any()) }
+            assertFalse(presenter.offersBelowReputationUiState.value.isDialogVisible)
+            verify(exactly = 0) { service.dismiss() }
+        }
+
+    @Test
+    fun `go to market stays put when the market cannot be selected`() =
+        runTest {
+            every { offersService.selectOfferbookMarket(any()) } returns Result.failure(IllegalStateException("boom"))
+            val presenter = attachPresenter()
+
+            presenter.onOffersBelowReputationAction(OffersBelowReputationUiAction.GoToMarket(offer))
+            runCurrent()
+
+            verify(exactly = 0) { navigationManager.navigate(any<NavRoute.Offerbook>(), any(), any()) }
+            verify(exactly = 1) { globalUiManager.showSnackbar(any(), any(), any(), any()) }
+        }
+
     private fun TestScope.attachPresenter(
         mainPresenter: MainPresenter = MainPresenterTestFactory.create(applicationLifecycleService = TestApplicationLifecycleService()),
     ): TabContainerPresenter {
@@ -209,6 +242,7 @@ class TabContainerPresenterOffersBelowReputationTest : PlatformPresentationKoinT
                         every { unreadCount } returns MutableStateFlow(0)
                     },
                 offersBelowReputationService = service,
+                offersServiceFacade = offersService,
             )
         presenter.onViewAttached()
         runCurrent()

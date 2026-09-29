@@ -7,8 +7,9 @@
  *
  * Where the #1873 implementation differs, the code wins: other users do not see the offers (see
  * "3."), a failed remove has its own `offersBelowReputation.removeFailed` keys instead of the
- * single-offer delete ones ("8.", "10."), and tests find elements by text and content description
- * rather than test tags ("11.").
+ * single-offer delete ones ("8.", "10."), tests find elements by text and content description
+ * rather than test tags ("11."), and "Go to market" turns "only my offers" on without saving it
+ * for that market (`showOnlyMyOffersOnArrival`, not `setOnlyMyOffers`; "8.", "13.").
  *
  * ------------------------------------------------------------------------------------
  * 1. PURPOSE

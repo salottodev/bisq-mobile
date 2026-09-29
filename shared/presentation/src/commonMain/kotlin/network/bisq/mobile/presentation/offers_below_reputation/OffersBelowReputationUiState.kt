@@ -19,4 +19,8 @@ sealed interface OffersBelowReputationUiAction {
     data object Keep : OffersBelowReputationUiAction
 
     data object BuildReputation : OffersBelowReputationUiAction
+
+    data class GoToMarket(
+        val offer: OffendingOffer,
+    ) : OffersBelowReputationUiAction
 }
