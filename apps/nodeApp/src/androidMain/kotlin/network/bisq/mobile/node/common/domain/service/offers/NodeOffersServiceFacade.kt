@@ -502,15 +502,15 @@ class NodeOffersServiceFacade(
     }
 
     private fun isValidOfferbookMessage(message: BisqEasyOfferbookMessage): Boolean {
-        // Mirrors Bisq main: see bisqEasyOfferbookMessageService.isValid(message)
+        // Mirrors Bisq main (bisqEasyOfferbookMessageService.isValid), except that my own offers are
+        // kept so I can see and remove the ones below my reputation.
         return isAuthorProfileAvailable(message) &&
             isNotBanned(message) &&
             isNotIgnored(message) &&
             (
                 isTextMessage(message) || isBuyOffer(message) ||
-                    hasSellerSufficientReputation(
-                        message,
-                    )
+                    message.isMyMessage(userIdentityService) ||
+                    hasSellerSufficientReputation(message)
             )
     }
 
@@ -551,11 +551,12 @@ class NodeOffersServiceFacade(
 
         // Compute required seller reputation based on offer amount in fiat using our domain util.
         val offerVO = Mappings.BisqEasyOfferMapping.fromBisq2Model(offer)
+        val limits = configServiceFacade.tradeAmountLimits.value
         val requiredScore =
             BisqEasyTradeAmountLimits.findRequiredReputationScoreForMinOrFixedAmount(
                 marketPriceServiceFacade,
                 offerVO,
-                configServiceFacade.tradeAmountLimits.value,
+                limits,
             )
 
         // If we cannot determine required score (missing market prices), we err on the safe side
@@ -564,7 +565,7 @@ class NodeOffersServiceFacade(
 
         val authorScore =
             reputationService.getReputationScore(message.authorUserProfileId).totalScore
-        return authorScore >= requiredScore
+        return BisqEasyTradeAmountLimits.withTolerance(authorScore, limits) >= requiredScore
     }
 
     // ///////////////////////////////////////////////////////////////////////////
