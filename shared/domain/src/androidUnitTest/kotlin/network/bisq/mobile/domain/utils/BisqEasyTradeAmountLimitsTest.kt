@@ -272,4 +272,50 @@ class BisqEasyTradeAmountLimitsTest {
 
             assertTrue(propagated)
         }
+
+    private fun buildSellOffer(): BisqEasyOfferVO = buildBuyOffer().copy(direction = DirectionEnum.SELL)
+
+    private fun requiredScoreForSellOffer(): Long =
+        BisqEasyTradeAmountLimits.findRequiredReputationScoreForMinOrFixedAmount(
+            marketServiceWithPrices(),
+            buildSellOffer(),
+            TradeAmountLimitsVO.DEFAULT,
+        )!!
+
+    private fun isSellOfferBelowReputation(
+        offer: BisqEasyOfferVO,
+        makerScore: Long,
+        marketPriceServiceFacade: MarketPriceServiceFacade = marketServiceWithPrices(),
+    ): Boolean =
+        BisqEasyTradeAmountLimits.isSellOfferBelowReputation(
+            marketPriceServiceFacade,
+            offer,
+            makerScore,
+            TradeAmountLimitsVO.DEFAULT,
+        )
+
+    @Test
+    fun `isSellOfferBelowReputation is true when the maker score does not cover the min amount`() {
+        assertTrue(isSellOfferBelowReputation(buildSellOffer(), makerScore = 0L))
+    }
+
+    @Test
+    fun `isSellOfferBelowReputation is false when the maker score covers the min amount`() {
+        assertFalse(isSellOfferBelowReputation(buildSellOffer(), makerScore = requiredScoreForSellOffer()))
+    }
+
+    @Test
+    fun `isSellOfferBelowReputation applies the tolerance to the maker score`() {
+        assertFalse(isSellOfferBelowReputation(buildSellOffer(), makerScore = requiredScoreForSellOffer() - 1))
+    }
+
+    @Test
+    fun `isSellOfferBelowReputation is false for a buy offer`() {
+        assertFalse(isSellOfferBelowReputation(buildBuyOffer(), makerScore = 0L))
+    }
+
+    @Test
+    fun `isSellOfferBelowReputation is false when the required score is unknown`() {
+        assertFalse(isSellOfferBelowReputation(buildSellOffer(), makerScore = 0L, marketServiceWithoutPrices()))
+    }
 }
