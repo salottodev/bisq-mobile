@@ -189,7 +189,7 @@ object BisqEasyTradeAmountLimits {
         marketPriceServiceFacade: MarketPriceServiceFacade,
         btcAmount: MonetaryVO,
     ): MonetaryVO? {
-        val usdBitcoinMarket = marketPriceServiceFacade.findUSDMarketPriceItem()!!
+        val usdBitcoinMarket = marketPriceServiceFacade.findUSDMarketPriceItem() ?: return null
         return btcToFiat(marketPriceServiceFacade, usdBitcoinMarket.market, btcAmount)
     }
 

@@ -115,6 +115,21 @@ class BisqEasyTradeAmountLimitsTest {
     }
 
     @Test
+    fun `findRequiredReputationScoreForMinOrFixedAmount returns null when only the USD price is unavailable`() {
+        val marketPriceServiceFacade =
+            marketServiceWithPrices().apply { every { findUSDMarketPriceItem() } returns null }
+
+        val result =
+            BisqEasyTradeAmountLimits.findRequiredReputationScoreForMinOrFixedAmount(
+                marketPriceServiceFacade,
+                buildBuyOffer(),
+                TradeAmountLimitsVO.DEFAULT,
+            )
+
+        assertNull(result)
+    }
+
+    @Test
     fun `findRequiredReputationScoreForMaxOrFixedAmount returns null when market price is unavailable`() {
         val marketPriceServiceFacade = marketServiceWithoutPrices()
 
