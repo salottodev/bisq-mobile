@@ -23,14 +23,19 @@ fun BuyerState2a(
     RememberPresenterLifecycle(presenter)
     SecureScreenEffect()
 
-    val selectedTrade by presenter.selectedTrade.collectAsState()
-    val isConfirmFiatSentEnabled by presenter.isConfirmFiatSentEnabled.collectAsState()
+    val uiState by presenter.uiState.collectAsState()
+    BuyerState2aContent(uiState = uiState, onAction = presenter::onAction)
+}
 
-    val trade = selectedTrade ?: return
+@Composable
+private fun BuyerState2aContent(
+    uiState: BuyerState2aUiState,
+    onAction: (BuyerState2aUiAction) -> Unit,
+) {
+    if (!uiState.isTradeLoaded) return
 
-    val quoteAmount = trade.quoteAmountWithCode
-    val paymentAccountData by trade.bisqEasyTradeModel.paymentAccountData.collectAsState()
-    val tradeId = trade.bisqEasyTradeModel.shortId
+    val quoteAmount = uiState.quoteAmountWithCode
+    val paymentAccountData = uiState.paymentAccountData ?: "data.na".i18n()
 
     Column(horizontalAlignment = Alignment.Start) {
         BisqGap.V1()
@@ -53,10 +58,10 @@ fun BuyerState2a(
             // In Bisq Easy we show the Reason for payment with the trade ID as extra field, but on mobile we don't want to
             // use up too much space for that and show it as helper text instead.
             // Use the trade ID {0} for the 'Reason for payment' field
-            bottomMessage = "mobile.tradeState.info.buyer.phase2a.reasonForPaymentInfo".i18n(tradeId),
-            value = paymentAccountData ?: "data.na".i18n(),
+            bottomMessage = "mobile.tradeState.info.buyer.phase2a.reasonForPaymentInfo".i18n(uiState.tradeShortId),
+            value = paymentAccountData,
             enabled = false,
-            trailingIcon = { CopyIconButton(value = paymentAccountData ?: "data.na".i18n()) },
+            trailingIcon = { CopyIconButton(value = paymentAccountData) },
             maxLines = Int.MAX_VALUE,
             minLines = 2,
         )
@@ -65,8 +70,8 @@ fun BuyerState2a(
         BisqButton(
             // Confirm payment of {0}
             text = "bisqEasy.tradeState.info.buyer.phase2a.confirmFiatSent".i18n(quoteAmount),
-            onClick = { presenter.onConfirmFiatSent() },
-            disabled = !isConfirmFiatSentEnabled,
+            onClick = { onAction(BuyerState2aUiAction.OnConfirmFiatSent) },
+            disabled = !uiState.isConfirmFiatSentEnabled,
         )
     }
 }

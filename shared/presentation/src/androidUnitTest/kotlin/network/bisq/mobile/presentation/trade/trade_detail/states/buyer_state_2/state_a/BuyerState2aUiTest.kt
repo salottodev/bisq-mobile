@@ -4,7 +4,6 @@ import android.view.Window
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
-import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.test.presentation.compose.BisqComposeUiTestBase
 import network.bisq.mobile.test.presentation.compose.CaptureHostWindow
 import network.bisq.mobile.test.presentation.compose.isSecure
@@ -16,8 +15,7 @@ class BuyerState2aUiTest : BisqComposeUiTestBase() {
     fun `seller account data view blocks screenshots even before the trade loads`() {
         val presenter =
             mockk<BuyerState2aPresenter>(relaxed = true) {
-                every { selectedTrade } returns MutableStateFlow(null)
-                every { isConfirmFiatSentEnabled } returns MutableStateFlow(true)
+                every { uiState } returns MutableStateFlow(BuyerState2aUiState())
             }
         lateinit var window: Window
 
@@ -31,16 +29,18 @@ class BuyerState2aUiTest : BisqComposeUiTestBase() {
 
     @Test
     fun `seller account data on screen blocks screenshots`() {
-        val trade =
-            mockk<TradeItemPresentationModel>(relaxed = true) {
-                every { quoteAmountWithCode } returns "100 USD"
-                every { bisqEasyTradeModel.paymentAccountData } returns MutableStateFlow("IBAN: DE89370400440532013000")
-                every { bisqEasyTradeModel.shortId } returns "abc123"
-            }
         val presenter =
             mockk<BuyerState2aPresenter>(relaxed = true) {
-                every { selectedTrade } returns MutableStateFlow(trade)
-                every { isConfirmFiatSentEnabled } returns MutableStateFlow(true)
+                every { uiState } returns
+                    MutableStateFlow(
+                        BuyerState2aUiState(
+                            isTradeLoaded = true,
+                            quoteAmountWithCode = "100 USD",
+                            paymentAccountData = "IBAN: DE89370400440532013000",
+                            tradeShortId = "abc123",
+                            isConfirmFiatSentEnabled = true,
+                        ),
+                    )
             }
         lateinit var window: Window
 
