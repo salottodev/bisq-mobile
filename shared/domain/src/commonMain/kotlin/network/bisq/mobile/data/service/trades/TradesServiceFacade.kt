@@ -65,6 +65,12 @@ interface TradesServiceFacade : LifeCycleAware {
         reason: AnalyticsEvent.Trade.InterruptReason = AnalyticsEvent.Trade.InterruptReason.UNSPECIFIED,
     ): Result<Unit>
 
+    /** Cancels because the seller's account data is banned. Node cancels locally with no trade log message, as desktop does. */
+    suspend fun cancelTradeForBannedAccountData(): Result<Unit>
+
+    /** Whether [accountData] matches the security manager's banned list. Always false on Connect until the API exposes it. */
+    suspend fun isAccountDataBanned(accountData: String): Boolean
+
     suspend fun closeTrade(): Result<Unit>
 
     suspend fun sellerSendsPaymentAccount(paymentAccountData: String): Result<Unit>
