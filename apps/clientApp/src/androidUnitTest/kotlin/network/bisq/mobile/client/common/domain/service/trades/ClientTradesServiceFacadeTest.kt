@@ -6,6 +6,7 @@ import co.touchlab.kermit.Severity
 import co.touchlab.kermit.loggerConfigInit
 import io.ktor.http.HttpStatusCode
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -20,11 +21,15 @@ import network.bisq.mobile.client.common.domain.websocket.subscription.Modificat
 import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
 import network.bisq.mobile.client.common.domain.websocket.subscription.WebSocketEventObserver
 import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
+import network.bisq.mobile.data.model.TradeStallClockEntry
+import network.bisq.mobile.data.model.TradeStallClockMap
 import network.bisq.mobile.data.replicated.common.monetary.MonetaryVO
 import network.bisq.mobile.data.replicated.offer.bisq_easy.BisqEasyOfferVO
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
+import network.bisq.mobile.data.replicated.trade.bisq_easy.protocol.BisqEasyTradeStateEnum
 import network.bisq.mobile.domain.analytics.AnalyticsEvent
 import network.bisq.mobile.domain.analytics.AnalyticsService
+import network.bisq.mobile.domain.repository.TradeStallClockRepository
 import network.bisq.mobile.domain.service.trades.ExpectedTradeProtocolRejection
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
@@ -46,6 +51,7 @@ class ClientTradesServiceFacadeTest : ClientKoinIntegrationTestBase() {
     private lateinit var webSocketClientService: WebSocketClientService
     private lateinit var globalUiManager: GlobalUiManager
     private lateinit var analyticsService: AnalyticsService
+    private lateinit var stallClockRepository: TradeStallClockRepository
     private lateinit var facade: ClientTradesServiceFacade
 
     override fun onSetup() {
@@ -53,7 +59,8 @@ class ClientTradesServiceFacadeTest : ClientKoinIntegrationTestBase() {
         webSocketClientService = mockk(relaxed = true)
         globalUiManager = mockk(relaxed = true)
         analyticsService = mockk(relaxed = true)
-        facade = ClientTradesServiceFacade(apiGateway, webSocketClientService, Json, globalUiManager, analyticsService, mockk(relaxed = true))
+        stallClockRepository = mockk(relaxed = true)
+        facade = ClientTradesServiceFacade(apiGateway, webSocketClientService, Json, globalUiManager, analyticsService, stallClockRepository)
     }
 
     @Test
@@ -409,6 +416,48 @@ class ClientTradesServiceFacadeTest : ClientKoinIntegrationTestBase() {
         runTest {
             assertFailsWith<IllegalArgumentException> { facade.rejectTrade() }
             assertFailsWith<IllegalArgumentException> { facade.cancelTrade() }
+        }
+
+    @Test
+    fun `account data is never banned on connect`() =
+        runTest {
+            assertFalse(facade.isAccountDataBanned("IBAN: DE89370400440532013000"))
+        }
+
+    @Test
+    fun `banned account data cancel calls the api and tracks the automatic reason`() =
+        runTest {
+            mockkStatic(TRADE_ITEM_PRESENTATION_DTO_MAPPING_CLASS)
+            try {
+                val trade = mockk<TradeItemPresentationModel>(relaxed = true)
+                every { trade.tradeId } returns "trade-1"
+                every { any<TradeItemPresentationDto>().toDomain() } returns trade
+                coEvery { apiGateway.cancelTrade("trade-1") } returns Result.success(Unit)
+                coEvery { webSocketClientService.subscribe(any(), any()) } returns WebSocketEventObserver()
+                // A known stall age, so the UNKNOWN bucket below is the facade's choice and not a missing clock.
+                coEvery { stallClockRepository.fetch() } returns
+                    TradeStallClockMap(mapOf("trade-1" to TradeStallClockEntry(BisqEasyTradeStateEnum.INIT.name, transitionAtMs = 0)))
+                facade.activate()
+                runCurrent()
+                facade.handleTradeItemPresentationChange(listOf(mockk()), ModificationType.REPLACE)
+                facade.selectOpenTrade("trade-1")
+
+                assertTrue(facade.cancelTradeForBannedAccountData().isSuccess)
+
+                coVerify(exactly = 1) { apiGateway.cancelTrade("trade-1") }
+                verify {
+                    analyticsService.track(
+                        AnalyticsEvent.Trade.Cancelled(
+                            AnalyticsEvent.Trade.InterruptReason.BANNED_ACCOUNT_DATA,
+                            AnalyticsEvent.Trade.StallBucket.UNKNOWN,
+                        ),
+                    )
+                }
+            } finally {
+                // Always: a failed assertion would otherwise leave the analytics ticker spinning.
+                facade.deactivate()
+                unmockkStatic(TRADE_ITEM_PRESENTATION_DTO_MAPPING_CLASS)
+            }
         }
 
     private companion object {
