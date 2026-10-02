@@ -68,7 +68,7 @@ interface TradesServiceFacade : LifeCycleAware {
     /** Cancels because the seller's account data is banned. Node cancels locally with no trade log message, as desktop does. */
     suspend fun cancelTradeForBannedAccountData(): Result<Unit>
 
-    /** Whether [accountData] matches the security manager's banned list. Always false on Connect until the API exposes it. */
+    /** Whether [accountData] matches the security manager's banned list. On Connect the node answers; false if it lacks the check or its capabilities are not resolved yet. */
     suspend fun isAccountDataBanned(accountData: String): Boolean
 
     suspend fun closeTrade(): Result<Unit>

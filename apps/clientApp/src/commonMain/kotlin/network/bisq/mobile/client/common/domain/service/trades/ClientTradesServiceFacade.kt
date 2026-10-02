@@ -1,6 +1,7 @@
 package network.bisq.mobile.client.common.domain.service.trades
 
 import androidx.annotation.VisibleForTesting
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +30,8 @@ import network.bisq.mobile.domain.model.trade.TradeOutcomeFilter
 import network.bisq.mobile.domain.model.trade.TradeRoleFilter
 import network.bisq.mobile.domain.model.trade.TradeSort
 import network.bisq.mobile.domain.repository.TradeStallClockRepository
+import network.bisq.mobile.domain.service.capabilities.BackendCapabilitiesService
+import network.bisq.mobile.domain.service.capabilities.Feature
 import network.bisq.mobile.domain.service.trades.ExpectedTradeProtocolRejection
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
@@ -59,6 +62,7 @@ class ClientTradesServiceFacade(
     private val globalUiManager: GlobalUiManager,
     analyticsService: AnalyticsService,
     tradeStallClockRepository: TradeStallClockRepository,
+    private val backendCapabilitiesService: BackendCapabilitiesService,
 ) : BaseTradesServiceFacade(analyticsService, tradeStallClockRepository) {
     companion object {
         private const val MAX_CACHED_TRADE_PROPERTIES = 500
@@ -192,8 +196,16 @@ class ClientTradesServiceFacade(
         return apiGateway.cancelTrade(requireNotNull(tradeId)).onSuccess { trackTrade(AnalyticsEvent.Trade.Cancelled(reason, stall)) }
     }
 
-    // The trusted node API does not expose the banned account data check yet.
-    override suspend fun isAccountDataBanned(accountData: String): Boolean = false
+    override suspend fun isAccountDataBanned(accountData: String): Boolean {
+        if (!backendCapabilitiesService.capabilities.value.isSupported(Feature.BANNED_ACCOUNT_DATA)) return false
+        // The node checks the account data it stores for the trade, so accountData is not sent.
+        return apiGateway
+            .isAccountDataBanned(requireNotNull(tradeId))
+            .getOrElse { e ->
+                // A request timeout is a CancellationException; rethrown as is, the caller would end its check instead of retrying.
+                throw if (e is CancellationException) IllegalStateException("Banned account data check timed out", e) else e
+            }.banned
+    }
 
     override suspend fun closeTrade(): Result<Unit> {
         if (globalUiManager.notifyIfDemoModeRestricted()) return Result.success(Unit)
