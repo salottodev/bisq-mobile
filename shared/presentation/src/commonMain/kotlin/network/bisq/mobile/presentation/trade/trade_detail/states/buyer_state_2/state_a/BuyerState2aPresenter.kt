@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
 import network.bisq.mobile.data.service.trades.TradesServiceFacade
 import network.bisq.mobile.data.service.user_profile.UserProfileServiceFacade
+import network.bisq.mobile.domain.utils.redactedSummary
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.main.MainPresenter
 
@@ -84,9 +85,9 @@ class BuyerState2aPresenter(
                                 .retryWhen { cause, attempt ->
                                     // A failed check must not end the collector; confirm stays disabled until it answers.
                                     if (attempt == 0L) {
-                                        log.e(cause) { "Banned account data check failed, retrying" }
+                                        log.e { "Banned account data check failed, retrying: ${cause.redactedSummary()}" }
                                     } else {
-                                        // No stack trace on later attempts: a persistent failure would log one every few seconds.
+                                        // A warning on later attempts: a persistent failure would log an error every few seconds.
                                         log.w { "Banned account data check still failing, attempt ${attempt + 1}" }
                                     }
                                     delay((CHECK_RETRY_DELAY_MS * (attempt + 1)).coerceAtMost(CHECK_RETRY_MAX_DELAY_MS))
@@ -127,7 +128,7 @@ class BuyerState2aPresenter(
             val message = "Account data of ${trade.peersUserName} is banned: ${check.accountData}"
             // NonCancellable: the report must go out even if the buyer leaves the screen.
             withContext(NonCancellable) { userProfileServiceFacade.reportUserProfile(trade.peersUserProfile, message) }
-                .onFailure { log.e(it) { "Failed to report peer with banned account data" } }
+                .onFailure { log.e { "Failed to report peer with banned account data: ${it.redactedSummary()}" } }
         }
     }
 
@@ -173,7 +174,7 @@ class BuyerState2aPresenter(
         } catch (e: Exception) {
             // Only this coroutine's own cancellation propagates; one thrown by the request counts as a failure.
             currentCoroutineContext().ensureActive()
-            log.w { "Banned account data check on confirm failed: ${e.message}" }
+            log.w { "Banned account data check on confirm failed: ${e.redactedSummary()}" }
             false
         }
 
