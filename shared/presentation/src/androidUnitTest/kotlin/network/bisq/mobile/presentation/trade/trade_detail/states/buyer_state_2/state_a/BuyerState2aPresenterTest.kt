@@ -218,6 +218,29 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
         }
 
     @Test
+    fun `a pending banned check shows the trade data with confirm disabled`() =
+        runTest {
+            val presenter = givenTrade()
+            val check = CompletableDeferred<Boolean>()
+            coEvery { tradesServiceFacade.isAccountDataBanned(ACCOUNT_DATA) } coAnswers { check.await() }
+
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            val pending = presenter.uiState.value
+            assertTrue(pending.isTradeLoaded)
+            assertEquals("100 USD", pending.quoteAmountWithCode)
+            assertEquals(ACCOUNT_DATA, pending.paymentAccountData)
+            assertFalse(pending.isConfirmFiatSentEnabled)
+            assertFalse(pending.isAccountDataBanned)
+
+            check.complete(false)
+            advanceUntilIdle()
+
+            assertTrue(presenter.uiState.value.isConfirmFiatSentEnabled)
+        }
+
+    @Test
     fun `switching trades keeps confirm disabled until the new check resolves`() =
         runTest {
             val presenter = givenTrade()
@@ -232,7 +255,7 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
             presenter.onAction(BuyerState2aUiAction.OnConfirmFiatSent)
             advanceUntilIdle()
 
-            assertFalse(presenter.uiState.value.isTradeLoaded)
+            assertEquals(OTHER_ACCOUNT_DATA, presenter.uiState.value.paymentAccountData)
             assertFalse(presenter.uiState.value.isConfirmFiatSentEnabled)
             coVerify(exactly = 0) { tradesServiceFacade.buyerConfirmFiatSent() }
 
@@ -255,13 +278,12 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
             presenter.onAction(BuyerState2aUiAction.OnConfirmFiatSent)
             runCurrent()
 
-            assertFalse(presenter.uiState.value.isTradeLoaded)
+            assertEquals(ACCOUNT_DATA, presenter.uiState.value.paymentAccountData)
             assertFalse(presenter.uiState.value.isConfirmFiatSentEnabled)
             coVerify(exactly = 0) { tradesServiceFacade.buyerConfirmFiatSent() }
 
             advanceUntilIdle()
 
-            assertTrue(presenter.uiState.value.isTradeLoaded)
             assertTrue(presenter.uiState.value.isConfirmFiatSentEnabled)
         }
 
