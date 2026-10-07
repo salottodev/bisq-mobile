@@ -8,7 +8,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -61,7 +63,7 @@ class BuyerState2aPresenter(
         }
     }
 
-    /** Emits the resolved banned check for the selected trade's account data; null while no trade or while the check is pending. */
+    /** Emits the banned check for the selected trade's account data, pending first; null while no trade. */
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun accountDataChecks(): Flow<AccountDataCheck?> =
         tradesServiceFacade.selectedTrade
@@ -70,19 +72,22 @@ class BuyerState2aPresenter(
                     ?.bisqEasyTradeModel
                     ?.paymentAccountData
                     ?.transformLatest<String?, AccountDataCheck?> { data ->
-                        // Null first: the previous trade's state must not stay confirmable while this check runs.
-                        emit(null)
-                        emit(AccountDataCheck(trade, data, data != null && tradesServiceFacade.isAccountDataBanned(data)))
-                    }?.retryWhen { cause, attempt ->
-                        // A failed check must not end the collector; confirm stays disabled until it answers.
-                        if (attempt == 0L) {
-                            log.e(cause) { "Banned account data check failed, retrying" }
-                        } else {
-                            // No stack trace on later attempts: a persistent failure would log one every few seconds.
-                            log.w { "Banned account data check still failing, attempt ${attempt + 1}" }
-                        }
-                        delay((CHECK_RETRY_DELAY_MS * (attempt + 1)).coerceAtMost(CHECK_RETRY_MAX_DELAY_MS))
-                        true
+                        // Pending first: the trade data shows right away and the previous state must not stay confirmable.
+                        emit(AccountDataCheck(trade, data, isBanned = null))
+                        emitAll(
+                            flow { emit(AccountDataCheck(trade, data, data != null && tradesServiceFacade.isAccountDataBanned(data))) }
+                                .retryWhen { cause, attempt ->
+                                    // A failed check must not end the collector; confirm stays disabled until it answers.
+                                    if (attempt == 0L) {
+                                        log.e(cause) { "Banned account data check failed, retrying" }
+                                    } else {
+                                        // No stack trace on later attempts: a persistent failure would log one every few seconds.
+                                        log.w { "Banned account data check still failing, attempt ${attempt + 1}" }
+                                    }
+                                    delay((CHECK_RETRY_DELAY_MS * (attempt + 1)).coerceAtMost(CHECK_RETRY_MAX_DELAY_MS))
+                                    true
+                                },
+                        )
                     } ?: flowOf(null)
             }.onEach { check -> if (check?.isBanned == true) onBannedAccountData(check) }
 
@@ -101,7 +106,7 @@ class BuyerState2aPresenter(
                         ?.bisqEasyTradeModel
                         ?.shortId
                         .orEmpty(),
-                isConfirmFiatSentEnabled = confirmGuardEnabled && check?.accountData != null && !check.isBanned,
+                isConfirmFiatSentEnabled = confirmGuardEnabled && check?.accountData != null && check.isBanned == false,
                 isAccountDataBanned = check?.isBanned == true,
                 isBannedWarningVisible = it.isBannedWarningVisible && check?.isBanned == true,
             )
@@ -153,6 +158,7 @@ class BuyerState2aPresenter(
     private data class AccountDataCheck(
         val trade: TradeItemPresentationModel,
         val accountData: String?,
-        val isBanned: Boolean,
+        // Null while the check is pending.
+        val isBanned: Boolean?,
     )
 }
