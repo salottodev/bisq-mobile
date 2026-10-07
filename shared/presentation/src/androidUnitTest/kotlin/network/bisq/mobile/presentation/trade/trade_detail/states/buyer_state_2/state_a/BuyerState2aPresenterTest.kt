@@ -5,6 +5,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -347,6 +348,87 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             coVerify(exactly = 0) { tradesServiceFacade.buyerConfirmFiatSent() }
+        }
+
+    @Test
+    fun `confirm blocks a seller banned since the first check`() =
+        runTest {
+            val presenter = givenTrade()
+            coEvery { tradesServiceFacade.isAccountDataBanned(ACCOUNT_DATA) } returns false andThen true
+            presenter.onViewAttached()
+            advanceUntilIdle()
+            assertTrue(presenter.uiState.value.isConfirmFiatSentEnabled)
+
+            presenter.onAction(BuyerState2aUiAction.OnConfirmFiatSent)
+            advanceUntilIdle()
+
+            val state = presenter.uiState.value
+            assertTrue(state.isAccountDataBanned)
+            assertTrue(state.isBannedWarningVisible)
+            assertFalse(state.isConfirmFiatSentEnabled)
+            coVerify(exactly = 0) { tradesServiceFacade.buyerConfirmFiatSent() }
+            coVerify(exactly = 1) {
+                userProfileServiceFacade.reportUserProfile(peer, "Account data of seller is banned: $ACCOUNT_DATA")
+            }
+        }
+
+    @Test
+    fun `a failing check on confirm does not confirm and confirm returns once the check answers`() =
+        runTest {
+            val presenter = givenTrade()
+            coEvery { tradesServiceFacade.isAccountDataBanned(ACCOUNT_DATA) } returns false andThenThrows
+                RuntimeException("failed") andThenThrows RuntimeException("failed") andThen false
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(BuyerState2aUiAction.OnConfirmFiatSent)
+            runCurrent()
+
+            assertEquals(ACCOUNT_DATA, presenter.uiState.value.paymentAccountData)
+            assertFalse(presenter.uiState.value.isConfirmFiatSentEnabled)
+
+            advanceUntilIdle()
+
+            assertTrue(presenter.uiState.value.isConfirmFiatSentEnabled)
+            coVerify(exactly = 0) { tradesServiceFacade.buyerConfirmFiatSent() }
+        }
+
+    @Test
+    fun `a check on confirm that throws a cancellation does not leave confirm disabled`() =
+        runTest {
+            val presenter = givenTrade()
+            // Not this coroutine's cancellation: a torn down request surfaces as one.
+            coEvery { tradesServiceFacade.isAccountDataBanned(ACCOUNT_DATA) } returns false andThenThrows
+                CancellationException("request disposed") andThen false
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(BuyerState2aUiAction.OnConfirmFiatSent)
+            advanceUntilIdle()
+
+            assertTrue(presenter.uiState.value.isConfirmFiatSentEnabled)
+            coVerify(exactly = 0) { tradesServiceFacade.buyerConfirmFiatSent() }
+        }
+
+    @Test
+    fun `confirm is dropped when the selected trade changes during its check`() =
+        runTest {
+            val presenter = givenTrade()
+            val confirmCheck = CompletableDeferred<Boolean>()
+            coEvery { tradesServiceFacade.isAccountDataBanned(ACCOUNT_DATA) } returns false coAndThen { confirmCheck.await() }
+            coEvery { tradesServiceFacade.isAccountDataBanned(OTHER_ACCOUNT_DATA) } returns false
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(BuyerState2aUiAction.OnConfirmFiatSent)
+            runCurrent()
+            selectedTrade.value = trade(MutableStateFlow(OTHER_ACCOUNT_DATA), id = "trade-2")
+            advanceUntilIdle()
+            confirmCheck.complete(false)
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { tradesServiceFacade.buyerConfirmFiatSent() }
+            assertTrue(presenter.uiState.value.isConfirmFiatSentEnabled)
         }
 
     @Test

@@ -2,7 +2,9 @@ package network.bisq.mobile.presentation.trade.trade_detail.states.buyer_state_2
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +41,9 @@ class BuyerState2aPresenter(
     // Stays false while a cancel is in flight, so a re-attach cannot start a second one.
     private val cancelGuard = MutableStateFlow(true)
 
+    // Bumped to run the banned check again for the trade on screen.
+    private val recheck = MutableStateFlow(0)
+
     // One report per trade on this instance; reopening the trade screen creates a new one and reports again.
     private val reportedTradeIds = mutableSetOf<String>()
 
@@ -66,7 +71,7 @@ class BuyerState2aPresenter(
     /** Emits the banned check for the selected trade's account data, pending first; null while no trade. */
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun accountDataChecks(): Flow<AccountDataCheck?> =
-        tradesServiceFacade.selectedTrade
+        combine(tradesServiceFacade.selectedTrade, recheck) { trade, _ -> trade }
             .flatMapLatest { trade ->
                 trade
                     ?.bisqEasyTradeModel
@@ -138,17 +143,39 @@ class BuyerState2aPresenter(
     }
 
     private fun onConfirmFiatSent() {
-        if (!_uiState.value.isConfirmFiatSentEnabled) return
+        val state = _uiState.value
+        if (!state.isConfirmFiatSentEnabled) return
+        val accountData = state.paymentAccountData ?: return
+        val tradeId = tradesServiceFacade.selectedTrade.value?.tradeId
         guardedSuspendAction(
             confirmGuard,
             "onConfirmFiatSent",
             reEnableGuardOnComplete = false,
         ) {
-            tradesServiceFacade.buyerConfirmFiatSent().onFailure {
+            // Checked again: the banned list can fill in after the check that enabled confirm.
+            val isClean = isAccountDataClean(accountData) && tradesServiceFacade.selectedTrade.value?.tradeId == tradeId
+            if (isClean) {
+                tradesServiceFacade.buyerConfirmFiatSent().onFailure {
+                    confirmGuard.value = true
+                }
+            } else {
+                // The restarted check shows the warning if banned, or retries until it answers.
                 confirmGuard.value = true
+                recheck.update { it + 1 }
             }
         }
     }
+
+    /** False when the account data is banned or the check fails. */
+    private suspend fun isAccountDataClean(accountData: String): Boolean =
+        try {
+            !tradesServiceFacade.isAccountDataBanned(accountData)
+        } catch (e: Exception) {
+            // Only this coroutine's own cancellation propagates; one thrown by the request counts as a failure.
+            currentCoroutineContext().ensureActive()
+            log.w { "Banned account data check on confirm failed: ${e.message}" }
+            false
+        }
 
     private companion object {
         const val CHECK_RETRY_DELAY_MS = 1_000L
