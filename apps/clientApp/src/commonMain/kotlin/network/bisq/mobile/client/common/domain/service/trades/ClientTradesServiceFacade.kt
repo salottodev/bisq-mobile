@@ -224,7 +224,7 @@ class ClientTradesServiceFacade(
         return apiGateway
             .isAccountDataBanned(requireNotNull(tradeId))
             .getOrElse { e ->
-                // A request timeout is a CancellationException; rethrown as is, the caller would end its check instead of retrying.
+                // A request timeout is a CancellationException; thrown as is, it would read as the caller's own cancellation.
                 throw if (e is CancellationException) IllegalStateException("Banned account data check timed out", e) else e
             }.banned
     }

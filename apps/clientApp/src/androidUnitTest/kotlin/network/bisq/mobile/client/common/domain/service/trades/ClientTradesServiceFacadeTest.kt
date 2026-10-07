@@ -488,7 +488,7 @@ class ClientTradesServiceFacadeTest : ClientKoinIntegrationTestBase() {
 
             withSelectedTrade {
                 val thrown = assertFailsWith<Throwable> { facade.isAccountDataBanned(ACCOUNT_DATA) }
-                // A cancellation would end the caller's check silently instead of being retried.
+                // The caller is not cancelled, so the timeout must surface as a failure.
                 assertFalse(thrown is CancellationException)
             }
         }
