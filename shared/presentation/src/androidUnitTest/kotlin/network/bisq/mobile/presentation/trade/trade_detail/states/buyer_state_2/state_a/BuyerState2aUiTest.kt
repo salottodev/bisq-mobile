@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.espresso.Espresso.pressBack
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -79,6 +80,8 @@ class BuyerState2aUiTest : BisqComposeUiTestBase() {
             .assertExists()
         composeTestRule.onNodeWithText(reasonForPaymentText).assertDoesNotExist()
         composeTestRule.onNodeWithText(confirmButtonText).assertIsNotEnabled()
+        // Acknowledged: the banner stays without the warning dialog.
+        composeTestRule.onNodeWithText("action.iUnderstand".i18n()).assertDoesNotExist()
     }
 
     @Test
@@ -87,6 +90,18 @@ class BuyerState2aUiTest : BisqComposeUiTestBase() {
 
         setTestContent { BuyerState2a(presenter = presenter) }
         composeTestRule.onNodeWithText("action.iUnderstand".i18n()).performClick()
+
+        verify { presenter.onAction(BuyerState2aUiAction.OnAcknowledgeBannedWarning) }
+    }
+
+    @Test
+    fun `back on the banned warning dispatches the acknowledge action`() {
+        val presenter = presenterWith(bannedState.copy(isBannedWarningVisible = true))
+
+        setTestContent { BuyerState2a(presenter = presenter) }
+        composeTestRule.onNodeWithText("action.iUnderstand".i18n()).assertExists()
+        pressBack()
+        composeTestRule.waitForIdle()
 
         verify { presenter.onAction(BuyerState2aUiAction.OnAcknowledgeBannedWarning) }
     }
