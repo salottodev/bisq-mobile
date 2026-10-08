@@ -36,7 +36,9 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import network.bisq.mobile.domain.logging.LogScrubber
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.share.AppLogFile
 import network.bisq.mobile.presentation.common.share.AppLogFileProvider
@@ -73,7 +75,7 @@ fun ReportBugPanel(
     var logFile by remember { mutableStateOf<AppLogFile?>(null) }
 
     LaunchedEffect(Unit) {
-        logFile = runCatching { logFileProvider.logFile() }.getOrNull()
+        logFile = catchingUnlessCancelled { logFileProvider.logFile() }.getOrNull()
     }
 
     ReportBugPanelContent(
@@ -86,11 +88,10 @@ fun ReportBugPanel(
         logFileName = logFile?.name,
         onSaveToFile = {
             scope.launch {
-                // The error dialog must never take the app down, so anything the share path can
-                // throw (including Errors such as NoClassDefFoundError) is reported inline instead.
                 val result =
-                    runCatching {
-                        shareFileService.shareUtf8TextFile(errorMessage, ERROR_LOG_FILE_NAME, shareText = errorMessage)
+                    catchingUnlessCancelled {
+                        val redacted = LogScrubber().scrub(errorMessage)
+                        shareFileService.shareUtf8TextFile(redacted, ERROR_LOG_FILE_NAME, shareText = redacted)
                     }
                 statusMessage =
                     if (result.getOrNull()?.isSuccess == true) null else "mobile.genericError.saveToFile.failed".i18n()
@@ -98,20 +99,37 @@ fun ReportBugPanel(
         },
         onShareLogFile = {
             scope.launch {
-                val file = logFile ?: return@launch
-                val result = runCatching { shareFileService.shareFile(file.path) }
+                if (logFile == null) return@launch
+                // Only the redacted copy is ever shared: when it cannot be produced the share is
+                // refused, the raw file is not a fallback.
+                val prepared = catchingUnlessCancelled { logFileProvider.prepareForSharing() }.getOrElse { Result.failure(it) }
                 statusMessage =
-                    if (result.getOrNull()?.isSuccess == true) null else "mobile.genericError.saveToFile.failed".i18n()
+                    prepared.fold(
+                        onSuccess = { file ->
+                            val result = catchingUnlessCancelled { shareFileService.shareFile(file.path) }
+                            if (result.getOrNull()?.isSuccess == true) null else "mobile.genericError.saveToFile.failed".i18n()
+                        },
+                        onFailure = { "mobile.genericError.logFile.redactFailed".i18n() },
+                    )
             }
         },
         onReport = {
             scope.launch {
-                runCatching { clipboard.setClipEntry(AnnotatedString(errorMessage).toClipEntry()) }
+                // What lands on the clipboard is pasted into a public issue, so it gets the same
+                // treatment as the shared files.
+                catchingUnlessCancelled { clipboard.setClipEntry(AnnotatedString(LogScrubber().scrub(errorMessage)).toClipEntry()) }
             }
             presenter.navigateToReportError()
         },
     )
 }
+
+/**
+ * The error dialog must never take the app down, so everything the share paths can throw,
+ * Errors such as NoClassDefFoundError included, is reported inline. Cancellation is the one
+ * exception: the scope that ran the action is gone, and swallowing it would hide that.
+ */
+private inline fun <T> catchingUnlessCancelled(block: () -> T): Result<T> = runCatching(block).onFailure { if (it is CancellationException) throw it }
 
 @Composable
 internal fun ReportBugPanelContent(
