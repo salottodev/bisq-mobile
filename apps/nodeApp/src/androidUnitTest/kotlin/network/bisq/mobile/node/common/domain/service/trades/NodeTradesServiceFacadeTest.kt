@@ -44,6 +44,7 @@ import java.util.Optional
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import bisq.chat.bisq_easy.open_trades.BisqEasyOpenTradeChannel as Bisq2BisqEasyOpenTradeChannel
@@ -236,6 +237,7 @@ class NodeTradesServiceFacadeTest : NodeKoinIntegrationTestBase() {
 
             facade.isAccountDataBanned(BANNED_DATA)
 
+            assertNotNull(checkThread)
             assertNotEquals(Thread.currentThread(), checkThread)
         }
 
