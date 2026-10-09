@@ -4,4 +4,6 @@ sealed interface BuyerState2aUiAction {
     data object OnConfirmFiatSent : BuyerState2aUiAction
 
     data object OnAcknowledgeBannedWarning : BuyerState2aUiAction
+
+    data object OnRetryBannedCancel : BuyerState2aUiAction
 }

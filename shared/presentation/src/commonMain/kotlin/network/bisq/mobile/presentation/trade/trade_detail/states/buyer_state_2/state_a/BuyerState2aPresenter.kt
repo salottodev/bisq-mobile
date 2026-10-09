@@ -66,6 +66,7 @@ class BuyerState2aPresenter(
         when (action) {
             BuyerState2aUiAction.OnConfirmFiatSent -> onConfirmFiatSent()
             BuyerState2aUiAction.OnAcknowledgeBannedWarning -> onAcknowledgeBannedWarning()
+            BuyerState2aUiAction.OnRetryBannedCancel -> onRetryBannedCancel()
         }
     }
 
@@ -115,6 +116,7 @@ class BuyerState2aPresenter(
                 isConfirmFiatSentEnabled = confirmGuardEnabled && check?.accountData != null && check.isBanned == false,
                 isAccountDataBanned = check?.isBanned == true,
                 isBannedWarningVisible = it.isBannedWarningVisible && check?.isBanned == true,
+                isBannedCancelFailed = it.isBannedCancelFailed && check?.isBanned == true,
             )
         }
     }
@@ -135,11 +137,25 @@ class BuyerState2aPresenter(
     private fun onAcknowledgeBannedWarning() {
         val state = _uiState.value
         if (!state.isAccountDataBanned || !state.isBannedWarningVisible) return
-        _uiState.update { it.copy(isBannedWarningVisible = false) }
-        guardedSuspendAction(cancelGuard, "onAcknowledgeBannedWarning", showLoadingOverlay = false) {
+        cancelBannedTrade()
+    }
+
+    private fun onRetryBannedCancel() {
+        val state = _uiState.value
+        if (!state.isAccountDataBanned || !state.isBannedCancelFailed) return
+        cancelBannedTrade()
+    }
+
+    private fun cancelBannedTrade() {
+        _uiState.update { it.copy(isBannedWarningVisible = false, isBannedCancelFailed = false) }
+        guardedSuspendAction(cancelGuard, "cancelBannedTrade", showLoadingOverlay = false) {
             // NonCancellable: the cancel itself detaches this presenter, so a failure must still be shown.
             withContext(NonCancellable) { tradesServiceFacade.cancelTradeForBannedAccountData() }
-                .onFailure { handleError(it) }
+                .onFailure { e ->
+                    handleError(e)
+                    // Only while the banned trade is still on screen; a detach has reset the state.
+                    _uiState.update { if (it.isAccountDataBanned) it.copy(isBannedCancelFailed = true) else it }
+                }
         }
     }
 

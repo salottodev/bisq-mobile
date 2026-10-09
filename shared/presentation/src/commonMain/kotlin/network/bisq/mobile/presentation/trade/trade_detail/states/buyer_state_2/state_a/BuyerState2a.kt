@@ -20,6 +20,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
+import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButtonType
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqTextFieldV0
 import network.bisq.mobile.presentation.common.ui.components.atoms.button.CopyIconButton
@@ -94,7 +95,10 @@ private fun BuyerState2aContent(
 
         if (uiState.isAccountDataBanned) {
             BisqGap.V1()
-            BannedAccountBanner()
+            BannedAccountBanner(
+                isCancelFailed = uiState.isBannedCancelFailed,
+                onRetryCancel = { onAction(BuyerState2aUiAction.OnRetryBannedCancel) },
+            )
         }
 
         BisqGap.V1()
@@ -113,7 +117,10 @@ private fun BuyerState2aContent(
 
 /** Danger banner right above the disabled confirm button, so the reason is read together with it. */
 @Composable
-private fun BannedAccountBanner() {
+private fun BannedAccountBanner(
+    isCancelFailed: Boolean,
+    onRetryCancel: () -> Unit,
+) {
     val shape = RoundedCornerShape(BisqUIConstants.BorderRadius)
     Row(
         modifier =
@@ -135,9 +142,23 @@ private fun BannedAccountBanner() {
             )
             BisqGap.VQuarter()
             BisqText.SmallLight(
-                text = "mobile.tradeState.info.buyer.phase2a.accountDataBanned.banner.action".i18n(),
+                text =
+                    if (isCancelFailed) {
+                        "mobile.tradeState.info.buyer.phase2a.accountDataBanned.banner.cancelFailed".i18n()
+                    } else {
+                        "mobile.tradeState.info.buyer.phase2a.accountDataBanned.banner.action".i18n()
+                    },
                 color = BisqTheme.colors.light_grey10,
             )
+            if (isCancelFailed) {
+                BisqGap.VHalf()
+                BisqButton(
+                    // Cancel trade
+                    text = "bisqEasy.openTrades.cancelTrade".i18n(),
+                    onClick = onRetryCancel,
+                    type = BisqButtonType.Danger,
+                )
+            }
         }
     }
 }
@@ -199,6 +220,23 @@ private fun BuyerState2aContent_BannedAcknowledgedPreview() {
     BisqTheme.Preview {
         BuyerState2aContent(
             uiState = previewUiState.copy(isConfirmFiatSentEnabled = false, isAccountDataBanned = true),
+            onAction = {},
+        )
+    }
+}
+
+@ExcludeFromCoverage
+@Preview
+@Composable
+private fun BuyerState2aContent_BannedCancelFailedPreview() {
+    BisqTheme.Preview {
+        BuyerState2aContent(
+            uiState =
+                previewUiState.copy(
+                    isConfirmFiatSentEnabled = false,
+                    isAccountDataBanned = true,
+                    isBannedCancelFailed = true,
+                ),
             onAction = {},
         )
     }

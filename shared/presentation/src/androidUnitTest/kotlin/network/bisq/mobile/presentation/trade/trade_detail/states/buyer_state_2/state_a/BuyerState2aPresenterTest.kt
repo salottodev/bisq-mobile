@@ -11,6 +11,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
@@ -52,6 +53,18 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
         every { tradesServiceFacade.selectedTrade } returns selectedTrade
         coEvery { tradesServiceFacade.isAccountDataBanned(ACCOUNT_DATA) } returns isBanned
         return BuyerState2aPresenter(mainPresenter, tradesServiceFacade, userProfileServiceFacade)
+    }
+
+    /** A banned trade whose warning was acknowledged and whose cancel failed. */
+    private fun TestScope.givenFailedCancel(): BuyerState2aPresenter {
+        coEvery { tradesServiceFacade.cancelTradeForBannedAccountData() } returns
+            Result.failure(RuntimeException("failed"))
+        val presenter = givenTrade(isBanned = true)
+        presenter.onViewAttached()
+        advanceUntilIdle()
+        presenter.onAction(BuyerState2aUiAction.OnAcknowledgeBannedWarning)
+        advanceUntilIdle()
+        return presenter
     }
 
     @Test
@@ -335,6 +348,101 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             verify { globalUiManager.showSnackbar(any(), SnackbarType.ERROR, any(), any()) }
+        }
+
+    @Test
+    fun `failed cancel offers a retry and keeps confirm disabled`() =
+        runTest {
+            val presenter = givenFailedCancel()
+
+            val state = presenter.uiState.value
+            assertTrue(state.isBannedCancelFailed)
+            assertTrue(state.isAccountDataBanned)
+            assertFalse(state.isBannedWarningVisible)
+            assertFalse(state.isConfirmFiatSentEnabled)
+        }
+
+    @Test
+    fun `retrying a failed cancel cancels again and withdraws the retry`() =
+        runTest {
+            val presenter = givenFailedCancel()
+            coEvery { tradesServiceFacade.cancelTradeForBannedAccountData() } returns Result.success(Unit)
+
+            presenter.onAction(BuyerState2aUiAction.OnRetryBannedCancel)
+            advanceUntilIdle()
+
+            assertFalse(presenter.uiState.value.isBannedCancelFailed)
+            coVerify(exactly = 2) { tradesServiceFacade.cancelTradeForBannedAccountData() }
+        }
+
+    @Test
+    fun `a retry that fails again offers the retry again`() =
+        runTest {
+            val presenter = givenFailedCancel()
+
+            presenter.onAction(BuyerState2aUiAction.OnRetryBannedCancel)
+            advanceUntilIdle()
+
+            assertTrue(presenter.uiState.value.isBannedCancelFailed)
+            coVerify(exactly = 2) { tradesServiceFacade.cancelTradeForBannedAccountData() }
+        }
+
+    @Test
+    fun `the retry is withdrawn while its cancel is in flight`() =
+        runTest {
+            val presenter = givenFailedCancel()
+            coEvery { tradesServiceFacade.cancelTradeForBannedAccountData() } coAnswers {
+                delay(Long.MAX_VALUE)
+                Result.success(Unit)
+            }
+
+            presenter.onAction(BuyerState2aUiAction.OnRetryBannedCancel)
+            runCurrent()
+
+            assertFalse(presenter.uiState.value.isBannedCancelFailed)
+        }
+
+    @Test
+    fun `retry does nothing when no cancel failed`() =
+        runTest {
+            val presenter = givenTrade(isBanned = true)
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(BuyerState2aUiAction.OnRetryBannedCancel)
+            advanceUntilIdle()
+
+            assertTrue(presenter.uiState.value.isBannedWarningVisible)
+            coVerify(exactly = 0) { tradesServiceFacade.cancelTradeForBannedAccountData() }
+        }
+
+    @Test
+    fun `switching to a trade with clean account data withdraws the retry`() =
+        runTest {
+            val presenter = givenFailedCancel()
+
+            selectedTrade.value = trade(MutableStateFlow(OTHER_ACCOUNT_DATA))
+            advanceUntilIdle()
+
+            assertFalse(presenter.uiState.value.isBannedCancelFailed)
+        }
+
+    @Test
+    fun `a cancel that fails after detaching leaves no retry on the reset state`() =
+        runTest {
+            val cancel = CompletableDeferred<Result<Unit>>()
+            coEvery { tradesServiceFacade.cancelTradeForBannedAccountData() } coAnswers { cancel.await() }
+            val presenter = givenTrade(isBanned = true)
+            presenter.onViewAttached()
+            advanceUntilIdle()
+            presenter.onAction(BuyerState2aUiAction.OnAcknowledgeBannedWarning)
+            runCurrent()
+
+            presenter.onViewUnattaching()
+            cancel.complete(Result.failure(RuntimeException("failed")))
+            advanceUntilIdle()
+
+            assertEquals(BuyerState2aUiState(), presenter.uiState.value)
         }
 
     @Test
