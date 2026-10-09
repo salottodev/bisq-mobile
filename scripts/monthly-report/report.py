@@ -710,7 +710,11 @@ def render(window_days: int, inputs: dict, label: str | None = None, wiki: bool 
         # is uneven — say where the data actually comes from instead of implying all-apps.
         app_counts: dict[str, int] = {}
         for r in fn_rows:
-            if r["step"].startswith("trade.cancelled_") or r["step"].startswith("trade.rejected_"):
+            step = r["step"]
+            # The automatic cancel is not a chip answer, so it does not count toward the share.
+            if step.startswith(("trade.cancelled_banned_account_data", "trade.rejected_banned_account_data")):
+                continue
+            if step.startswith("trade.cancelled_") or step.startswith("trade.rejected_"):
                 app_counts[r["project"]] = app_counts.get(r["project"], 0) + r["n"]
         if app_counts:
             parts = ", ".join(f"{app} {n:,}" for app, n
