@@ -190,7 +190,8 @@ class BuyerState2aPresenter(
         } catch (e: Exception) {
             // Only this coroutine's own cancellation propagates; one thrown by the request counts as a failure.
             currentCoroutineContext().ensureActive()
-            log.w { "Banned account data check on confirm failed: ${e.redactedSummary()}" }
+            // The buyer tapped confirm and nothing was sent, so say so.
+            handleError(e)
             false
         }
 
