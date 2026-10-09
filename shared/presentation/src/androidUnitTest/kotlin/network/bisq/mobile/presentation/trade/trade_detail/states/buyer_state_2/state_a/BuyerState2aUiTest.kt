@@ -63,7 +63,7 @@ class BuyerState2aUiTest : BisqComposeUiTestBase() {
     }
 
     @Test
-    fun `account data not banned shows the reason for payment hint, no banner and no warning`() {
+    fun `account data not banned shows the reason for payment hint without banner or warning`() {
         setTestContent { BuyerState2a(presenter = presenterWith(loadedState)) }
 
         composeTestRule.onNodeWithText(reasonForPaymentText).assertExists()
