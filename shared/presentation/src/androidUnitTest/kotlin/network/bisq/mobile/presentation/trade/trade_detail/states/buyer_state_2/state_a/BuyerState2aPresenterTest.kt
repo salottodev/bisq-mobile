@@ -299,6 +299,7 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             assertTrue(presenter.uiState.value.isConfirmFiatSentEnabled)
+            verify(exactly = 0) { globalUiManager.showSnackbar(any(), SnackbarType.ERROR, any(), any()) }
         }
 
     @Test
@@ -478,6 +479,23 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
             coVerify(exactly = 1) {
                 userProfileServiceFacade.reportUserProfile(peer, "Account data of seller is banned: $ACCOUNT_DATA")
             }
+            verify(exactly = 0) { globalUiManager.showSnackbar(any(), SnackbarType.ERROR, any(), any()) }
+        }
+
+    @Test
+    fun `a failing check on confirm tells the buyer the confirmation was not sent`() =
+        runTest {
+            val presenter = givenTrade()
+            coEvery { tradesServiceFacade.isAccountDataBanned(ACCOUNT_DATA) } returns false andThenThrows
+                RuntimeException("failed") andThen false
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            presenter.onAction(BuyerState2aUiAction.OnConfirmFiatSent)
+            advanceUntilIdle()
+
+            verify(exactly = 1) { globalUiManager.showSnackbar(any(), SnackbarType.ERROR, any(), any()) }
+            coVerify(exactly = 0) { tradesServiceFacade.buyerConfirmFiatSent() }
         }
 
     @Test
@@ -537,6 +555,7 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
 
             coVerify(exactly = 0) { tradesServiceFacade.buyerConfirmFiatSent() }
             assertTrue(presenter.uiState.value.isConfirmFiatSentEnabled)
+            verify(exactly = 0) { globalUiManager.showSnackbar(any(), SnackbarType.ERROR, any(), any()) }
         }
 
     @Test
