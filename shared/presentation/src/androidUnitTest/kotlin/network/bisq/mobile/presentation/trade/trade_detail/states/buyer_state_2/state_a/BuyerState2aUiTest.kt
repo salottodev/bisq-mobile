@@ -28,6 +28,7 @@ class BuyerState2aUiTest : BisqComposeUiTestBase() {
         )
     private val bannedState = loadedState.copy(isConfirmFiatSentEnabled = false, isAccountDataBanned = true)
     private val confirmButtonText get() = "bisqEasy.tradeState.info.buyer.phase2a.confirmFiatSent".i18n("100 USD")
+    private val cancelTradeText get() = "bisqEasy.openTrades.cancelTrade".i18n()
     private val reasonForPaymentText get() = "mobile.tradeState.info.buyer.phase2a.reasonForPaymentInfo".i18n("abc123")
 
     private fun presenterWith(state: BuyerState2aUiState) =
@@ -82,6 +83,31 @@ class BuyerState2aUiTest : BisqComposeUiTestBase() {
         composeTestRule.onNodeWithText(confirmButtonText).assertIsNotEnabled()
         // Acknowledged: the banner stays without the warning dialog.
         composeTestRule.onNodeWithText("action.iUnderstand".i18n()).assertDoesNotExist()
+        composeTestRule.onNodeWithText(cancelTradeText).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a failed cancel shows the failure in the banner with a cancel button`() {
+        setTestContent { BuyerState2a(presenter = presenterWith(bannedState.copy(isBannedCancelFailed = true))) }
+
+        composeTestRule
+            .onNodeWithText("mobile.tradeState.info.buyer.phase2a.accountDataBanned.banner.cancelFailed".i18n())
+            .assertExists()
+        composeTestRule
+            .onNodeWithText("mobile.tradeState.info.buyer.phase2a.accountDataBanned.banner.action".i18n())
+            .assertDoesNotExist()
+        composeTestRule.onNodeWithText(cancelTradeText).assertExists()
+        composeTestRule.onNodeWithText(confirmButtonText).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `the cancel button of a failed cancel dispatches the retry action`() {
+        val presenter = presenterWith(bannedState.copy(isBannedCancelFailed = true))
+
+        setTestContent { BuyerState2a(presenter = presenter) }
+        composeTestRule.onNodeWithText(cancelTradeText).performClick()
+
+        verify { presenter.onAction(BuyerState2aUiAction.OnRetryBannedCancel) }
     }
 
     @Test

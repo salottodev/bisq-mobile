@@ -8,4 +8,5 @@ data class BuyerState2aUiState(
     val isConfirmFiatSentEnabled: Boolean = false,
     val isAccountDataBanned: Boolean = false,
     val isBannedWarningVisible: Boolean = false,
+    val isBannedCancelFailed: Boolean = false,
 )
