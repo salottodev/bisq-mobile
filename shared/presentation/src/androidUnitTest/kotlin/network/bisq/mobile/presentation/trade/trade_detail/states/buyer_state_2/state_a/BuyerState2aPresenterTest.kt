@@ -111,7 +111,7 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
         }
 
     @Test
-    fun `banned account data blocks confirm, shows warning and reports once across re-attach`() =
+    fun `banned account data blocks confirm with a warning and reports once across re-attach`() =
         runTest {
             val presenter = givenTrade(isBanned = true)
 
@@ -149,7 +149,7 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
         }
 
     @Test
-    fun `acknowledging the warning hides it and cancels the trade, confirm stays disabled`() =
+    fun `acknowledging the warning hides it and cancels the trade with confirm still disabled`() =
         runTest {
             val presenter = givenTrade(isBanned = true)
             presenter.onViewAttached()

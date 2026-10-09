@@ -251,18 +251,21 @@ class NodeTradesServiceFacadeTest : NodeKoinIntegrationTestBase() {
             coEvery { stallClockRepository.fetch() } returns
                 TradeStallClockMap(mapOf(TRADE_ID to TradeStallClockEntry(BisqEasyTradeState.INIT.name, transitionAtMs = 0)))
             facade.activate()
-            runCurrent()
-            facade.selectOpenTrade(TRADE_ID)
+            try {
+                runCurrent()
+                facade.selectOpenTrade(TRADE_ID)
 
-            val result = facade.cancelTradeForBannedAccountData()
+                val result = facade.cancelTradeForBannedAccountData()
 
-            assertTrue(result.isSuccess)
-            verify(exactly = 1) { bisqEasyTradeService.cancelTrade(trade) }
-            verify(exactly = 0) { channelService.sendTradeLogMessage(any(), any()) }
-            verify { analyticsService.track(Trade.Cancelled(Trade.InterruptReason.BANNED_ACCOUNT_DATA, Trade.StallBucket.UNKNOWN)) }
-
-            runCurrent()
-            facade.deactivate()
+                assertTrue(result.isSuccess)
+                verify(exactly = 1) { bisqEasyTradeService.cancelTrade(trade) }
+                verify(exactly = 0) { channelService.sendTradeLogMessage(any(), any()) }
+                verify { analyticsService.track(Trade.Cancelled(Trade.InterruptReason.BANNED_ACCOUNT_DATA, Trade.StallBucket.UNKNOWN)) }
+                runCurrent()
+            } finally {
+                // Always: a failed assertion would otherwise leave the facade active for the next test.
+                facade.deactivate()
+            }
         }
 
     private fun givenOpenTrade(tradeId: String): BisqEasyTrade {
