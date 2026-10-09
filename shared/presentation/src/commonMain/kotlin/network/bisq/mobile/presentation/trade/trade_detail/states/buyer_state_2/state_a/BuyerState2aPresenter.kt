@@ -130,7 +130,11 @@ class BuyerState2aPresenter(
             val message = "Account data of ${trade.peersUserName} is banned: ${check.accountData}"
             // NonCancellable: the report must go out even if the buyer leaves the screen.
             withContext(NonCancellable) { userProfileServiceFacade.reportUserProfile(trade.peersUserProfile, message) }
-                .onFailure { log.e { "Failed to report peer with banned account data: ${it.redactedSummary()}" } }
+                .onFailure {
+                    // Forgotten, so the next check result for this trade reports again.
+                    reportedTradeIds.remove(trade.tradeId)
+                    log.e { "Failed to report peer with banned account data: ${it.redactedSummary()}" }
+                }
         }
     }
 
