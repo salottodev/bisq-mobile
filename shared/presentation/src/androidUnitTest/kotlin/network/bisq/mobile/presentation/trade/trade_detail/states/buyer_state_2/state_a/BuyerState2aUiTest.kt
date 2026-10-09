@@ -111,6 +111,15 @@ class BuyerState2aUiTest : BisqComposeUiTestBase() {
     }
 
     @Test
+    fun `the banned warning says the trade is cancelled on closing it`() {
+        setTestContent { BuyerState2a(presenter = presenterWith(bannedState.copy(isBannedWarningVisible = true))) }
+
+        composeTestRule
+            .onNodeWithText("mobile.tradeState.info.buyer.phase2a.accountDataBanned.popup.warning".i18n())
+            .assertExists()
+    }
+
+    @Test
     fun `acknowledging the banned warning dispatches the acknowledge action`() {
         val presenter = presenterWith(bannedState.copy(isBannedWarningVisible = true))
 
