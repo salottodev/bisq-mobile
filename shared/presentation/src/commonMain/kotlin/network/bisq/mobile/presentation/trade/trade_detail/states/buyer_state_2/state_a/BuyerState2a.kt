@@ -169,7 +169,8 @@ private fun BannedAccountWarningDialog(onAcknowledge: () -> Unit) {
         headline = "popup.headline.warning".i18n(),
         headlineColor = BisqTheme.colors.danger,
         headlineLeftIcon = { ExclamationRedIcon() },
-        message = "bisqEasy.tradeState.info.buyer.phase2a.accountDataBanned.popup.warning".i18n(),
+        // Not desktop's text: there the trade is already cancelled, here closing the dialog cancels it.
+        message = "mobile.tradeState.info.buyer.phase2a.accountDataBanned.popup.warning".i18n(),
         confirmButtonText = "action.iUnderstand".i18n(),
         dismissButtonText = EMPTY_STRING,
         dismissOnClickOutside = false,
