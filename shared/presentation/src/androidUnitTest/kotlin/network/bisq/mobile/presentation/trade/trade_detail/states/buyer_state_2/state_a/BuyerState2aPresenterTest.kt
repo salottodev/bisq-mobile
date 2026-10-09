@@ -180,6 +180,25 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
         }
 
     @Test
+    fun `a failed report is sent again on the next banned check and not after it succeeds`() =
+        runTest {
+            coEvery { userProfileServiceFacade.reportUserProfile(any(), any()) } returns
+                Result.failure(RuntimeException("offline")) andThen Result.success(Unit)
+            val presenter = givenTrade(isBanned = true)
+
+            repeat(3) {
+                presenter.onViewAttached()
+                advanceUntilIdle()
+                presenter.onViewUnattaching()
+                advanceUntilIdle()
+            }
+
+            coVerify(exactly = 2) {
+                userProfileServiceFacade.reportUserProfile(peer, "Account data of seller is banned: $ACCOUNT_DATA")
+            }
+        }
+
+    @Test
     fun `acknowledging the warning twice cancels the trade once`() =
         runTest {
             val presenter = givenTrade(isBanned = true)
