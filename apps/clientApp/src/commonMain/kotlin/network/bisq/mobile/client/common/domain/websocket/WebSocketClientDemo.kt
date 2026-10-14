@@ -88,16 +88,22 @@ class WebSocketClientDemo(
         MutableStateFlow<ConnectionState>(ConnectionState.Disconnected())
     override val webSocketClientStatus: StateFlow<ConnectionState> = _webSocketClientStatus.asStateFlow()
 
+    private val _nodeInfo = MutableStateFlow<ApiInfoDto?>(null)
+    override val nodeInfo: StateFlow<ApiInfoDto?> = _nodeInfo.asStateFlow()
+
     override fun isDemo(): Boolean = true
 
     override suspend fun connect(timeout: Long): Throwable? {
         log.d { "Demo mode detected - skipping actual WebSocket connection" }
+        // Same answer as the fake config/capabilities below, so the demo keeps its history tab.
+        _nodeInfo.value = ApiInfoDto(apiVersionSettingsVO.version, features = listOf(Feature.CLOSED_TRADES.key))
         _webSocketClientStatus.value = ConnectionState.Connected
         return null
     }
 
     override suspend fun disconnect() {
         log.d { "Demo mode - simulating disconnect" }
+        _nodeInfo.value = null
         _webSocketClientStatus.value = ConnectionState.Disconnected()
     }
 
@@ -130,7 +136,7 @@ class WebSocketClientDemo(
     }
 
     override suspend fun dispose() {
-        // no-op
+        disconnect()
     }
 
     private fun fakeResponse(webSocketRequest: WebSocketRequest): WebSocketResponse {
