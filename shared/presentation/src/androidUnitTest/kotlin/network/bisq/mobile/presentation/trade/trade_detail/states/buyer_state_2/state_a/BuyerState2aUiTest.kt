@@ -1,7 +1,9 @@
 package network.bisq.mobile.presentation.trade.trade_detail.states.buyer_state_2.state_a
 
 import android.view.Window
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -30,6 +32,8 @@ class BuyerState2aUiTest : BisqComposeUiTestBase() {
     private val confirmButtonText get() = "bisqEasy.tradeState.info.buyer.phase2a.confirmFiatSent".i18n("100 USD")
     private val cancelTradeText get() = "bisqEasy.openTrades.cancelTrade".i18n()
     private val reasonForPaymentText get() = "mobile.tradeState.info.buyer.phase2a.reasonForPaymentInfo".i18n("abc123")
+    private val checkPendingText get() = "mobile.tradeState.info.buyer.phase2a.accountDataCheck.pending".i18n()
+    private val spinner = hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)
 
     private fun presenterWith(state: BuyerState2aUiState) =
         mockk<BuyerState2aPresenter>(relaxed = true) {
@@ -69,6 +73,32 @@ class BuyerState2aUiTest : BisqComposeUiTestBase() {
         composeTestRule.onNodeWithText(reasonForPaymentText).assertExists()
         composeTestRule.onNodeWithTag(BANNED_ACCOUNT_BANNER_TAG).assertDoesNotExist()
         composeTestRule.onNodeWithText("action.iUnderstand".i18n()).assertDoesNotExist()
+        composeTestRule.onNodeWithText(checkPendingText).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a pending check shows no hint during its first second`() {
+        composeTestRule.mainClock.autoAdvance = false
+        val pendingState = loadedState.copy(isConfirmFiatSentEnabled = false, isAccountDataCheckPending = true)
+
+        setTestContent { BuyerState2a(presenter = presenterWith(pendingState)) }
+        composeTestRule.mainClock.advanceTimeBy(900)
+
+        composeTestRule.onNodeWithText(checkPendingText).assertDoesNotExist()
+        composeTestRule.onNode(spinner).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a check pending for over a second shows the hint and a spinner on confirm`() {
+        composeTestRule.mainClock.autoAdvance = false
+        val pendingState = loadedState.copy(isConfirmFiatSentEnabled = false, isAccountDataCheckPending = true)
+
+        setTestContent { BuyerState2a(presenter = presenterWith(pendingState)) }
+        composeTestRule.mainClock.advanceTimeBy(1_100)
+
+        composeTestRule.onNodeWithText(checkPendingText).assertExists()
+        composeTestRule.onNode(spinner).assertExists()
+        composeTestRule.onNodeWithText(confirmButtonText).assertIsNotEnabled()
     }
 
     @Test

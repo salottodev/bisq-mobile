@@ -6,6 +6,8 @@ data class BuyerState2aUiState(
     val paymentAccountData: String? = null,
     val tradeShortId: String = "",
     val isConfirmFiatSentEnabled: Boolean = false,
+    // True while the banned check has not answered yet, retries included.
+    val isAccountDataCheckPending: Boolean = false,
     val isAccountDataBanned: Boolean = false,
     val isBannedWarningVisible: Boolean = false,
     val isBannedCancelFailed: Boolean = false,

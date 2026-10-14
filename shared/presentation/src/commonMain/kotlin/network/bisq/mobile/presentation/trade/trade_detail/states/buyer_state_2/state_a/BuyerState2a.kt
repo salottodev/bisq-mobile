@@ -13,11 +13,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButtonType
@@ -35,6 +37,8 @@ import network.bisq.mobile.presentation.common.ui.utils.ExcludeFromCoverage
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
 
 const val BANNED_ACCOUNT_BANNER_TAG = "banned_account_banner"
+
+private const val CHECK_PENDING_HINT_DELAY_MS = 1_000L
 
 @Composable
 fun BuyerState2a(
@@ -56,6 +60,14 @@ private fun BuyerState2aContent(
 
     val quoteAmount = uiState.quoteAmountWithCode
     val paymentAccountData = uiState.paymentAccountData ?: "data.na".i18n()
+    // Delayed so a quick check does not flash it.
+    val isCheckPendingShown by produceState(false, uiState.isAccountDataCheckPending) {
+        value = false
+        if (uiState.isAccountDataCheckPending) {
+            delay(CHECK_PENDING_HINT_DELAY_MS)
+            value = true
+        }
+    }
 
     Column(horizontalAlignment = Alignment.Start) {
         BisqGap.V1()
@@ -107,7 +119,17 @@ private fun BuyerState2aContent(
             text = "bisqEasy.tradeState.info.buyer.phase2a.confirmFiatSent".i18n(quoteAmount),
             onClick = { onAction(BuyerState2aUiAction.OnConfirmFiatSent) },
             disabled = !uiState.isConfirmFiatSentEnabled,
+            isLoading = isCheckPendingShown,
         )
+
+        if (isCheckPendingShown) {
+            BisqGap.VHalf()
+            BisqText.SmallLight(
+                // Checking the seller's payment account...
+                text = "mobile.tradeState.info.buyer.phase2a.accountDataCheck.pending".i18n(),
+                color = BisqTheme.colors.light_grey10,
+            )
+        }
     }
 
     if (uiState.isBannedWarningVisible) {

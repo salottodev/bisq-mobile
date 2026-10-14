@@ -114,6 +114,7 @@ class BuyerState2aPresenter(
                         ?.shortId
                         .orEmpty(),
                 isConfirmFiatSentEnabled = confirmGuardEnabled && check?.accountData != null && check.isBanned == false,
+                isAccountDataCheckPending = check?.accountData != null && check.isBanned == null,
                 isAccountDataBanned = check?.isBanned == true,
                 isBannedWarningVisible = it.isBannedWarningVisible && check?.isBanned == true,
                 isBannedCancelFailed = it.isBannedCancelFailed && check?.isBanned == true,

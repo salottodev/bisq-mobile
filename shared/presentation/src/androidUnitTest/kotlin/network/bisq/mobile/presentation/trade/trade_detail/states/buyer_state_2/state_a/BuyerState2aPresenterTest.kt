@@ -107,6 +107,7 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
             advanceUntilIdle()
 
             assertFalse(presenter.uiState.value.isConfirmFiatSentEnabled)
+            assertFalse(presenter.uiState.value.isAccountDataCheckPending)
             coVerify(exactly = 0) { tradesServiceFacade.isAccountDataBanned(any()) }
         }
 
@@ -126,6 +127,7 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
             assertTrue(state.isAccountDataBanned)
             assertTrue(state.isBannedWarningVisible)
             assertFalse(state.isConfirmFiatSentEnabled)
+            assertFalse(state.isAccountDataCheckPending)
             coVerify(exactly = 1) {
                 userProfileServiceFacade.reportUserProfile(peer, "Account data of seller is banned: $ACCOUNT_DATA")
             }
@@ -266,11 +268,13 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
             assertEquals(ACCOUNT_DATA, pending.paymentAccountData)
             assertFalse(pending.isConfirmFiatSentEnabled)
             assertFalse(pending.isAccountDataBanned)
+            assertTrue(pending.isAccountDataCheckPending)
 
             check.complete(false)
             advanceUntilIdle()
 
             assertTrue(presenter.uiState.value.isConfirmFiatSentEnabled)
+            assertFalse(presenter.uiState.value.isAccountDataCheckPending)
         }
 
     @Test
@@ -313,11 +317,13 @@ class BuyerState2aPresenterTest : PresentationKoinTestBase() {
 
             assertEquals(ACCOUNT_DATA, presenter.uiState.value.paymentAccountData)
             assertFalse(presenter.uiState.value.isConfirmFiatSentEnabled)
+            assertTrue(presenter.uiState.value.isAccountDataCheckPending)
             coVerify(exactly = 0) { tradesServiceFacade.buyerConfirmFiatSent() }
 
             advanceUntilIdle()
 
             assertTrue(presenter.uiState.value.isConfirmFiatSentEnabled)
+            assertFalse(presenter.uiState.value.isAccountDataCheckPending)
             verify(exactly = 0) { globalUiManager.showSnackbar(any(), SnackbarType.ERROR, any(), any()) }
         }
 
