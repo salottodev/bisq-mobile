@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.service.chat.trade.BisqEasyOpenTradeMessageDto
-import network.bisq.mobile.client.common.domain.service.config.ApiCapabilitiesDto
 import network.bisq.mobile.client.common.domain.service.trades.BisqEasyOpenTradeChannelDto
 import network.bisq.mobile.client.common.domain.service.trades.TradeItemPresentationDto
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEvent
@@ -95,7 +94,7 @@ class WebSocketClientDemo(
 
     override suspend fun connect(timeout: Long): Throwable? {
         log.d { "Demo mode detected - skipping actual WebSocket connection" }
-        // Same answer as the fake config/capabilities below, so the demo keeps its history tab.
+        // closed-trades keeps the demo's history tab visible (App Review).
         _nodeInfo.value = ApiInfoDto(apiVersionSettingsVO.version, features = listOf(Feature.CLOSED_TRADES.key))
         _webSocketClientStatus.value = ConnectionState.Connected
         return null
@@ -149,10 +148,7 @@ class WebSocketClientDemo(
                 webSocketRequest.path.endsWith("settings/version") ->
                     json.encodeToString(apiVersionSettingsVO)
 
-                // Config - static config the app fetches at bootstrap. Capabilities advertises
-                // closed-trades so the demo shows the history tab (App Review); limits are the defaults.
-                webSocketRequest.path.endsWith("config/capabilities") ->
-                    json.encodeToString(ApiCapabilitiesDto(apiVersionSettingsVO.version, listOf(Feature.CLOSED_TRADES.key)))
+                // Config - static config the app fetches at bootstrap; features come from the handshake.
                 webSocketRequest.path.endsWith("config/trade-amount-limits") ->
                     json.encodeToString(TradeAmountLimitsVO.DEFAULT)
 
@@ -179,7 +175,7 @@ class WebSocketClientDemo(
                     json.encodeToString(FakeSubscriptionData.paymentAccounts)
 
                 // Trades - closed trades paginated REST endpoint. Demo returns an empty page so the
-                // closed-trades tab renders without parse errors (it's advertised via config/capabilities).
+                // closed-trades tab renders without parse errors (the handshake advertises the feature).
                 webSocketRequest.path.contains("trades/closed") ->
                     json.encodeToString(emptyClosedTradesPage)
 
