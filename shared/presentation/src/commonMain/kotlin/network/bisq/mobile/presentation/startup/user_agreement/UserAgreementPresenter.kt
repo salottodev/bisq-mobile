@@ -5,6 +5,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import network.bisq.mobile.data.service.settings.SettingsServiceFacade
 import network.bisq.mobile.domain.analytics.AnalyticsEvent
+import network.bisq.mobile.domain.usecase.startup.ResolveStartupDestinationUseCase
+import network.bisq.mobile.domain.usecase.startup.StartupDestination
+import network.bisq.mobile.domain.utils.resultCatching
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
 import network.bisq.mobile.presentation.common.ui.navigation.NavRoute
@@ -13,6 +16,7 @@ import network.bisq.mobile.presentation.main.MainPresenter
 open class UserAgreementPresenter(
     mainPresenter: MainPresenter,
     private val settingsServiceFacade: SettingsServiceFacade,
+    private val resolveStartupDestination: ResolveStartupDestinationUseCase,
 ) : BasePresenter(mainPresenter),
     IAgreementPresenter {
     override fun analyticsScreenEvent(): AnalyticsEvent.ScreenOpened = AnalyticsEvent.ScreenOpened.UserAgreement
@@ -36,20 +40,41 @@ open class UserAgreementPresenter(
             "onAcceptTerms",
             reEnableGuardOnComplete = false,
         ) {
-            settingsServiceFacade
-                .confirmTacAccepted(true)
-                .onSuccess {
-                    navigateToOnboarding()
-                    showSnackbar("mobile.startup.agreement.welcome".i18n())
-                }.onFailure { exception ->
-                    handleError(exception)
-                    _isAcceptTermsEnabled.value = true
+            resultCatching {
+                settingsServiceFacade.confirmTacAccepted(true).getOrThrow()
+                // Core asks for the terms again when their version changes, so the user may already
+                // have profiles: route the same way the splash does rather than assuming a fresh install.
+                resolveStartupDestination()
+            }.onSuccess { destination ->
+                when (destination) {
+                    StartupDestination.HOME -> navigateToHome()
+                    StartupDestination.ONBOARDING -> {
+                        navigateToOnboarding()
+                        showSnackbar("mobile.startup.agreement.welcome".i18n())
+                    }
+                    StartupDestination.CREATE_PROFILE -> navigateToCreateProfile()
                 }
+            }.onFailure { exception ->
+                handleError(exception)
+                _isAcceptTermsEnabled.value = true
+            }
+        }
+    }
+
+    private fun navigateToHome() {
+        navigateTo(NavRoute.TabContainer) {
+            it.popUpTo(NavRoute.UserAgreement) { inclusive = true }
         }
     }
 
     private fun navigateToOnboarding() {
         navigateTo(NavRoute.Onboarding) {
+            it.popUpTo(NavRoute.UserAgreement) { inclusive = true }
+        }
+    }
+
+    private fun navigateToCreateProfile() {
+        navigateTo(NavRoute.CreateProfile(true)) {
             it.popUpTo(NavRoute.UserAgreement) { inclusive = true }
         }
     }
