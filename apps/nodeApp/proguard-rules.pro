@@ -3,6 +3,9 @@
 ### protobuf deps
 -dontwarn java.lang.MatchException
 
+# bisq2 InstanceLock uses ProcessHandle (JDK-only, absent on Android); unreachable since android.conf sets checkInstanceLock = false
+-dontwarn java.lang.ProcessHandle
+
 # Keep gRPC and Netty classes
 -keep class io.grpc.** { *; }
 -keep class io.netty.** { *; }
