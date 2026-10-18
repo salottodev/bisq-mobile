@@ -69,6 +69,8 @@ import network.bisq.mobile.domain.utils.awaitOrCancel
 import network.bisq.mobile.domain.utils.createUuid
 import network.bisq.mobile.domain.utils.redactedSummary
 import kotlin.concurrent.Volatile
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 class WebSocketClientImpl(
     private val httpClient: HttpClient,
@@ -141,31 +143,7 @@ class WebSocketClientImpl(
                 log.d { "WS connecting to $apiUrl (timeout=${timeout}ms) ..." }
                 _webSocketClientStatus.value = ConnectionState.Connecting
                 val startTime = DateUtils.now()
-                val wsProtocol =
-                    if (apiUrl.protocol == URLProtocol.HTTPS) URLProtocol.WSS else URLProtocol.WS
-                val wsHost = apiUrl.host
-                val wsPort = apiUrl.port
-                val newSession =
-                    try {
-                        withTimeout(timeout) {
-                            httpClient.webSocketSession {
-                                url {
-                                    // apiUrl.protocol is guaranteed to be HTTP or HTTPS due to upstream validation
-                                    protocol = wsProtocol
-                                    host = wsHost
-                                    port = wsPort
-                                    path("/websocket")
-                                }
-                                // Send session credentials on upgrade for servers with password auth
-                                sessionId?.let { headers.append(Headers.SESSION_ID, it) }
-                                clientId?.let { headers.append(Headers.CLIENT_ID, it) }
-                            }
-                        }
-                    } catch (e: Throwable) {
-                        val elapsed = DateUtils.now() - startTime
-                        log.e(e) { "WS TCP/upgrade phase failed after ${elapsed}ms: ${e::class.simpleName}" }
-                        throw e
-                    }
+                val newSession = openSession(timeout.milliseconds)
                 val elapsed = DateUtils.now() - startTime
                 val remainingTime = timeout - elapsed
                 session = newSession
@@ -174,15 +152,7 @@ class WebSocketClientImpl(
                     listenerJob =
                         clientScope.launch { startListening(newSession) }
 
-                    withTimeout(remainingTime) {
-                        val info = fetchNodeInfo()
-                        if (!isApiCompatible(info.version)) {
-                            doDisconnect()
-                            awaitDisconnection() // so that we update the disconnect reason correctly
-                            throw IncompatibleHttpApiVersionException(info.version)
-                        }
-                        _nodeInfo.value = info
-                    }
+                    withTimeout(remainingTime.milliseconds) { performHandshake() }
 
                     _webSocketClientStatus.value = ConnectionState.Connected
 
@@ -199,6 +169,44 @@ class WebSocketClientImpl(
             }
             return null
         }
+    }
+
+    private suspend fun openSession(timeout: Duration): DefaultClientWebSocketSession {
+        val startTime = DateUtils.now()
+        val wsProtocol =
+            if (apiUrl.protocol == URLProtocol.HTTPS) URLProtocol.WSS else URLProtocol.WS
+        val wsHost = apiUrl.host
+        val wsPort = apiUrl.port
+        return try {
+            withTimeout(timeout) {
+                httpClient.webSocketSession {
+                    url {
+                        // apiUrl.protocol is guaranteed to be HTTP or HTTPS due to upstream validation
+                        protocol = wsProtocol
+                        host = wsHost
+                        port = wsPort
+                        path("/websocket")
+                    }
+                    // Send session credentials on upgrade for servers with password auth
+                    sessionId?.let { headers.append(Headers.SESSION_ID, it) }
+                    clientId?.let { headers.append(Headers.CLIENT_ID, it) }
+                }
+            }
+        } catch (e: Throwable) {
+            val elapsed = DateUtils.now() - startTime
+            log.e(e) { "WS TCP/upgrade phase failed after ${elapsed}ms: ${e::class.simpleName}" }
+            throw e
+        }
+    }
+
+    private suspend fun performHandshake() {
+        val info = fetchNodeInfo()
+        if (!isApiCompatible(info.version)) {
+            doDisconnect()
+            awaitDisconnection() // so that we update the disconnect reason correctly
+            throw IncompatibleHttpApiVersionException(info.version)
+        }
+        _nodeInfo.value = info
     }
 
     override suspend fun disconnect() {
