@@ -549,10 +549,13 @@ class WebSocketClientImpl(
         if (!infoEndpointAbsent) {
             val infoResponse = getRest(INFO_PATH)
             if (infoResponse.httpStatusCode != HttpStatusCode.NotFound) {
-                return json.decodeFromString<ApiInfoDto>(infoResponse.bodyOrThrow(INFO_PATH))
+                val info = json.decodeFromString<ApiInfoDto>(infoResponse.bodyOrThrow(INFO_PATH))
+                log.d { "Handshake via $INFO_PATH (features=${info.features?.size})" }
+                return info
             }
             infoEndpointAbsent = true
         }
+        log.d { "Node predates $INFO_PATH; using $HEALTH_CHECK_PATH" }
         val legacy = json.decodeFromString<ApiVersionSettingsVO>(getRest(HEALTH_CHECK_PATH).bodyOrThrow(HEALTH_CHECK_PATH))
         return ApiInfoDto(legacy.version, legacy.imageVersion)
     }
