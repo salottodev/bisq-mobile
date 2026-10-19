@@ -7,7 +7,7 @@ APP_NAME=Bisq Connect
 DEVELOPMENT_TEAM=YRAZCRBR9J
 
 // Version - synced from gradle.properties by Gradle task :apps:clientApp:syncIosVersion
-APP_VERSION=0.10.1
+APP_VERSION=0.11.0
 APP_VERSION_CODE=53
 
 // Per-developer overrides (git-ignored, optional). Must stay last so its values win.
