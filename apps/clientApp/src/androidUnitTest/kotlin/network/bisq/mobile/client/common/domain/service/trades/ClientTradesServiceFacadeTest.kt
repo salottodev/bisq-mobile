@@ -12,16 +12,21 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
 import network.bisq.mobile.client.common.domain.websocket.api_proxy.WebSocketRestApiException
+import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEvent
 import network.bisq.mobile.client.common.domain.websocket.subscription.ModificationType
 import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
 import network.bisq.mobile.client.common.domain.websocket.subscription.WebSocketEventObserver
@@ -43,6 +48,8 @@ import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.base.GlobalUiManager
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -189,6 +196,78 @@ class ClientTradesServiceFacadeTest : ClientKoinIntegrationTestBase() {
                 facade.handleTradeItemPresentationChange(listOf(first, second), ModificationType.REPLACE)
 
                 assertEquals(tickBefore, facade.closedTradesChangeTick.value)
+            }
+        }
+
+    /** bisq2 pushes one property per event, so properties cached before the trade arrives must all be kept. */
+    @Test
+    fun `every property cached before the trade arrives is applied`() =
+        runTest {
+            withOpenTradeDtos(TRADE_ID) { (dto) ->
+                val earlierState = BisqEasyTradeStateEnum.TAKER_SENT_TAKE_OFFER_REQUEST
+                val state = BisqEasyTradeStateEnum.TAKER_RECEIVED_TAKE_OFFER_RESPONSE__BUYER_DID_NOT_SENT_BTC_ADDRESS__BUYER_RECEIVED_ACCOUNT_DATA
+                facade.handleTradePropertiesChange(listOf(mapOf(TRADE_ID to TradePropertiesDto(tradeState = earlierState))), ModificationType.REPLACE)
+                facade.handleTradePropertiesChange(
+                    listOf(mapOf(TRADE_ID to TradePropertiesDto(paymentAccountData = ACCOUNT_DATA))),
+                    ModificationType.REPLACE,
+                )
+                facade.handleTradePropertiesChange(listOf(mapOf(TRADE_ID to TradePropertiesDto(tradeState = state))), ModificationType.REPLACE)
+
+                facade.handleTradeItemPresentationChange(listOf(dto), ModificationType.ADDED)
+
+                val tradeModel =
+                    facade.openTradeItems.value
+                        .single()
+                        .bisqEasyTradeModel
+                // The state says the account data arrived, so observers must not see it before the data.
+                verifyOrder {
+                    tradeModel.setPaymentAccountData(ACCOUNT_DATA)
+                    tradeModel.setTradeState(state)
+                }
+                // Replaying a superseded state would move the trade backwards.
+                verify(exactly = 0) { tradeModel.setTradeState(earlierState) }
+            }
+        }
+
+    /** Both handlers read and write the pending-properties cache, so one must not run while the other is mid-way. */
+    @Test
+    fun `a trades event waits for a trade properties event still being handled`() =
+        runTest {
+            withOpenTradeDtos(TRADE_ID) { (dto) ->
+                val tradesObserver = WebSocketEventObserver()
+                val propertiesObserver = WebSocketEventObserver()
+                coEvery { webSocketClientService.subscribe(Topic.TRADES, any()) } returns tradesObserver
+                coEvery { webSocketClientService.subscribe(Topic.TRADE_PROPERTIES, any()) } returns propertiesObserver
+                facade.handleTradeItemPresentationChange(listOf(dto), ModificationType.REPLACE)
+                val applying = CountDownLatch(1)
+                val release = CountDownLatch(1)
+                every {
+                    facade.openTradeItems.value
+                        .single()
+                        .bisqEasyTradeModel
+                        .setTradeState(any())
+                } answers {
+                    applying.countDown()
+                    release.await(5, TimeUnit.SECONDS)
+                    Unit
+                }
+                try {
+                    facade.activate()
+                    runCurrent()
+
+                    propertiesObserver.setEvent(event(Topic.TRADE_PROPERTIES, """[{"$TRADE_ID":{"tradeState":"INIT"}}]"""))
+                    assertTrue(applying.await(5, TimeUnit.SECONDS))
+                    // A snapshot without the trade, arriving while its property is still being applied.
+                    tradesObserver.setEvent(event(Topic.TRADES, "[]"))
+                    Thread.sleep(200)
+                    assertEquals(listOf(TRADE_ID), facade.openTradeItems.value.map { it.tradeId })
+
+                    release.countDown()
+                    withContext(Dispatchers.Default) { withTimeout(5_000) { facade.openTradeItems.first { it.isEmpty() } } }
+                } finally {
+                    release.countDown()
+                    facade.deactivate()
+                }
             }
         }
 
@@ -703,6 +782,17 @@ class ClientTradesServiceFacadeTest : ClientKoinIntegrationTestBase() {
             unmockkStatic(TRADE_ITEM_PRESENTATION_DTO_MAPPING_CLASS)
         }
     }
+
+    private fun event(
+        topic: Topic,
+        payload: String,
+    ) = WebSocketEvent(
+        topic = topic,
+        subscriberId = "test-subscriber",
+        deferredPayload = payload,
+        modificationType = ModificationType.REPLACE,
+        sequenceNumber = 1,
+    )
 
     private companion object {
         const val TRADE_ID = "trade-1"

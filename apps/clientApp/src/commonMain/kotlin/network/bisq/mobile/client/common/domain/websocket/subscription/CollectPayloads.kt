@@ -1,5 +1,6 @@
 package network.bisq.mobile.client.common.domain.websocket.subscription
 
+import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEvent
 
@@ -20,8 +21,14 @@ import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEven
 suspend fun <T> WebSocketEventObserver.collectPayloads(
     json: Json,
     handler: suspend (payload: T, event: WebSocketEvent) -> Unit,
+) = webSocketEvent.collectPayloads(json, handler)
+
+/** Same as [WebSocketEventObserver.collectPayloads], for a flow derived from the observer's events. */
+suspend fun <T> Flow<WebSocketEvent>.collectPayloads(
+    json: Json,
+    handler: suspend (payload: T, event: WebSocketEvent) -> Unit,
 ) {
-    webSocketEvent.collect { event ->
+    collect { event ->
         if (event.deferredPayload == null) {
             return@collect
         }
