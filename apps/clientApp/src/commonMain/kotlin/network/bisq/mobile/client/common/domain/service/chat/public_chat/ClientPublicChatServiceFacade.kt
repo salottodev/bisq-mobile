@@ -432,9 +432,9 @@ class ClientPublicChatServiceFacade(
      * and cause itself), and the call sites skip. What remains here is a failure in processing a
      * decoded event.
      */
-    private suspend fun Flow<WebSocketEvent?>.collectGuarded(block: suspend (WebSocketEvent) -> Unit) =
+    private suspend fun Flow<WebSocketEvent>.collectGuarded(block: suspend (WebSocketEvent) -> Unit) =
         collect { webSocketEvent ->
-            if (webSocketEvent?.deferredPayload == null) {
+            if (webSocketEvent.deferredPayload == null) {
                 return@collect
             }
             try {

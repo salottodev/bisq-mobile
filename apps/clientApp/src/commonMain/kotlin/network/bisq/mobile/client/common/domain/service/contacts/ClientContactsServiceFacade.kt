@@ -175,9 +175,6 @@ class ClientContactsServiceFacade(
     private suspend fun subscribeContacts() {
         val observer = apiGateway.subscribeContacts()
         observer.webSocketEvent.collect { webSocketEvent ->
-            if (webSocketEvent == null) {
-                return@collect
-            }
             // Nullable since the decode-hardening on main: a malformed or unknown-shape event is
             // skipped so one bad event does not end this collector for the rest of the session.
             val payload =

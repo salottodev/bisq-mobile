@@ -41,7 +41,7 @@ class ClientTradeRestrictingAlertServiceFacade(
         // Not collectPayloads: an event without a payload means "no alert" here, whereas the shared
         // collector ignores it. A payload that does not decode is skipped and the current alert stays.
         observer.webSocketEvent.collect { webSocketEvent ->
-            if (webSocketEvent?.deferredPayload == null) {
+            if (webSocketEvent.deferredPayload == null) {
                 _alert.value = null
                 return@collect
             }
