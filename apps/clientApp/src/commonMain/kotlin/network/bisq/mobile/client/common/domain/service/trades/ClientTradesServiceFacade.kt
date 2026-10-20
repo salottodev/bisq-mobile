@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.data.mapping.trade.toClosedTradeListItem
 import network.bisq.mobile.client.common.domain.util.notifyIfDemoModeRestricted
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
+import network.bisq.mobile.client.common.domain.websocket.api_proxy.WebSocketRestApiException
 import network.bisq.mobile.client.common.domain.websocket.subscription.ModificationType
 import network.bisq.mobile.client.common.domain.websocket.subscription.Subscription
 import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
@@ -161,7 +162,11 @@ class ClientTradesServiceFacade(
             return Result.success(apiResult.getOrThrow().tradeId)
         } else {
             val exception = apiResult.exceptionOrNull()!!
-            val restriction = TradeRestrictionError.fromMessage(exception.message)
+            // The errorCode of a 2.1.14+ node first; older nodes send only the text.
+            val restriction =
+                (exception as? WebSocketRestApiException)
+                    ?.let { TradeRestrictionError.fromErrorCode(it.errorCode, it.minRequiredVersion) }
+                    ?: TradeRestrictionError.fromMessage(exception.message)
             // Classification only, no throwable: the message is the trusted node's response body,
             // which can carry user or peer data (see ExpectedTradeProtocolRejection).
             log.e { "Failed to take offer: ${describeTakeOfferFailure(exception, restriction)}" }
@@ -171,6 +176,8 @@ class ClientTradesServiceFacade(
                         "mobile.bisqEasy.takeOffer.tradingHalted".i18n()
                     is TradeRestrictionError.MinVersionRequired ->
                         "mobile.bisqEasy.takeOffer.minVersionRequired.client".i18n(restriction.minVersion)
+                    is TradeRestrictionError.MakerVersionBelowMinRequired ->
+                        "mobile.bisqEasy.takeOffer.makerVersionBelowMinRequired".i18n(restriction.minVersion)
                     null -> ExpectedTradeProtocolRejection.fromThrowable(exception)
                 }
             return Result.failure(exception)

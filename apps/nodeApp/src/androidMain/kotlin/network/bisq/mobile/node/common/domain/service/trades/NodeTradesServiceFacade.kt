@@ -20,6 +20,7 @@ import bisq.contract.bisq_easy.BisqEasyContract
 import bisq.i18n.Res
 import bisq.offer.bisq_easy.BisqEasyOffer
 import bisq.support.mediation.bisq_easy.BisqEasyMediationRequestService
+import bisq.trade.TradeRestrictedException
 import bisq.trade.bisq_easy.BisqEasyTrade
 import bisq.trade.bisq_easy.BisqEasyTradeService
 import bisq.trade.bisq_easy.protocol.BisqEasyProtocol
@@ -225,7 +226,7 @@ class NodeTradesServiceFacade(
             val tradeId =
                 withContext(Dispatchers.Default) {
                     doTakeOffer(
-                        Mappings.BisqEasyOfferMapping.toBisq2Model(bisqEasyOffer),
+                        findPublishedOffer(bisqEasyOffer.id),
                         Mappings.MonetaryMapping.toBisq2Model(takersBaseSideAmount),
                         Mappings.MonetaryMapping.toBisq2Model(takersQuoteSideAmount),
                         BitcoinPaymentMethodSpec(
@@ -513,23 +514,28 @@ class NodeTradesServiceFacade(
             fiatPaymentMethodDisplay.contains(needle, ignoreCase = true)
 
     private fun takeOfferCatchMessage(error: Exception): String {
+        val causeChain =
+            generateSequence<Throwable>(error) { current ->
+                current.cause?.takeIf { it !== current }
+            }.take(16).toList()
+        // The type of the core's refusal first; its message text is the fallback.
         val restriction =
-            generateSequence<Throwable>(error) { current ->
-                current.cause?.takeIf { it !== current }
-            }.take(16)
-                .mapNotNull { it.message }
-                .firstNotNullOfOrNull { TradeRestrictionError.fromMessage(it) }
-        val reason =
-            generateSequence<Throwable>(error) { current ->
-                current.cause?.takeIf { it !== current }
-            }.take(16)
-                .mapNotNull { it.message }
-                .firstOrNull()
+            causeChain
+                .filterIsInstance<TradeRestrictedException>()
+                .firstNotNullOfOrNull { TradeRestrictionError.fromErrorCode(it.restriction.name, it.findMinRequiredVersion().orElse(null)) }
+                ?: causeChain
+                    .mapNotNull { it.message }
+                    .firstNotNullOfOrNull { TradeRestrictionError.fromMessage(it) }
+        val reason = causeChain.firstNotNullOfOrNull { it.message }
         return when {
             restriction is TradeRestrictionError.TradingHalted ->
                 "mobile.bisqEasy.takeOffer.tradingHalted".i18n()
             restriction is TradeRestrictionError.MinVersionRequired ->
                 "mobile.bisqEasy.takeOffer.minVersionRequired.node".i18n(restriction.minVersion)
+            restriction is TradeRestrictionError.MakerVersionBelowMinRequired ->
+                "mobile.bisqEasy.takeOffer.makerVersionBelowMinRequired".i18n(restriction.minVersion)
+            causeChain.any { it is OfferNoLongerAvailableException } ->
+                "mobile.bisqEasy.takeOffer.offerNoLongerAvailable".i18n()
             reason?.contains("banned", ignoreCase = true) == true ->
                 "mobile.bisqEasy.takeOffer.userBanned".i18n()
             else ->
@@ -538,6 +544,20 @@ class NodeTradesServiceFacade(
     }
 
     // Private
+
+    /**
+     * The offer as the maker published it. A copy rebuilt from the app's model would carry this app's
+     * offer, protocol and app versions instead of the maker's, and the core's check of the maker's
+     * version reads the app version of the offer.
+     */
+    private fun findPublishedOffer(offerId: String): BisqEasyOffer =
+        bisqEasyOfferbookChannelService.channels
+            .asSequence()
+            .flatMap { channel -> channel.chatMessages.asSequence() }
+            .mapNotNull { message -> message.bisqEasyOffer.orElse(null) }
+            .firstOrNull { offer -> offer.id == offerId }
+            ?: throw OfferNoLongerAvailableException()
+
     private suspend fun doTakeOffer(
         bisqEasyOffer: BisqEasyOffer,
         takersBaseSideAmount: Monetary,
@@ -857,3 +877,6 @@ class NodeTradesServiceFacade(
         return Triple(channel, trade, userName)
     }
 }
+
+/** The maker removed the offer, or it expired, while the user was taking it. */
+private class OfferNoLongerAvailableException : IllegalStateException("The offer is no longer in the offerbook")
