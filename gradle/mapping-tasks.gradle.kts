@@ -1,5 +1,7 @@
 import java.util.Properties
 import java.util.UUID
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
  * Shared Gradle script for configuring ProGuard mapping file management.
@@ -18,7 +20,8 @@ import java.util.UUID
  *
  * Every saved mapping gets an identity file which names the release it belongs to: module,
  * variant, version and the ProGuard UUID. The upload tasks refuse a mapping whose identity is not
- * the one of the current release, so a mapping of an earlier build cannot be published for it.
+ * the one of the current release, so a mapping of another version or variant cannot be published
+ * for it. A rebuild with the same version name and code has the same identity and is not detected.
  *
  * The ProGuard UUID is what binds an obfuscated stack trace to its mapping: the app carries it in
  * its manifest (see the module build files, which get it from `proguardUuidOfFlavor`), and the
@@ -53,6 +56,14 @@ val legacyModuleDirName =
         else -> moduleName
     }
 
+// The release name the app reports to GlitchTip (see the analytics config in each app's DI module)
+val glitchTipReleasePrefix =
+    when (moduleName) {
+        "nodeApp" -> "bisq-easy-node"
+        "clientApp" -> "bisq-connect"
+        else -> moduleName
+    }
+
 // The task actions use only this object and values captured at configuration time, which keeps
 // them compatible with the configuration cache (an action must not reference the script itself).
 object MappingFiles {
@@ -64,6 +75,9 @@ object MappingFiles {
     private const val UNFLAVORED_RELEASE_VARIANT = "release"
 
     val savedFileNames = listOf(ARCHIVE_NAME, CONFIGURATION_NAME, OUTPUT_METADATA_NAME, IDENTITY_NAME)
+
+    // A NO_PROXY of the developer's shell (e.g. `*`) would make curl bypass Tor and resolve the onion directly
+    val NO_PROXY_BYPASS_CLEARED = mapOf("NO_PROXY" to "", "no_proxy" to "")
 
     // null -> "release", "google" -> "googleRelease"
     fun variantName(flavor: String?): String = if (flavor == null) UNFLAVORED_RELEASE_VARIANT else "${flavor}Release"
@@ -128,15 +142,77 @@ object MappingFiles {
             .map { it.name }
             .sorted()
 
+    // GlitchTip 6 stores a proguard mapping only through the legacy endpoint (POST files/dsyms/, a zip
+    // of proguard/<uuid>.txt). `sentry-cli upload-proguard` sends it as chunks to files/difs/assemble/,
+    // which GlitchTip reads only as a native object file: it drops the mapping with "unsupported object
+    // file format" while sentry-cli reports success.
+    fun uploadProguardMapping(
+        sentryProperties: File,
+        mappingTxt: File,
+        proguardUuid: String,
+        workDir: File,
+        moduleNameForLogging: String,
+    ) {
+        val properties = Properties().apply { sentryProperties.inputStream().use { load(it) } }
+        fun property(key: String): String =
+            properties.getProperty(key)?.trim()?.takeIf { it.isNotEmpty() }
+                ?: throw GradleException("[$moduleNameForLogging] $key missing in ${sentryProperties.path}")
+        val url = property("defaults.url").trimEnd('/')
+        val org = property("defaults.org")
+        val project = property("defaults.project")
+
+        val zip = File(workDir, "proguard-mapping.zip")
+        ZipOutputStream(zip.outputStream()).use { out ->
+            // No directory entries: the endpoint rejects every entry which is not proguard/<uuid>.txt.
+            out.putNextEntry(ZipEntry("proguard/$proguardUuid.txt"))
+            mappingTxt.inputStream().use { it.copyTo(out) }
+            out.closeEntry()
+        }
+
+        // The token goes to curl on stdin (-H @-), so that it is neither in the process list nor on disk.
+        val authHeader = "Authorization: Bearer ${property("auth.token")}\n"
+        try {
+            val (exit, output) =
+                MappingFiles.runCommand(
+                    listOf(
+                        "curl",
+                        "--silent",
+                        "--show-error",
+                        "--fail-with-body",
+                        "--max-time",
+                        "600",
+                        "--socks5-hostname",
+                        "127.0.0.1:9050",
+                        "-H",
+                        "@-",
+                        "-F",
+                        "file=@${zip.absolutePath}",
+                        "$url/api/0/projects/$org/$project/files/dsyms/",
+                    ),
+                    environment = NO_PROXY_BYPASS_CLEARED,
+                    stdin = authHeader,
+                )
+            if (exit != 0 || !output.contains(proguardUuid)) {
+                throw GradleException("[$moduleNameForLogging] Proguard mapping upload failed (curl exit $exit): $output")
+            }
+            println("[$moduleNameForLogging] Stored proguard mapping $proguardUuid in GlitchTip project $project")
+        } finally {
+            zip.delete()
+        }
+    }
+
     fun runCommand(
         command: List<String>,
         workingDir: File? = null,
         environment: Map<String, String> = emptyMap(),
+        stdin: String? = null,
     ): Pair<Int, String> {
         val builder = ProcessBuilder(command).redirectErrorStream(true)
         workingDir?.let { builder.directory(it) }
         builder.environment().putAll(environment)
         val process = builder.start()
+        // Closing stdin also when nothing is passed, so a command never waits for input
+        process.outputStream.bufferedWriter().use { writer -> stdin?.let { writer.write(it) } }
         val output = process.inputStream.bufferedReader().readText()
         return process.waitFor() to output
     }
@@ -323,17 +399,18 @@ releaseFlavors.forEach { flavor ->
 //
 // Uploads the saved Proguard mapping.txt to the per-app GlitchTip project via
 // sentry-cli, routed through the local Tor SOCKS5 proxy (the GlitchTip server
-// is a Tor onion only). The task is OPT-IN — it skips silently when:
-//   - sentry.properties is absent (no auth token configured), OR
-//   - sentry-cli isn't installed on PATH.
-// This means committers without a sentry.properties never see this task error;
-// it just doesn't run.
+// is a Tor onion only). No other task depends on it; it runs only when invoked,
+// and then fails when sentry.properties or sentry-cli is missing.
 //
-// Usage:
+// The mapping is registered under the release name the app reports
+// (bisq-connect@<versionName> / bisq-easy-node@<versionName>), taken from the
+// identity of the saved mapping.
+//
+// Usage (from a checkout of the release tag):
 //   ./gradlew :apps:nodeApp:saveMappingFiles  # produces mapping.txt.tar.gz
-//   ./gradlew :apps:nodeApp:uploadMappingsToGlitchTip -PreleaseTag=anode_0.5.0
+//   ./gradlew :apps:nodeApp:uploadMappingsToGlitchTip
 //   A module with flavors needs the flavor of the released build:
-//   ./gradlew :apps:clientApp:uploadMappingsToGlitchTip -PreleaseTag=connect_0.4.1 -PmappingFlavor=google
+//   ./gradlew :apps:clientApp:uploadMappingsToGlitchTip -PmappingFlavor=google
 //
 // Prerequisites:
 //   - sentry-cli installed:   brew install getsentry/tools/sentry-cli
@@ -354,35 +431,26 @@ tasks.register("uploadMappingsToGlitchTip") {
     val sentryPropertiesPath = "${project.projectDir}/sentry.properties"
     val moduleNameForLogging = legacyModuleDirName
     val identities = releaseIdentities
-    val releaseTagProperty = providers.gradleProperty("releaseTag")
+    val releasePrefix = glitchTipReleasePrefix
     val mappingFlavorProperty = providers.gradleProperty("mappingFlavor")
     val uploadDirProvider = layout.buildDirectory.dir("glitchtip-upload")
 
     doLast {
         val sentryProperties = File(sentryPropertiesPath)
         if (!sentryProperties.exists()) {
-            println(
-                "[$moduleNameForLogging] Skipping GlitchTip upload — $sentryPropertiesPath not " +
-                    "present. Copy sentry.properties.template, fill in auth.token, then re-run.",
+            throw GradleException(
+                "[$moduleNameForLogging] $sentryPropertiesPath not present. " +
+                    "Copy sentry.properties.template, fill in auth.token, then re-run.",
             )
-            return@doLast
         }
-        val releaseTag =
-            releaseTagProperty.orNull
-                ?: throw GradleException(
-                    "Required property 'releaseTag' not set. " +
-                        "Usage: -PreleaseTag=connect_0.4.1",
-                )
 
-        // Check sentry-cli on PATH — soft fail with a helpful message rather
-        // than a stack trace from ProcessBuilder.
+        // Check sentry-cli on PATH, for a helpful message rather than a stack trace from ProcessBuilder.
         val (whichExit, _) = MappingFiles.runCommand(listOf("sh", "-c", "command -v sentry-cli"))
         if (whichExit != 0) {
-            println(
-                "[$moduleNameForLogging] Skipping GlitchTip upload — sentry-cli not on PATH. " +
+            throw GradleException(
+                "[$moduleNameForLogging] sentry-cli not on PATH. " +
                     "Install with: brew install getsentry/tools/sentry-cli",
             )
-            return@doLast
         }
 
         // Select the mapping. A module with flavors has one per flavor, so the flavor must be
@@ -432,29 +500,26 @@ tasks.register("uploadMappingsToGlitchTip") {
             throw GradleException("[$moduleNameForLogging] mapping.txt missing in extracted archive")
         }
 
-        // Invoke sentry-cli through Tor. The HTTPS_PROXY env var works for
-        // sentry-cli's reqwest HTTP client; socks5h:// makes DNS happen via
-        // Tor too, which is required for .onion resolution.
+        // Invoke sentry-cli through Tor; socks5h:// makes DNS happen via Tor too, which is
+        // required for .onion resolution. sentry-cli 3 uses curl, which reads only the
+        // lowercase http_proxy for http:// URLs (the GlitchTip onion URL is http://).
+        // The uppercase names are kept for older sentry-cli versions.
         val env =
             mapOf(
+                "http_proxy" to "socks5h://127.0.0.1:9050",
+                "https_proxy" to "socks5h://127.0.0.1:9050",
                 "HTTPS_PROXY" to "socks5h://127.0.0.1:9050",
                 "HTTP_PROXY" to "socks5h://127.0.0.1:9050",
                 "SENTRY_PROPERTIES" to sentryProperties.absolutePath,
-            )
+            ) + MappingFiles.NO_PROXY_BYPASS_CLEARED
 
-        // Create release (idempotent), upload proguard mapping, finalize.
         // The mapping is registered under the UUID which the app of this release carries in its
-        // manifest. Without --uuid, sentry-cli derives one from the content of the file, which
-        // no app knows.
+        // manifest.
         val proguardUuid = identity.getValue(MappingFiles.UUID_KEY)
-        val steps =
-            listOf(
-                listOf("sentry-cli", "releases", "new", releaseTag),
-                listOf("sentry-cli", "upload-proguard", "--uuid", proguardUuid, mappingTxt.absolutePath),
-                listOf("sentry-cli", "releases", "finalize", releaseTag),
-            )
+        val releaseName = "$releasePrefix@${identity.getValue("versionName")}"
 
-        for (cmd in steps) {
+        fun sentryCli(vararg args: String) {
+            val cmd = listOf("sentry-cli", *args)
             val (exit, output) = MappingFiles.runCommand(cmd, environment = env)
             if (exit != 0) {
                 throw GradleException(
@@ -465,6 +530,11 @@ tasks.register("uploadMappingsToGlitchTip") {
                 println("[$moduleNameForLogging] $it")
             }
         }
-        println("[$moduleNameForLogging] Uploaded mapping $proguardUuid for release '$releaseTag' to GlitchTip")
+
+        // Create release (idempotent), upload proguard mapping, finalize.
+        sentryCli("releases", "new", releaseName)
+        MappingFiles.uploadProguardMapping(sentryProperties, mappingTxt, proguardUuid, tmpDir, moduleNameForLogging)
+        sentryCli("releases", "finalize", releaseName)
+        println("[$moduleNameForLogging] Uploaded mapping $proguardUuid for release '$releaseName' to GlitchTip")
     }
 }
