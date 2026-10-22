@@ -71,6 +71,9 @@ The node reaches Bisq's P2P network over its own bundled Tor; pair the mobile ap
      - [Code Style & Linting](#code-style--linting)
    - [Getting started](#getting-started)
      - [Getting started for Android Node](#getting-started-for-android-node)
+       - [Moving to another bisq2 commit](#moving-to-another-bisq2-commit)
+       - [Building against a local bisq2 checkout](#building-against-a-local-bisq2-checkout)
+     - [Dependency verification](#dependency-verification)
    - [Local Env Setup](#local-env-setup)
    - [UI](#ui)
      - [Designs](#designs)
@@ -197,26 +200,61 @@ Alternatively, you could run `./gradlew clean build` first from terminal and the
 
 ### `Getting started for Android Node`
 
-For the `androidNode` module to build, you need the Bisq2 dependencies. There are two ways to get them:
+The Android Node embeds Bisq2's core code by design. That dependency always tracks a bisq2 branch OFF A STABLE RELEASE plus the commits of current bisq-mobile development: `for-mobile-based-on-[VERSION]`, where VERSION is `bisq-core` at the top of the [toml file](gradle/libs.versions.toml) (e.g. if `bisq-core = "2.1.14"` the branch is [for-mobile-based-on-2.1.14](https://github.com/bisq-network/bisq2/tree/for-mobile-based-on-2.1.14)).
 
-#### Option 1: For developers (using local Maven repository)
+No setup is needed: the build downloads the bisq2 jars from [JitPack](https://jitpack.io/#bisq-network/bisq2), which builds them from the commit pinned as `bisq-core-commit` in the same file, and checks them against their recorded checksums (see [Dependency verification](#dependency-verification)). Bisq Connect (`clientApp`) does not need them, so it still builds when JitPack is down.
 
-1. Download [Bisq2](https://github.com/bisq-network/bisq2) if you don't have it already
-2. Bisq Android Node uses Bisq2 core code by design, this dependency will always be against a bisq2 branch OFF A STABLE RELEASE + commits of current bisq-mobile development.
-Check the current codebase bisq-core dependency version in the [toml file](https://github.com/bisq-network/bisq-mobile/blob/main/gradle/libs.versions.toml), at the top of the file `bisq-core` property will have the version (e.g. "2.1.7"). Now go ahead and checkout the bisq2 dev branch for bisq-mobile which follows the pattern `for-mobile-based-on-[VERSION]`(E.g. if the bisq-core-version="2.1.7" then checkout [for-mobile-based-on-2.1.7](https://github.com/bisq-network/bisq2/tree/for-mobile-based-on-2.1.7) - `git checkout for-mobile-based-on-2.1.7`). You can double check if that branch is from the right release line comparing the initial commit of the branch with the tomml `bisq-core-commit` value :)
-4. Follow Bisq2 root `README.md` steps to build the project.
-5. Run `./gradlew publishAll` // this will install all the jars you need in your local m2 repo
+#### Moving to another bisq2 commit
 
+1. The commit must be on `for-mobile-based-on-[VERSION]` of [bisq-network/bisq2](https://github.com/bisq-network/bisq2), where VERSION is `bisq-core`; the script refuses any other. For a release it must be the exact commit the apps were designed to work with.
+2. Set `bisq-core-commit` to its first 10 characters (`git rev-parse --short=10 <commit>`), the way JitPack names the version, and write the full hash in the comment above it. If the commit belongs to another bisq2 release, set `bisq-core` to that release too.
+3. Run `scripts/update-dependency-verification.sh --bisq2-repo <path of your local bisq2 clone>`. It waits for JitPack to build the commit, which takes a while the first time anyone asks for it, records the checksums, then builds the commit from source and compares the jars (see [Dependency verification](#dependency-verification)). Without `--bisq2-repo` it skips the build from source.
+4. Build the node app. If `:apps:nodeApp:verifyBisqCoreDependencyVersions` names a library, set the version it names under "Bisq Core Transitive Dependencies" in the toml file.
 
-**NOTE #1** For bisq-mobile release the `bisq-core-commit` should point to the exact commit the apps were design to work with
+#### Building against a local bisq2 checkout
 
-**NOTE #2** if you have troubles publishing the jars try `./gradlew cleanAll buildAll publishAll publishAll -- info` it's known to always update properly
+To try bisq2 changes in the node app before they are on JitPack:
 
-#### Option 2: For CI (using remote Maven repository)
+1. Clone [Bisq2](https://github.com/bisq-network/bisq2) and check out `bisq-core-commit`, or your branch off it.
+2. Follow the Bisq2 root `README.md` to build it, then run `./gradlew publishAll`. It installs the jars into your local Maven repository (`~/.m2`) under the version set as `bisq-core` (e.g. 2.1.14).
+3. Add `BISQ2_FROM_MAVEN_LOCAL=true` to `local.properties` in bisq-mobile, then sync or build. The node app now resolves bisq2 from `~/.m2` only, and every other dependency as before. The build prints where bisq2 comes from: `bisq2: ~/.m2 2.1.14` or `bisq2: JitPack <commit>`.
+4. Run `publishAll` again after every bisq2 change: the node app uses whatever was last installed into `~/.m2`, however old.
+5. Remove the line when you are done. Without it the node app builds against the pinned, checksum-verified jars that releases ship, so keep it only while you work on bisq2.
 
-The CI environment automatically uses our remote Maven repository to get the Bisq2 dependencies. No additional setup is required.
+To share a bisq2 change, open a pull request to `for-mobile-based-on-[VERSION]` on bisq-network/bisq2. Once it is merged, move to that commit as described above. JitPack builds of forks or of commits off that branch do not work here: only `com.github.bisq-network.bisq2` is resolved, and the script refuses commits that are not on the branch.
 
-Done! Alternatively if you are interested only in contributing for the `xClients` you can just build them individually instead of building the whole project.
+`Could not find bisq:common:2.1.14` means `~/.m2` has no jars of that version: run `publishAll` again, from a checkout of that release line.
+
+Your own jars are not checksum verified. If your bisq2 checkout bumps a library, `:apps:nodeApp:verifyBisqCoreDependencyVersions` names the version to set in the toml file. Once the change is on bisq-network/bisq2, move to that commit as described above.
+
+If publishing misbehaves, `./gradlew cleanAll buildAll publishAll --info` is known to always update properly.
+
+Alternatively if you are interested only in contributing for the `xClients` you can just build them individually instead of building the whole project.
+
+### Dependency verification
+
+Gradle checks the bisq2 jars against the SHA-256 checksums recorded in [gradle/verification-metadata.xml](gradle/verification-metadata.xml), and fails the build when one differs or is missing. JitPack builds those jars on request, can rebuild them, and nobody signs them, so this is the only check on them: every build, F-Droid's included, gets the bytes recorded when the commit was pinned, which reproducible builds depend on. On their own the checksums do not prove that JitPack built the jars from the source; the script's `--bisq2-repo` option below checks that. Every other dependency is trusted by the file for now, as it was before the file existed.
+
+After changing `bisq-core-commit`, or the bisq2 modules the node app uses, run:
+
+```bash
+scripts/update-dependency-verification.sh
+```
+
+It waits for JitPack to build the commit, checks with GitHub that the commit JitPack built (its full hash) is on `for-mobile-based-on-<bisq-core>` and is the one written next to `bisq-core-commit`, records the checksums, and fails when a file it had recorded now has other bytes although its version did not change. That means JitPack serves different content. Find out why before committing the file. Other dependency changes do not need the script.
+
+With `--bisq2-repo <path of your local bisq2 clone>`, the script also builds the pinned commit from source and compares each jar with JitPack's. It does not clone anything: it checks the commit out into a temporary `git worktree` of your clone, which shares the clone's objects and leaves its branch, working tree and `~/.m2` as they are. It fetches from GitHub only when your clone lacks the commit, and then only the objects it is missing. It fails when one differs. Run it on Temurin 21: Gradle compresses the jars with the zlib of the JDK it runs on, so with another JDK, such as Zulu, the bytes can differ although the content is the same. The script then compares the entries of the jars instead and says so. On macOS and Windows, bisq2's build also packs a Tor binary into the `tor` jar as `tor.zip`, which the Linux build on JitPack does not. Off Linux, the script leaves that one entry out of the comparison and reports the jar as `PLATFORM`.
+
+CI runs the same script, with `--bisq2-repo` on Temurin 21, on every pull request that changes `bisq-core-commit`, `bisq-core` or the checksums (the `bisq2 pin` workflow). It does not write the file: it checks the one committed, and fails when that file lacks a checksum or records other bytes than JitPack serves.
+
+JitPack builds a commit the first time anyone requests it. The script starts that build and waits for it. To start one yourself, request any of its files, e.g. `curl https://jitpack.io/com/github/bisq-network/bisq2/<commit>/bisq2-<commit>.pom`, or press "Get it" next to the commit on https://jitpack.io/#bisq-network/bisq2. Its status is at `https://jitpack.io/api/builds/com.github.bisq-network/bisq2/<commit>` and its log at `https://jitpack.io/com/github/bisq-network/bisq2/<commit>/build.log`, where `<commit>` is the 10-character `bisq-core-commit`.
+
+When a build fails verification, the report it links says what happened:
+
+- **Missing** checksums after a change of `bisq-core-commit`: run the script.
+- A checksum **mismatch** on a checkout you did not change: JitPack serves other bytes than were recorded, for example because it rebuilt the commit. Do not regenerate the file to make the build pass; report it.
+
+A `Read timed out` from jitpack.io during a sync usually means JitPack is still building the commit. Check https://jitpack.io/#bisq-network/bisq2 and retry later, or run the script, which waits for the build.
 
 ### Local Env Setup
 
