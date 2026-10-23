@@ -20,6 +20,8 @@ data class TrustedNodeSetupUiState(
     val showChangeNodeWarning: Boolean = false,
     val showConnectionFailedWarning: Boolean = false,
     val showSubscriptionsFailedWarning: Boolean = false,
+    // Non-null shows the incompatible node API version dialog
+    val incompatibleNodeApiVersion: String? = null,
     val failedTopics: List<Topic> = emptyList(),
     val showKeystoreError: Boolean = false,
     val serverVersion: String = EMPTY_STRING,

@@ -54,6 +54,7 @@ class ClientSplashPresenterNavigationTest : ClientKoinIntegrationTestBase() {
     private val torBootstrapFailedFlow = MutableStateFlow(false)
     private val bootstrapFailedFlow = MutableStateFlow(false)
     private val bootstrapPhaseFlow = MutableStateFlow(ConnectBootstrapPhase.CONNECTING)
+    private val incompatibleNodeApiVersionFlow = MutableStateFlow<String?>(null)
 
     override fun additionalModules(): List<Module> = listOf(module { single<NavigationManager> { navigationManager } })
 
@@ -63,6 +64,7 @@ class ClientSplashPresenterNavigationTest : ClientKoinIntegrationTestBase() {
         torBootstrapFailedFlow.value = false
         bootstrapFailedFlow.value = false
         bootstrapPhaseFlow.value = ConnectBootstrapPhase.CONNECTING
+        incompatibleNodeApiVersionFlow.value = null
 
         // Default: have valid sensitive settings so tests don't auto-redirect to pairing
         coEvery { sensitiveSettingsRepository.fetch() } returns
@@ -80,6 +82,7 @@ class ClientSplashPresenterNavigationTest : ClientKoinIntegrationTestBase() {
         every { applicationBootstrapFacade.currentBootstrapStage } returns MutableStateFlow("")
         every { applicationBootstrapFacade.shouldShowProgressToast } returns MutableStateFlow(false)
         every { applicationBootstrapFacade.bootstrapPhase } returns bootstrapPhaseFlow
+        every { applicationBootstrapFacade.incompatibleNodeApiVersion } returns incompatibleNodeApiVersionFlow
         every { applicationBootstrapFacade.torBootstrapProgress } returns MutableStateFlow(0)
         every { applicationBootstrapFacade.usesInternalTor } returns MutableStateFlow(false)
         every { versionProvider.getAppNameAndVersion(any(), any()) } returns "Test 1.0"
@@ -184,6 +187,25 @@ class ClientSplashPresenterNavigationTest : ClientKoinIntegrationTestBase() {
                     match { navRoute ->
                         navRoute is ClientNavRoute.TrustedNodeSetup && navRoute.showConnectionFailed
                     },
+                    any(),
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun `navigates to trusted node setup immediately when the node API version is incompatible`() =
+        runTest {
+            val presenter = createPresenter()
+            presenter.onViewAttached()
+            testScheduler.runCurrent()
+
+            incompatibleNodeApiVersionFlow.value = "2.1.12"
+            testScheduler.runCurrent()
+
+            verify {
+                navigationManager.navigate(
+                    ClientNavRoute.TrustedNodeSetup(incompatibleNodeApiVersion = "2.1.12"),
                     any(),
                     any(),
                 )

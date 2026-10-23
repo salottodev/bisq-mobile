@@ -76,6 +76,7 @@ fun NavGraphBuilder.addClientAppRoutes(animationsEnabled: () -> Boolean) {
             showConnectionFailed = route.showConnectionFailed,
             showKeystoreError = route.showKeystoreError,
             showSubscriptionsFailed = route.showSubscriptionsFailed,
+            incompatibleNodeApiVersion = route.incompatibleNodeApiVersion,
         )
     }
 

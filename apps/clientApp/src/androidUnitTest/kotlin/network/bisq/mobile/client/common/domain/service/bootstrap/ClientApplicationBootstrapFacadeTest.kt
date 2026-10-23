@@ -1,9 +1,12 @@
 package network.bisq.mobile.client.common.domain.service.bootstrap
 
 import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import network.bisq.mobile.client.common.domain.access.DEMO_API_URL
 import network.bisq.mobile.client.common.domain.access.session.SessionResponse
@@ -12,7 +15,9 @@ import network.bisq.mobile.client.common.domain.httpclient.BisqProxyOption
 import network.bisq.mobile.client.common.domain.httpclient.HttpClientService
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettings
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepositoryMock
+import network.bisq.mobile.client.common.domain.websocket.ConnectionState
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
+import network.bisq.mobile.client.common.domain.websocket.exception.IncompatibleHttpApiVersionException
 import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.data.service.network.ConnectivityService
@@ -21,6 +26,7 @@ import network.bisq.mobile.data.service.network.KmpTorService
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -35,6 +41,7 @@ class ClientApplicationBootstrapFacadeTest : ClientKoinIntegrationTestBase() {
     private lateinit var facade: ClientApplicationBootstrapFacade
 
     private val connectivityStatusFlow = MutableStateFlow(ConnectivityStatus.BOOTSTRAPPING)
+    private val connectionStateFlow = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected())
 
     override fun onSetup() {
         ApplicationBootstrapFacade.isDemo = false
@@ -45,6 +52,7 @@ class ClientApplicationBootstrapFacadeTest : ClientKoinIntegrationTestBase() {
         coEvery { webSocketClientService.connect() } returns null
         coEvery { httpClientService.awaitClientReady(any()) } returns true
         coEvery { connectivityService.status } returns connectivityStatusFlow
+        every { webSocketClientService.connectionState } returns connectionStateFlow
 
         facade =
             ClientApplicationBootstrapFacade(
@@ -151,17 +159,7 @@ class ClientApplicationBootstrapFacadeTest : ClientKoinIntegrationTestBase() {
     @Test
     fun `a failed websocket connect ends bootstrap in the no-connectivity state`() =
         runTest {
-            sensitiveSettingsRepository.update {
-                SensitiveSettings(
-                    bisqApiUrl = "http://localhost:8080",
-                    clientName = "test-client",
-                    clientId = "client-id",
-                    clientSecret = "client-secret",
-                    sessionId = "old-session-id",
-                )
-            }
-            coEvery { sessionService.requestSession("client-id", "client-secret") } returns
-                Result.success(SessionResponse(sessionId = "new-session-id", expiresAt = 1_700_000_000_000L))
+            givenSessionRenewalSucceeds()
             coEvery { webSocketClientService.connect() } returns IllegalStateException("connect to abc.onion refused")
 
             facade.onTorStartedOrSkipped()
@@ -170,6 +168,43 @@ class ClientApplicationBootstrapFacadeTest : ClientKoinIntegrationTestBase() {
             assertEquals(1.0f, facade.progress.value)
             assertNotEquals(ClientApplicationBootstrapFacade.ConnectBootstrapPhase.CONNECTED, facade.bootstrapPhase.value)
         }
+
+    @Test
+    fun `an incompatible node API version does not complete bootstrap`() =
+        runTest {
+            givenSessionRenewalSucceeds()
+            coEvery { webSocketClientService.connect() } returns IncompatibleHttpApiVersionException("2.1.12")
+
+            facade.onTorStartedOrSkipped()
+            advanceUntilIdle()
+
+            coVerify { webSocketClientService.connect() }
+            assertNotEquals(1.0f, facade.progress.value)
+        }
+
+    @Test
+    fun `incompatibleNodeApiVersion follows the websocket connection state`() =
+        runTest {
+            connectionStateFlow.value = ConnectionState.Disconnected(IncompatibleHttpApiVersionException("2.1.12"))
+            assertEquals("2.1.12", facade.incompatibleNodeApiVersion.first())
+
+            connectionStateFlow.value = ConnectionState.Connected
+            assertNull(facade.incompatibleNodeApiVersion.first())
+        }
+
+    private suspend fun givenSessionRenewalSucceeds() {
+        sensitiveSettingsRepository.update {
+            SensitiveSettings(
+                bisqApiUrl = "http://localhost:8080",
+                clientName = "test-client",
+                clientId = "client-id",
+                clientSecret = "client-secret",
+                sessionId = "old-session-id",
+            )
+        }
+        coEvery { sessionService.requestSession("client-id", "client-secret") } returns
+            Result.success(SessionResponse(sessionId = "new-session-id", expiresAt = 1_700_000_000_000L))
+    }
 
     @Test
     fun `data received during loading completes bootstrap as CONNECTED`() =

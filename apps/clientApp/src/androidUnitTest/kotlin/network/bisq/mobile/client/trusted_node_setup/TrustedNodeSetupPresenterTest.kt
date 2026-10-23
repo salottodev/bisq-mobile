@@ -39,6 +39,7 @@ import org.koin.dsl.module
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 
@@ -1062,6 +1063,64 @@ class TrustedNodeSetupPresenterTest : ClientKoinIntegrationTestBase() {
 
             // Then
             assertFalse(presenter.uiState.value.showConnectionFailedWarning)
+        }
+
+    @Test
+    fun `shows incompatible version warning when initialized with an incompatible node API version`() =
+        runTest {
+            setupPresenter()
+
+            presenter.initialize(isWorkflow = true, incompatibleNodeApiVersion = "2.1.12")
+            advanceUntilIdle()
+
+            assertEquals("2.1.12", presenter.uiState.value.incompatibleNodeApiVersion)
+            assertFalse(presenter.uiState.value.showConnectionFailedWarning)
+        }
+
+    @Test
+    fun `hides incompatible version warning and restarts services on retry press`() =
+        runTest {
+            coEvery { applicationLifecycleService.restartAllServices() } returns true
+            setupPresenter()
+            presenter.initialize(isWorkflow = true, incompatibleNodeApiVersion = "2.1.12")
+            advanceUntilIdle()
+
+            presenter.onAction(TrustedNodeSetupUiAction.OnConnectionFailedRetryPress)
+            advanceUntilIdle()
+
+            assertNull(presenter.uiState.value.incompatibleNodeApiVersion)
+            coVerify { applicationLifecycleService.restartAllServices() }
+            verify { navigationManager.navigate(NavRoute.Splash(), any(), any()) }
+        }
+
+    @Test
+    fun `shows the incompatible version again when restart fails after retry`() =
+        runTest {
+            coEvery { applicationLifecycleService.restartAllServices() } returns false
+            setupPresenter()
+            presenter.initialize(isWorkflow = true, incompatibleNodeApiVersion = "2.1.12")
+            advanceUntilIdle()
+
+            presenter.onAction(TrustedNodeSetupUiAction.OnConnectionFailedRetryPress)
+            advanceUntilIdle()
+
+            assertEquals("2.1.12", presenter.uiState.value.incompatibleNodeApiVersion)
+            assertFalse(presenter.uiState.value.showConnectionFailedWarning)
+            assertTrue(presenter.isConnectionFailedRetryEnabled.value)
+            verify(exactly = 0) { navigationManager.navigate(any(), any(), any()) }
+        }
+
+    @Test
+    fun `hides incompatible version warning on pair with new node press`() =
+        runTest {
+            setupPresenter()
+            presenter.initialize(isWorkflow = true, incompatibleNodeApiVersion = "2.1.12")
+            advanceUntilIdle()
+
+            presenter.onAction(TrustedNodeSetupUiAction.OnConnectionFailedPairWithNewNodePress)
+            advanceUntilIdle()
+
+            assertNull(presenter.uiState.value.incompatibleNodeApiVersion)
         }
 
     // ========== Keystore Error Tests ==========
