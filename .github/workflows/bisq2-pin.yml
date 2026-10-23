@@ -1,0 +1,110 @@
+# Verifies a change of the bisq2 commit the node app embeds, or of its checksums: the commit is on
+# for-mobile-based-on-<bisq-core>, the recorded checksums are the bytes JitPack serves, and JitPack's
+# jars match a build of the commit from source. It does not write the checksums: whoever bumps the
+# pin runs scripts/update-dependency-verification.sh and commits the result, and this checks it.
+name: bisq2 pin
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/bisq2-pin.yml
+      - gradle/libs.versions.toml
+      - gradle/verification-metadata.xml
+      - scripts/update-dependency-verification.sh
+  # A pull request runs its own copy of this workflow and script and could weaken them, so run the
+  # reviewed versions again once the change is on main
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/bisq2-pin.yml
+      - gradle/libs.versions.toml
+      - gradle/verification-metadata.xml
+      - scripts/update-dependency-verification.sh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a pull request cancels its older runs. Every commit on main is checked.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: Verify bisq2 pin
+    runs-on: ubuntu-latest
+    # JitPack may still be building a new commit; the script waits up to an hour for it
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # The commit compared against can be several commits back
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check whether the pin, its checksums or their checks changed
+        id: gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          # Nothing to compare against, as on a manual run: check
+          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2> /dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The two pin lines and the full hash of the commit, which the script also checks
+          pin() { git show "$1:gradle/libs.versions.toml" | grep -E '^(bisq-core|bisq-core-commit) = |^# [0-9a-f]{40}' || true; }
+          if [ "$(pin "$BASE_SHA")" != "$(pin HEAD)" ] ||
+            ! git diff --quiet "$BASE_SHA" HEAD -- .github/workflows/bisq2-pin.yml gradle/verification-metadata.xml scripts/update-dependency-verification.sh; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "The bisq2 pin, its checksums and their checks are unchanged; nothing to verify."
+          fi
+
+      # The JDK running Gradle compresses the jars. bisq2's jitpack.yml builds on JitPack's
+      # openjdk21, whose jars were byte-identical with a build on this Temurin. Another patch may
+      # compress differently, and the script then compares the files inside the jars instead.
+      - name: Set up JDK 21
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21.0.12'
+          distribution: 'temurin'
+
+      # Same CI-only memory budget as ci.yml. bisq2's build runs while this build's daemon is alive.
+      - name: Cap Gradle memory for the hosted runner
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          mkdir -p ~/.gradle
+          cat >> ~/.gradle/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx5g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx5g
+          kotlin.daemon.jvmargs=-Xmx5g
+          org.gradle.workers.max=3
+          EOF
+
+      - name: Checkout bisq2
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: bisq-network/bisq2
+          path: bisq2-src
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify the pin, the checksums and the build from source
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          chmod +x gradlew scripts/update-dependency-verification.sh
+          scripts/update-dependency-verification.sh --bisq2-repo "$GITHUB_WORKSPACE/bisq2-src"
+
+      # The script records exactly what the build resolves, so any difference means the committed
+      # file lacks a checksum or has one the build no longer uses
+      - name: Check that the committed checksums are complete
+        if: steps.gate.outputs.run == 'true'
+        run: git diff --exit-code -- gradle/verification-metadata.xml
