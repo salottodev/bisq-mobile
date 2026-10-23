@@ -1059,10 +1059,7 @@ class ClientPublicChatServiceFacadeTest : ClientKoinIntegrationTestBase() {
             assertTrue(channel.chatMessages.value.isEmpty(), "a message from the previous activation must not resurface")
         }
 
-    // Helpers. Settle (`advanceUntilIdle`) between two emissions on the SAME observer:
-    // `WebSocketEventObserver` publishes into a `MutableStateFlow`, which conflates, so a second
-    // event set before the collector runs replaces the first — and the sequence gate has already
-    // moved past it, so it is gone for good. Emissions on different observers can be batched.
+    // Helpers
 
     private fun singleMessage(): CommonPublicChatMessage =
         facade.channels.value

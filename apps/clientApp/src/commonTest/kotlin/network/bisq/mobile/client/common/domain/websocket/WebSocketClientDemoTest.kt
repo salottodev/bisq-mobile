@@ -260,7 +260,7 @@ class WebSocketClientDemoTest {
             val observer = WebSocketEventObserver()
             val result = demoClient.subscribe(Topic.MARKET_PRICE, null, observer)
             assertNotNull(result)
-            val event = result.webSocketEvent.value
+            val event = result.webSocketEvent.replayCache.singleOrNull()
             assertNotNull(event)
             assertEquals(Topic.MARKET_PRICE, event.topic)
             assertNotNull(event.deferredPayload)
@@ -272,7 +272,7 @@ class WebSocketClientDemoTest {
             val observer = WebSocketEventObserver()
             val result = demoClient.subscribe(Topic.OFFERS, null, observer)
             assertNotNull(result)
-            val event = result.webSocketEvent.value
+            val event = result.webSocketEvent.replayCache.singleOrNull()
             assertNotNull(event)
             assertEquals(Topic.OFFERS, event.topic)
         }
@@ -283,7 +283,7 @@ class WebSocketClientDemoTest {
             val observer = WebSocketEventObserver()
             val result = demoClient.subscribe(Topic.NUM_OFFERS, null, observer)
             assertNotNull(result)
-            val event = result.webSocketEvent.value
+            val event = result.webSocketEvent.replayCache.singleOrNull()
             assertNotNull(event)
             assertEquals(Topic.NUM_OFFERS, event.topic)
         }
@@ -296,7 +296,7 @@ class WebSocketClientDemoTest {
             val observer = WebSocketEventObserver()
             val result = demoClient.subscribe(Topic.NUM_USER_PROFILES, null, observer)
             assertNotNull(result)
-            val event = result.webSocketEvent.value
+            val event = result.webSocketEvent.replayCache.singleOrNull()
             assertNotNull(event, "NUM_USER_PROFILES must emit a payload — bootstrap depends on it")
             assertEquals(Topic.NUM_USER_PROFILES, event.topic)
             // Payload must deserialize to Int — the consumer in ClientUserProfileServiceFacade
@@ -343,7 +343,7 @@ class WebSocketClientDemoTest {
             val observer = WebSocketEventObserver()
             val result = demoClient.subscribe(Topic.TRADES, null, observer)
             assertNotNull(result)
-            val event = result.webSocketEvent.value
+            val event = result.webSocketEvent.replayCache.singleOrNull()
             assertNotNull(event, "TRADES must emit a payload — My Trades screen depends on it")
             assertEquals(Topic.TRADES, event.topic)
             val payload = event.deferredPayload
@@ -358,7 +358,7 @@ class WebSocketClientDemoTest {
             val observer = WebSocketEventObserver()
             val result = demoClient.subscribe(Topic.TRADE_CHAT_MESSAGES, null, observer)
             assertNotNull(result)
-            val event = result.webSocketEvent.value
+            val event = result.webSocketEvent.replayCache.singleOrNull()
             assertNotNull(event, "TRADE_CHAT_MESSAGES must emit a payload for the trade-chat surface")
             assertEquals(Topic.TRADE_CHAT_MESSAGES, event.topic)
             val payload = event.deferredPayload
@@ -374,7 +374,7 @@ class WebSocketClientDemoTest {
             val observer = WebSocketEventObserver()
             val result = demoClient.subscribe(Topic.TRADE_PROPERTIES, null, observer)
             assertNotNull(result)
-            val event = result.webSocketEvent.value
+            val event = result.webSocketEvent.replayCache.singleOrNull()
             assertNotNull(event)
             assertEquals(Topic.TRADE_PROPERTIES, event.topic)
             assertEquals("[]", event.deferredPayload)
@@ -389,7 +389,7 @@ class WebSocketClientDemoTest {
             assertNotNull(result)
             // Covers the early-return branch in WebSocketClientDemo.getFakeSubscription:
             // when there is no fake payload for the topic, no event must be set on the observer.
-            assertNull(result.webSocketEvent.value)
+            assertTrue(result.webSocketEvent.replayCache.isEmpty())
         }
 
     // ========== WebSocketClientDemo basic tests ==========

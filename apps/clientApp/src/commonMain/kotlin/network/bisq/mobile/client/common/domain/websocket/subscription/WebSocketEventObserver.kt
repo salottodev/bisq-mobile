@@ -1,9 +1,11 @@
 package network.bisq.mobile.client.common.domain.websocket.subscription
 
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -11,8 +13,10 @@ import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEven
 import network.bisq.mobile.domain.utils.Logging
 
 class WebSocketEventObserver : Logging {
-    private val _webSocketEvent = MutableStateFlow<WebSocketEvent?>(null)
-    val webSocketEvent: StateFlow<WebSocketEvent?> = _webSocketEvent.asStateFlow()
+    // Not a StateFlow: back-to-back events must not conflate. Replay gives a late collector only the latest event,
+    // a delta if one followed the snapshot. The unlimited buffer keeps setEvent from suspending the reader.
+    private val _webSocketEvent = MutableSharedFlow<WebSocketEvent>(replay = 1, extraBufferCapacity = Channel.UNLIMITED)
+    val webSocketEvent: SharedFlow<WebSocketEvent> = _webSocketEvent.asSharedFlow()
     private val sequenceNumber = MutableStateFlow(-1)
     private val sequenceMutex = Mutex()
 
@@ -34,8 +38,8 @@ class WebSocketEventObserver : Logging {
                 return
             }
             sequenceNumber.value = value.sequenceNumber
+            // Under the lock so events reach collectors in sequence order.
+            _webSocketEvent.emit(value)
         }
-
-        _webSocketEvent.value = value
     }
 }

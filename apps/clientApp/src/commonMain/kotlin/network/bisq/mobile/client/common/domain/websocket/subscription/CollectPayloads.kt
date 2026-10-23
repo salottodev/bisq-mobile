@@ -1,5 +1,6 @@
 package network.bisq.mobile.client.common.domain.websocket.subscription
 
+import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEvent
 
@@ -15,14 +16,20 @@ import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEven
  * - whatever [handler] throws propagates unchanged, including cancellation. Recovery is scoped to
  *   deserialization on purpose: a bug in the handler should surface, not be filed as a bad event.
  *
- * Like [kotlinx.coroutines.flow.StateFlow.collect], this never returns normally.
+ * Like [kotlinx.coroutines.flow.SharedFlow.collect], this never returns normally.
  */
 suspend fun <T> WebSocketEventObserver.collectPayloads(
     json: Json,
     handler: suspend (payload: T, event: WebSocketEvent) -> Unit,
+) = webSocketEvent.collectPayloads(json, handler)
+
+/** Same as [WebSocketEventObserver.collectPayloads], for a flow derived from the observer's events. */
+suspend fun <T> Flow<WebSocketEvent>.collectPayloads(
+    json: Json,
+    handler: suspend (payload: T, event: WebSocketEvent) -> Unit,
 ) {
-    webSocketEvent.collect { event ->
-        if (event?.deferredPayload == null) {
+    collect { event ->
+        if (event.deferredPayload == null) {
             return@collect
         }
         val decoded = WebSocketEventPayload.from<T>(json, event) ?: return@collect

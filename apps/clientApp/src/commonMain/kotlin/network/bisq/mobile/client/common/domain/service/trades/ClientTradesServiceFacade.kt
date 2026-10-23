@@ -3,6 +3,7 @@ package network.bisq.mobile.client.common.domain.service.trades
 import androidx.annotation.VisibleForTesting
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -78,7 +79,8 @@ class ClientTradesServiceFacade(
     // captures nothing there (see Logging.kt).
     override var log: Logger = getLogger("ClientTradesServiceFacade")
 
-    // Cache for trade properties received before trades list is populated
+    // Cache for trade properties received before trades list is populated. The node pushes one property
+    // per event, so each event is merged into the trade's entry rather than replacing it.
     private val pendingTradeProperties = mutableMapOf<String, TradePropertiesDto>()
 
     // Properties
@@ -95,16 +97,27 @@ class ClientTradesServiceFacade(
 
     // Misc
     private val tradeId get() = selectedTrade.value?.tradeId
+
+    // One lane for both trade subscriptions: their handlers share pendingTradeProperties and must not interleave.
+    private val tradeUpdatesDispatcher = Dispatchers.Default.limitedParallelism(1)
+
     private val openTradesSubscription: Subscription<TradeItemPresentationDto> =
         Subscription(
             webSocketClientService,
             json,
             Topic.TRADES,
             this::handleTradeItemPresentationChange,
+            dispatcher = tradeUpdatesDispatcher,
         )
 
     private val tradePropertiesSubscription: Subscription<Map<String, TradePropertiesDto>> =
-        Subscription(webSocketClientService, json, Topic.TRADE_PROPERTIES, this::handleTradePropertiesChange)
+        Subscription(
+            webSocketClientService,
+            json,
+            Topic.TRADE_PROPERTIES,
+            this::handleTradePropertiesChange,
+            dispatcher = tradeUpdatesDispatcher,
+        )
 
     override suspend fun activate() {
         super.activate()
@@ -390,7 +403,8 @@ class ClientTradesServiceFacade(
         }
     }
 
-    private fun handleTradePropertiesChange(
+    @VisibleForTesting
+    internal fun handleTradePropertiesChange(
         payload: List<Map<String, TradePropertiesDto>>,
         modificationType: ModificationType,
     ) {
@@ -408,11 +422,12 @@ class ClientTradesServiceFacade(
                 } else {
                     // Trade not found - cache properties for later application
                     log.i { "Trade not found, caching properties for $tradeId" }
-                    if (pendingTradeProperties.size >= MAX_CACHED_TRADE_PROPERTIES) {
+                    val pending = pendingTradeProperties[tradeId]
+                    if (pending == null && pendingTradeProperties.size >= MAX_CACHED_TRADE_PROPERTIES) {
                         log.w { "Pending properties cache full, removing oldest entry" }
                         pendingTradeProperties.remove(pendingTradeProperties.keys.first())
                     }
-                    pendingTradeProperties[tradeId] = data
+                    pendingTradeProperties[tradeId] = pending?.mergedWith(data) ?: data
                 }
             }
     }
@@ -427,15 +442,16 @@ class ClientTradesServiceFacade(
     ) {
         log.i { "Apply mutable data to trade with ID $tradeId - new state: ${data.tradeState}" }
         val tradeModel = trade.bisqEasyTradeModel
-        data.tradeState?.let {
-            log.i { "Updating trade $tradeId state from ${tradeModel.tradeState.value} to $it" }
-            tradeModel.setTradeState(it)
-        }
         data.tradeCompletedDate?.let { tradeModel.setTradeCompletedDate(it) }
         data.paymentAccountData?.let { tradeModel.setPaymentAccountData(it) }
         data.bitcoinPaymentData?.let { tradeModel.setBitcoinPaymentData(it) }
         data.paymentProof?.let { tradeModel.setPaymentProof(it) }
         data.interruptTradeInitiator?.let { tradeModel.setInterruptTradeInitiator(it) }
+        // State last: a state can imply data above, so observers must not see it first.
+        data.tradeState?.let {
+            log.i { "Updating trade $tradeId state from ${tradeModel.tradeState.value} to $it" }
+            tradeModel.setTradeState(it)
+        }
     }
 
     private fun findOpenTradeItemModel(tradeId: String): TradeItemPresentationModel? {
@@ -488,3 +504,18 @@ class ClientTradesServiceFacade(
         }
     }
 }
+
+/** Newer non-null fields win, so the result ends in the same state as applying both DTOs in order. */
+private fun TradePropertiesDto.mergedWith(newer: TradePropertiesDto) =
+    newer.copy(
+        tradeState = newer.tradeState ?: tradeState,
+        interruptTradeInitiator = newer.interruptTradeInitiator ?: interruptTradeInitiator,
+        paymentAccountData = newer.paymentAccountData ?: paymentAccountData,
+        bitcoinPaymentData = newer.bitcoinPaymentData ?: bitcoinPaymentData,
+        paymentProof = newer.paymentProof ?: paymentProof,
+        errorMessage = newer.errorMessage ?: errorMessage,
+        errorStackTrace = newer.errorStackTrace ?: errorStackTrace,
+        peersErrorMessage = newer.peersErrorMessage ?: peersErrorMessage,
+        peersErrorStackTrace = newer.peersErrorStackTrace ?: peersErrorStackTrace,
+        tradeCompletedDate = newer.tradeCompletedDate ?: tradeCompletedDate,
+    )
