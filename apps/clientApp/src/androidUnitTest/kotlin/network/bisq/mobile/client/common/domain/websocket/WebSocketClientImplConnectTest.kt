@@ -35,6 +35,7 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -297,6 +298,70 @@ class WebSocketClientImplConnectTest : ClientKoinIntegrationTestBase() {
             assertEquals("0.0.1", error.serverVersion)
             assertNull(client.nodeInfo.value)
             assertTrue(client.webSocketClientStatus.value is ConnectionState.Disconnected)
+        }
+
+    @Test
+    fun `connect after an incompatible node version returns the same error without a new handshake`() =
+        runTest {
+            val node = FakeNode(mapOf(WebSocketClientImpl.INFO_PATH to (200 to """{"version":"0.0.1","features":[]}""")))
+            val client = createClient(node.httpClient)
+            val firstError = client.connect(timeout = 5_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val secondError = client.connect(timeout = 5_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertSame(firstError, secondError)
+            assertEquals(listOf(WebSocketClientImpl.INFO_PATH), node.requestedPaths)
+            assertEquals(ConnectionState.Disconnected(firstError), client.webSocketClientStatus.value)
+        }
+
+    @Test
+    fun `disconnect after an incompatible node version lets the next connect handshake again`() =
+        runTest {
+            val node = FakeNode(mapOf(WebSocketClientImpl.INFO_PATH to (200 to """{"version":"0.0.1","features":[]}""")))
+            val client = createClient(node.httpClient)
+            client.connect(timeout = 5_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            client.disconnect()
+            client.connect(timeout = 5_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(listOf(WebSocketClientImpl.INFO_PATH, WebSocketClientImpl.INFO_PATH), node.requestedPaths)
+        }
+
+    @Test
+    fun `reconnect after an incompatible node version neither handshakes nor replaces the error`() =
+        runTest {
+            val node = FakeNode(mapOf(WebSocketClientImpl.INFO_PATH to (200 to """{"version":"0.0.1","features":[]}""")))
+            val client = createClient(node.httpClient)
+            val firstError = client.connect(timeout = 5_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // Past MAX_RECONNECT_ATTEMPTS the counter would replace the marker and the next call would handshake
+            repeat(WebSocketClientImpl.MAX_RECONNECT_ATTEMPTS + 2) {
+                client.reconnect()
+                testDispatcher.scheduler.advanceUntilIdle()
+            }
+
+            assertEquals(listOf(WebSocketClientImpl.INFO_PATH), node.requestedPaths)
+            assertEquals(ConnectionState.Disconnected(firstError), client.webSocketClientStatus.value)
+        }
+
+    @Test
+    fun `reconnect after disconnect of an incompatible node handshakes again`() =
+        runTest {
+            val node = FakeNode(mapOf(WebSocketClientImpl.INFO_PATH to (200 to """{"version":"0.0.1","features":[]}""")))
+            val client = createClient(node.httpClient)
+            client.connect(timeout = 5_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            client.disconnect()
+            client.reconnect()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(listOf(WebSocketClientImpl.INFO_PATH, WebSocketClientImpl.INFO_PATH), node.requestedPaths)
         }
 
     @Test

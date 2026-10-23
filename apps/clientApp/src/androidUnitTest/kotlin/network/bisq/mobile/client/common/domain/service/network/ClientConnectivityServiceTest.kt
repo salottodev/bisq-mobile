@@ -15,6 +15,7 @@ import kotlinx.coroutines.runBlocking
 import network.bisq.mobile.client.common.domain.httpclient.exception.UnauthorizedApiAccessException
 import network.bisq.mobile.client.common.domain.websocket.ConnectionState
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
+import network.bisq.mobile.client.common.domain.websocket.exception.IncompatibleHttpApiVersionException
 import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
 import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
 import network.bisq.mobile.data.service.network.ConnectivityService
@@ -129,6 +130,24 @@ class ClientConnectivityServiceTest : ClientKoinIntegrationTestBase() {
 
             assertEquals(ConnectivityService.ConnectivityStatus.DISCONNECTED, clientConnectivityService.status.value)
             coVerify(exactly = 0) { webSocketClientService.triggerReconnect() }
+        }
+
+    @Test
+    fun `checkConnectivity returns DISCONNECTED and never reconnects after an incompatible node API version`() =
+        runBlocking {
+            every { webSocketClientService.isConnected() } returns false
+            connectionState.value = ConnectionState.Disconnected(IncompatibleHttpApiVersionException("1.0.0"))
+            coEvery { webSocketClientService.triggerReconnect() } just Runs
+            coEvery { webSocketClientService.forceClientRecreation() } just Runs
+
+            clientConnectivityService.activate()
+            // Past the forced recreation threshold (12 cycles)
+            clientConnectivityService.startMonitoring(period = 50, startDelay = 0)
+            delay(50 * 15)
+
+            assertEquals(ConnectivityService.ConnectivityStatus.DISCONNECTED, clientConnectivityService.status.value)
+            coVerify(exactly = 0) { webSocketClientService.triggerReconnect() }
+            coVerify(exactly = 0) { webSocketClientService.forceClientRecreation() }
         }
 
     @Test
@@ -618,6 +637,7 @@ class ClientConnectivityServiceTest : ClientKoinIntegrationTestBase() {
                 every { webSocketClientService.isConnected() } returns false
                 every { webSocketClientService.isAwaitingPairingCredentials } returns MutableStateFlow(false)
                 every { webSocketClientService.failedSubscriptionTopics } returns MutableStateFlow(emptySet())
+                every { webSocketClientService.connectionState } returns MutableStateFlow(ConnectionState.Disconnected())
                 coEvery { webSocketClientService.triggerReconnect() } just Runs
                 coEvery { webSocketClientService.forceClientRecreation() } just Runs
 

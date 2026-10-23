@@ -139,6 +139,8 @@ class WebSocketClientImpl(
                 if (isConnected()) {
                     return null
                 }
+                // A version mismatch won't fix itself; only an explicit disconnect() allows a new handshake
+                _webSocketClientStatus.value.incompatibleApiVersionError?.let { return it }
                 doDisconnect() // clean up state
                 log.d { "WS connecting to $apiUrl (timeout=${timeout}ms) ..." }
                 _webSocketClientStatus.value = ConnectionState.Connecting
@@ -213,6 +215,9 @@ class WebSocketClientImpl(
         connectionMutex.withLock {
             log.d { "WS disconnect called" }
             doDisconnect()
+            if (_webSocketClientStatus.value.incompatibleApiVersionError != null) {
+                _webSocketClientStatus.value = ConnectionState.Disconnected()
+            }
         }
     }
 
@@ -230,6 +235,11 @@ class WebSocketClientImpl(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun reconnect() {
+        // Same rule as connect(): only an explicit disconnect() allows a new handshake
+        if (_webSocketClientStatus.value.incompatibleApiVersionError != null) {
+            log.d { "Skipping reconnect: node API version is incompatible" }
+            return
+        }
         if (isReconnecting.getAndSet(true)) {
             // If the connect phase has been running longer than the stale threshold,
             // cancel it so the next triggerReconnect() call can start fresh.

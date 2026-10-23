@@ -20,6 +20,7 @@ import network.bisq.mobile.client.common.domain.httpclient.HttpClientSettings
 import network.bisq.mobile.client.common.domain.httpclient.exception.UnauthorizedApiAccessException
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettings
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepository
+import network.bisq.mobile.client.common.domain.websocket.exception.IncompatibleHttpApiVersionException
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEvent
 import network.bisq.mobile.client.common.domain.websocket.subscription.ModificationType
 import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
@@ -426,6 +427,59 @@ class WebSocketClientServiceTest : ClientKoinIntegrationTestBase() {
                 sensitiveSettingsRepository.update(any<suspend (SensitiveSettings) -> SensitiveSettings>())
             }
         }
+
+    @Test
+    fun `incompatible api version disconnect does not reconnect and keeps the error`() =
+        runTest {
+            val statusFlow = MutableStateFlow<ConnectionState>(ConnectionState.Connected)
+            val mockWsClient = createClientWithStatus(statusFlow)
+            val error = IncompatibleHttpApiVersionException("1.0.0")
+
+            statusFlow.value = ConnectionState.Disconnected(error = error)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            verify(exactly = 0) { mockWsClient.reconnect() }
+            val state = webSocketClientService.connectionState.value
+            assertTrue(state is ConnectionState.Disconnected)
+            assertEquals(error, state.error)
+        }
+
+    @Test
+    fun `transient disconnect triggers reconnect`() =
+        runTest {
+            val statusFlow = MutableStateFlow<ConnectionState>(ConnectionState.Connected)
+            val mockWsClient = createClientWithStatus(statusFlow)
+
+            statusFlow.value = ConnectionState.Disconnected(error = IllegalStateException("timeout"))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            verify { mockWsClient.reconnect() }
+        }
+
+    private suspend fun createClientWithStatus(statusFlow: MutableStateFlow<ConnectionState>): WebSocketClient {
+        val mockWsClient = mockk<WebSocketClient>(relaxed = true)
+        every { mockWsClient.webSocketClientStatus } returns statusFlow
+        every { mockWsClient.reconnect() } just Runs
+        every { mockWsClient.apiUrl } returns
+            mockk {
+                every { host } returns "localhost"
+            }
+        every { webSocketClientFactory.createNewClient(any(), any(), any(), any()) } returns mockWsClient
+
+        webSocketClientService.activate()
+        testDispatcher.scheduler.advanceUntilIdle()
+        httpClientChangedFlow.emit(
+            HttpClientSettings(
+                bisqApiUrl = "http://localhost:8080",
+                tlsFingerprint = null,
+                clientId = "client-id",
+                sessionId = "session-id",
+                sessionExpiresAt = Long.MAX_VALUE,
+            ),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        return mockWsClient
+    }
 
     @Test
     fun `deactivate disconnects client and resets subscription state`() =
