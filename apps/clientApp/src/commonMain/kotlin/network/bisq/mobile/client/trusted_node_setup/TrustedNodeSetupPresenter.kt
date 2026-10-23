@@ -61,6 +61,7 @@ class TrustedNodeSetupPresenter(
         showConnectionFailed: Boolean = false,
         showKeystoreError: Boolean = false,
         showSubscriptionsFailed: Boolean = false,
+        incompatibleNodeApiVersion: String? = null,
     ) {
         this.isWorkflow = isWorkflow
         if (!isWorkflow) {
@@ -74,6 +75,11 @@ class TrustedNodeSetupPresenter(
         } else if (showKeystoreError) {
             _uiState.update {
                 it.copy(showKeystoreError = true)
+            }
+        } else if (incompatibleNodeApiVersion != null) {
+            resetConnectionFailedRetryGuard()
+            _uiState.update {
+                it.copy(incompatibleNodeApiVersion = incompatibleNodeApiVersion)
             }
         } else if (showConnectionFailed) {
             resetConnectionFailedRetryGuard()
@@ -201,7 +207,7 @@ class TrustedNodeSetupPresenter(
             }
 
             TrustedNodeSetupUiAction.OnConnectionFailedPairWithNewNodePress -> {
-                _uiState.update { it.copy(showConnectionFailedWarning = false) }
+                _uiState.update { it.copy(showConnectionFailedWarning = false, incompatibleNodeApiVersion = null) }
             }
 
             TrustedNodeSetupUiAction.OnKeystoreErrorDismiss -> {
@@ -340,7 +346,10 @@ class TrustedNodeSetupPresenter(
             "onConnectionFailedRetry",
             reEnableGuardOnComplete = false,
         ) {
-            _uiState.update { it.copy(showConnectionFailedWarning = false, showSubscriptionsFailedWarning = false) }
+            val incompatibleNodeApiVersion = _uiState.value.incompatibleNodeApiVersion
+            _uiState.update {
+                it.copy(showConnectionFailedWarning = false, showSubscriptionsFailedWarning = false, incompatibleNodeApiVersion = null)
+            }
 
             val restartSucceeded = applicationLifecycleService.restartAllServices()
 
@@ -350,8 +359,12 @@ class TrustedNodeSetupPresenter(
                     it.popUpTo<ClientNavRoute.TrustedNodeSetup> { inclusive = true }
                 }
             } else {
-                // Re-show the connection failed dialog so the user can retry
-                _uiState.update { it.copy(showConnectionFailedWarning = true) }
+                // A local restart failure says nothing new about the node, so re-show the same dialog
+                if (incompatibleNodeApiVersion != null) {
+                    _uiState.update { it.copy(incompatibleNodeApiVersion = incompatibleNodeApiVersion) }
+                } else {
+                    _uiState.update { it.copy(showConnectionFailedWarning = true) }
+                }
                 resetConnectionFailedRetryGuard()
             }
         }

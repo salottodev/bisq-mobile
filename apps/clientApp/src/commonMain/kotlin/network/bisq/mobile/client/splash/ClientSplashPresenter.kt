@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -127,6 +128,15 @@ class ClientSplashPresenter(
                         log.d { "Bootstrap failed, navigating to trusted node setup" }
                         hasNavigated = true
                         navigateToTrustedNodeSetup(showConnectionFailed = true)
+                    }
+                }
+
+                presenterScope.launch {
+                    val nodeApiVersion = applicationBootstrapFacade.incompatibleNodeApiVersion.filterNotNull().first()
+                    if (!hasNavigated) {
+                        log.d { "Incompatible node API version $nodeApiVersion, navigating to trusted node setup" }
+                        hasNavigated = true
+                        navigateToTrustedNodeSetup(incompatibleNodeApiVersion = nodeApiVersion)
                     }
                 }
 
@@ -297,12 +307,14 @@ class ClientSplashPresenter(
         showConnectionFailed: Boolean = false,
         showKeystoreError: Boolean = false,
         showSubscriptionsFailed: Boolean = false,
+        incompatibleNodeApiVersion: String? = null,
     ) {
         navigateTo(
             ClientNavRoute.TrustedNodeSetup(
                 showConnectionFailed = showConnectionFailed,
                 showKeystoreError = showKeystoreError,
                 showSubscriptionsFailed = showSubscriptionsFailed,
+                incompatibleNodeApiVersion = incompatibleNodeApiVersion,
             ),
         ) {
             it.popUpTo<NavRoute.Splash> { inclusive = true }

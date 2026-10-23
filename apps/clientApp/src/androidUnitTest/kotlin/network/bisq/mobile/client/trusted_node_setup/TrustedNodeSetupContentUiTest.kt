@@ -1134,6 +1134,91 @@ class TrustedNodeSetupContentUiTest : BisqComposeUiTestBase() {
         verify { mockOnAction(TrustedNodeSetupUiAction.OnChangeNodeWarningCancel) }
     }
 
+    // ========== Connection Failed Dialog Tests ==========
+
+    @Test
+    fun `when connection failed warning shown then displays connection failed dialog`() {
+        setDialogContent(TrustedNodeSetupUiState(showConnectionFailedWarning = true))
+
+        composeTestRule
+            .onNodeWithText("mobile.trustedNodeSetup.status.failed".i18n())
+            .assertIsDisplayed()
+        composeTestRule
+            .onNodeWithText("mobile.trustedNodeSetup.connectionFailed.message".i18n())
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun `when connection failed retry clicked then triggers OnConnectionFailedRetryPress action`() {
+        setDialogContent(TrustedNodeSetupUiState(showConnectionFailedWarning = true))
+
+        composeTestRule
+            .onNodeWithText("mobile.action.retry".i18n())
+            .performClick()
+
+        verify { mockOnAction(TrustedNodeSetupUiAction.OnConnectionFailedRetryPress) }
+    }
+
+    @Test
+    fun `when connection failed pair with new node clicked then triggers OnConnectionFailedPairWithNewNodePress action`() {
+        setDialogContent(TrustedNodeSetupUiState(showConnectionFailedWarning = true))
+
+        composeTestRule
+            .onNodeWithText("mobile.trustedNodeSetup.pairWithNewNode".i18n())
+            .performClick()
+
+        verify { mockOnAction(TrustedNodeSetupUiAction.OnConnectionFailedPairWithNewNodePress) }
+    }
+
+    // ========== Incompatible Node API Version Dialog Tests ==========
+
+    @Test
+    fun `when incompatible node API version is set then shows expected and node versions`() {
+        setDialogContent(TrustedNodeSetupUiState(incompatibleNodeApiVersion = "2.1.12"))
+
+        composeTestRule
+            .onNodeWithText("mobile.trustedNodeSetup.connectionJob.messages.incompatible".i18n())
+            .assertIsDisplayed()
+        composeTestRule
+            .onNodeWithText("mobile.trustedNodeSetup.version.expectedAPI".i18n(BuildConfig.BISQ_API_VERSION), substring = true)
+            .assertIsDisplayed()
+        composeTestRule
+            .onNodeWithText("mobile.trustedNodeSetup.version.nodeAPI".i18n("2.1.12"), substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun `when incompatible node API version retry clicked then triggers OnConnectionFailedRetryPress action`() {
+        setDialogContent(TrustedNodeSetupUiState(incompatibleNodeApiVersion = "2.1.12"))
+
+        composeTestRule
+            .onNodeWithText("mobile.action.retry".i18n())
+            .performClick()
+
+        verify { mockOnAction(TrustedNodeSetupUiAction.OnConnectionFailedRetryPress) }
+    }
+
+    @Test
+    fun `when incompatible node API version pair with new node clicked then triggers OnConnectionFailedPairWithNewNodePress action`() {
+        setDialogContent(TrustedNodeSetupUiState(incompatibleNodeApiVersion = "2.1.12"))
+
+        composeTestRule
+            .onNodeWithText("mobile.trustedNodeSetup.pairWithNewNode".i18n())
+            .performClick()
+
+        verify { mockOnAction(TrustedNodeSetupUiAction.OnConnectionFailedPairWithNewNodePress) }
+    }
+
+    private fun setDialogContent(uiState: TrustedNodeSetupUiState) {
+        setTrustedNodeTestContent {
+            TrustedNodeSetupContent(
+                uiState = uiState,
+                onAction = mockOnAction,
+            )
+        }
+        composeTestRule.waitForIdle()
+    }
+
     // ========== Compatibility & Help Link Tests ==========
 
     @Test

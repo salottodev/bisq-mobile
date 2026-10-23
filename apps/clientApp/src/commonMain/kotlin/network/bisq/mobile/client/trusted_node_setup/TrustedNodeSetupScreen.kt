@@ -60,6 +60,7 @@ fun TrustedNodeSetupScreen(
     showConnectionFailed: Boolean = false,
     showKeystoreError: Boolean = false,
     showSubscriptionsFailed: Boolean = false,
+    incompatibleNodeApiVersion: String? = null,
 ) {
     val presenter: TrustedNodeSetupPresenter = koinInject()
     RememberPresenterLifecycle(presenter)
@@ -69,8 +70,8 @@ fun TrustedNodeSetupScreen(
     // leaks while this screen (onboarding pairing and Settings "pair with new node") is shown.
     SecureScreenEffect()
 
-    LaunchedEffect(isWorkflow, showConnectionFailed, showKeystoreError, showSubscriptionsFailed) {
-        presenter.initialize(isWorkflow, showConnectionFailed, showKeystoreError, showSubscriptionsFailed)
+    LaunchedEffect(isWorkflow, showConnectionFailed, showKeystoreError, showSubscriptionsFailed, incompatibleNodeApiVersion) {
+        presenter.initialize(isWorkflow, showConnectionFailed, showKeystoreError, showSubscriptionsFailed, incompatibleNodeApiVersion)
     }
 
     val uiState by presenter.uiState.collectAsState()
@@ -158,18 +159,22 @@ fun TrustedNodeSetupContent(
     }
 
     if (uiState.showConnectionFailedWarning) {
-        ConfirmationDialog(
-            headlineColor = BisqTheme.colors.danger,
+        ConnectionFailedDialog(
             headline = "mobile.trustedNodeSetup.status.failed".i18n(),
             message = "mobile.trustedNodeSetup.connectionFailed.message".i18n(),
-            confirmButtonText = "mobile.action.retry".i18n(),
-            dismissButtonText = "mobile.trustedNodeSetup.pairWithNewNode".i18n(),
-            confirmButtonLoading = !isConnectionFailedRetryEnabled,
-            dismissButtonLoading = !isConnectionFailedRetryEnabled,
-            onConfirm = { onAction(TrustedNodeSetupUiAction.OnConnectionFailedRetryPress) },
-            onDismiss = { onAction(TrustedNodeSetupUiAction.OnConnectionFailedPairWithNewNodePress) },
-            dismissOnClickOutside = false,
-            verticalButtonPlacement = true,
+            isRetryEnabled = isConnectionFailedRetryEnabled,
+            onAction = onAction,
+        )
+    }
+
+    uiState.incompatibleNodeApiVersion?.let { nodeApiVersion ->
+        ConnectionFailedDialog(
+            headline = "mobile.trustedNodeSetup.connectionJob.messages.incompatible".i18n(),
+            message =
+                "mobile.trustedNodeSetup.version.expectedAPI".i18n(BuildConfig.BISQ_API_VERSION) + "\n" +
+                    "mobile.trustedNodeSetup.version.nodeAPI".i18n(nodeApiVersion),
+            isRetryEnabled = isConnectionFailedRetryEnabled,
+            onAction = onAction,
         )
     }
 
@@ -184,6 +189,28 @@ fun TrustedNodeSetupContent(
             onAction(TrustedNodeSetupUiAction.OnSubscriptionsFailedDialogUiAction(dialogAction))
         }
     }
+}
+
+@Composable
+private fun ConnectionFailedDialog(
+    headline: String,
+    message: String,
+    isRetryEnabled: Boolean,
+    onAction: (TrustedNodeSetupUiAction) -> Unit,
+) {
+    ConfirmationDialog(
+        headlineColor = BisqTheme.colors.danger,
+        headline = headline,
+        message = message,
+        confirmButtonText = "mobile.action.retry".i18n(),
+        dismissButtonText = "mobile.trustedNodeSetup.pairWithNewNode".i18n(),
+        confirmButtonLoading = !isRetryEnabled,
+        dismissButtonLoading = !isRetryEnabled,
+        onConfirm = { onAction(TrustedNodeSetupUiAction.OnConnectionFailedRetryPress) },
+        onDismiss = { onAction(TrustedNodeSetupUiAction.OnConnectionFailedPairWithNewNodePress) },
+        dismissOnClickOutside = false,
+        verticalButtonPlacement = true,
+    )
 }
 
 @Composable

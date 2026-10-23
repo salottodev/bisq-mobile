@@ -10,6 +10,7 @@ interface ClientNavRoute : NavRoute {
         val showConnectionFailed: Boolean = false,
         val showKeystoreError: Boolean = false,
         val showSubscriptionsFailed: Boolean = false,
+        val incompatibleNodeApiVersion: String? = null,
     ) : ClientNavRoute
 
     @Serializable

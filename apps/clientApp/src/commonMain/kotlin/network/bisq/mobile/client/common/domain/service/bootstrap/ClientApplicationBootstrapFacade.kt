@@ -4,10 +4,12 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import network.bisq.mobile.client.common.domain.access.DEMO_API_URL
 import network.bisq.mobile.client.common.domain.access.session.SessionResponse
@@ -17,6 +19,8 @@ import network.bisq.mobile.client.common.domain.httpclient.HttpClientService
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettings
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepository
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
+import network.bisq.mobile.client.common.domain.websocket.exception.IncompatibleHttpApiVersionException
+import network.bisq.mobile.client.common.domain.websocket.incompatibleApiVersionError
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.data.service.network.ConnectivityService
 import network.bisq.mobile.data.service.network.ConnectivityService.ConnectivityStatus
@@ -63,6 +67,10 @@ class ClientApplicationBootstrapFacade(
     // Drives whether the splash strip shows the dedicated Tor phase node.
     private val _usesInternalTor = MutableStateFlow(false)
     val usesInternalTor: StateFlow<Boolean> = _usesInternalTor.asStateFlow()
+
+    // Node API version while the connection is rejected as incompatible; the splash shows it instead of a generic failure.
+    val incompatibleNodeApiVersion: Flow<String?> =
+        webSocketClientService.connectionState.map { it.incompatibleApiVersionError?.serverVersion }
 
     private var connectivityObserverJob: Job? = null
 
@@ -186,6 +194,9 @@ class ClientApplicationBootstrapFacade(
                     setProgress(0.5f)
                     observeConnectivityForDataLoad()
                 }
+            } else if (error is IncompatibleHttpApiVersionException) {
+                // No setProgress(1.0f): the splash shows incompatibleNodeApiVersion instead of the generic connectivity wait
+                log.w { "Trusted node API version ${error.serverVersion} is incompatible" }
             } else {
                 log.e { "Failed to connect to trusted node: ${error.redactedSummary()}" }
                 setState("mobile.bootstrap.noConnectivity".i18n())

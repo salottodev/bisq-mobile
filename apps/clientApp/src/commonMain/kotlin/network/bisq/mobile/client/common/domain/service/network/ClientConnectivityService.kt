@@ -22,6 +22,7 @@ import network.bisq.mobile.client.common.domain.httpclient.exception.Unauthorize
 import network.bisq.mobile.client.common.domain.service.network.ClientConnectivityService.Companion.TIMEOUT
 import network.bisq.mobile.client.common.domain.websocket.ConnectionState
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
+import network.bisq.mobile.client.common.domain.websocket.incompatibleApiVersionError
 import network.bisq.mobile.data.service.network.ConnectivityService
 import network.bisq.mobile.data.utils.getPlatformInfo
 import network.bisq.mobile.domain.model.PlatformInfo
@@ -352,7 +353,10 @@ open class ClientConnectivityService(
 
     /** Status while the WebSocket is not connected; triggers the reconnect or client recreation. */
     private suspend fun notConnectedStatus(): ConnectivityStatus {
-        if (webSocketClientService.isAwaitingPairingCredentials.value) {
+        // An incompatible node version won't recover by retrying; wait for the user's retry
+        if (webSocketClientService.isAwaitingPairingCredentials.value ||
+            webSocketClientService.connectionState.value.incompatibleApiVersionError != null
+        ) {
             consecutiveHealthCheckFailures = 0
             consecutiveReconnectingCycles = 0
             connectionUntrusted = false
