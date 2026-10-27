@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.util.notifyIfDemoModeRestricted
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
@@ -61,6 +63,7 @@ class ClientTradeChatMessagesServiceFacade(
     override val chatMessagesSyncFailed: StateFlow<Boolean> = _chatMessagesSyncFailed.asStateFlow()
 
     private var tradeChatsJob: Job? = null
+    private val updateChatMessagesMutex = Mutex()
 
     // Misc
     override suspend fun activate() {
@@ -75,11 +78,14 @@ class ClientTradeChatMessagesServiceFacade(
         }
         serviceScope.launch(Dispatchers.Default) {
             selectedUserProfileId.collect { _ ->
-                val tradeId = selectedTrade.value?.tradeId
-                if (tradeId != null) {
-                    updateChatMessages(tradeId = tradeId)
-                }
                 updateChatMessagesSynced()
+            }
+        }
+        // A trade can arrive after its chat messages (the TRADES and TRADE_CHAT_MESSAGES snapshots of a
+        // reconnect race), and nothing else would fill its chat until the next chat event.
+        serviceScope.launch {
+            tradesServiceFacade.openTradeItems.collect { trades ->
+                trades.forEach { updateChatMessages(it.tradeId) }
             }
         }
         tradeChatsJob =
@@ -174,12 +180,19 @@ class ClientTradeChatMessagesServiceFacade(
         }
     }
 
-    private fun updateChatMessages(tradeId: String) {
-        val myUserProfile = selectedUserProfileId.value ?: return
-        val bisqEasyOpenTradeChannelModel =
-            tradesServiceFacade.openTradeItems.value
-                .find { it.tradeId == tradeId }
-                ?.bisqEasyOpenTradeChannelModel ?: return
+    // Several collectors call this concurrently. Without the lock, one could build the messages from an older
+    // set and write them after another one wrote the newer set.
+    private suspend fun updateChatMessages(tradeId: String) =
+        updateChatMessagesMutex.withLock {
+            updateChatMessagesLocked(tradeId)
+        }
+
+    private fun updateChatMessagesLocked(tradeId: String) {
+        val trade = tradesServiceFacade.openTradeItems.value.find { it.tradeId == tradeId } ?: return
+        // The trade's own profile, not the selected one: open trades can belong to different profiles, and
+        // the selected profile would turn the messages this trade's profile sent into peer messages.
+        val myUserProfile = trade.myUserProfile
+        val bisqEasyOpenTradeChannelModel = trade.bisqEasyOpenTradeChannelModel
         val messages =
             allBisqEasyOpenTradeMessages.value
                 .asSequence()
