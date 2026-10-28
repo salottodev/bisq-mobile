@@ -1,20 +1,26 @@
 package network.bisq.mobile.client.common.domain.service.reputation
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.websocket.subscription.collectPayloads
 import network.bisq.mobile.client.shared.BuildConfig
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
 import network.bisq.mobile.data.service.ServiceFacade
 import network.bisq.mobile.data.service.reputation.ReputationServiceFacade
+import network.bisq.mobile.domain.coroutines.DispatcherProvider
 import network.bisq.mobile.domain.utils.resultCatching
+import kotlin.coroutines.EmptyCoroutineContext
 
 class ClientReputationServiceFacade(
     val apiGateway: ReputationApiGateway,
     private val json: Json,
+    private val dispatcherProvider: DispatcherProvider,
     // Seam for tests: BuildConfig.IS_DEBUG is a compile-time const, so both getReputation
     // branches cannot be exercised without injecting the flag.
     private val isDebug: Boolean = BuildConfig.IS_DEBUG,
@@ -35,7 +41,9 @@ class ClientReputationServiceFacade(
     // Life cycle
     override suspend fun activate() {
         super<ServiceFacade>.activate()
-        serviceScope.launch {
+        // Off main: each event is the full score map for every profile, so mapping it on main stalls
+        // the UI on a burst. One collector, so events still apply in arrival order.
+        serviceScope.launch(dispatcherProvider.default) {
             resultCatching {
                 subscribeReputation()
             }.onFailure {
@@ -44,9 +52,16 @@ class ClientReputationServiceFacade(
         }
     }
 
-    override suspend fun deactivate() {
-        super<ServiceFacade>.deactivate()
-    }
+    // Non-cancellable as a whole: a caller cancelled during the join would skip it.
+    override suspend fun deactivate() =
+        withContext(NonCancellable) {
+            val scopeJob = serviceScope.coroutineContext[Job]
+            super<ServiceFacade>.deactivate()
+            // Joined, not just cancelled: the collector applies off main, and an event still being applied
+            // would otherwise publish scores after deactivate returns, over those of the next activation.
+            // Only when the scope was cancelled here: joining a live scope never returns.
+            if (scopeJob?.isCancelled == true) scopeJob.join()
+        }
 
     override suspend fun getProfileAge(userProfileId: String): Result<Long?> =
         resultCatching {
@@ -69,7 +84,7 @@ class ClientReputationServiceFacade(
     // Private
     private suspend fun subscribeReputation() {
         val observer = apiGateway.subscribeUserReputation()
-        observer.collectPayloads<Map<String, ReputationScoreVO>>(json) { payload, _ ->
+        observer.collectPayloads<Map<String, ReputationScoreVO>>(json, EmptyCoroutineContext) { payload, _ ->
             reputationByUserProfileId.value = payload
             _scoreByUserProfileId.value = payload.mapValues { (_, v) -> v.totalScore }
         }

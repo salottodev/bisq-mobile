@@ -3,8 +3,14 @@ package network.bisq.mobile.client.common.domain.service.reputation
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketEvent
 import network.bisq.mobile.client.common.domain.websocket.subscription.ModificationType
@@ -12,6 +18,8 @@ import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
 import network.bisq.mobile.client.common.domain.websocket.subscription.WebSocketEventObserver
 import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
 import network.bisq.mobile.data.replicated.user.reputation.ReputationScoreVO
+import network.bisq.mobile.test.coroutines.StandardTestDispatcherProvider
+import network.bisq.mobile.test.coroutines.TrackingDefaultDispatcherProvider
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -23,10 +31,10 @@ class ClientReputationServiceFacadeTest : ClientKoinIntegrationTestBase() {
     private lateinit var facade: ClientReputationServiceFacade
 
     override fun onSetup() {
-        facade = ClientReputationServiceFacade(apiGateway, json, isDebug = false)
+        facade = ClientReputationServiceFacade(apiGateway, json, StandardTestDispatcherProvider(testDispatcher), isDebug = false)
     }
 
-    private fun createFacade(isDebug: Boolean) = ClientReputationServiceFacade(apiGateway, json, isDebug = isDebug)
+    private fun createFacade(isDebug: Boolean) = ClientReputationServiceFacade(apiGateway, json, StandardTestDispatcherProvider(testDispatcher), isDebug = isDebug)
 
     @Test
     fun `activate subscribes to user reputation`() =
@@ -38,6 +46,54 @@ class ClientReputationServiceFacadeTest : ClientKoinIntegrationTestBase() {
             advanceUntilIdle()
 
             coVerify { apiGateway.subscribeUserReputation() }
+        }
+
+    /** Each event is the full score map for every profile, so it is subscribed and applied off main. */
+    @Test
+    fun `reputation is subscribed and applied on the default dispatcher`() =
+        runTest {
+            val dispatchers = TrackingDefaultDispatcherProvider(testDispatcher)
+            val observer = WebSocketEventObserver()
+            var subscribedOnDefault = false
+            coEvery { apiGateway.subscribeUserReputation() } answers {
+                subscribedOnDefault = dispatchers.isRunningOnDefault
+                observer
+            }
+            facade = ClientReputationServiceFacade(apiGateway, json, dispatchers, isDebug = false)
+            // Unconfined, so it runs inside the write that publishes the scores and sees its dispatcher.
+            var appliedOnDefault = false
+            backgroundScope.launch(Dispatchers.Unconfined) {
+                facade.scoreByUserProfileId.collect { scores ->
+                    if (scores.isNotEmpty()) appliedOnDefault = dispatchers.isRunningOnDefault
+                }
+            }
+
+            facade.activate()
+            advanceUntilIdle()
+            observer.setEvent(reputationEvent("""{"user-1":{"totalScore":120,"fiveSystemScore":4.2,"ranking":5}}"""))
+            advanceUntilIdle()
+
+            assertTrue(subscribedOnDefault)
+            assertEquals(120L, facade.scoreByUserProfileId.value["user-1"])
+            assertTrue(appliedOnDefault)
+        }
+
+    /** The collector applies off main, so deactivate must wait for it rather than return while it still runs. */
+    @Test
+    fun `deactivate waits for in-flight collector work to finish`() =
+        runTest {
+            var subscribeFinished = false
+            coEvery { apiGateway.subscribeUserReputation() } coAnswers {
+                withContext(NonCancellable) { delay(1_000) }
+                subscribeFinished = true
+                WebSocketEventObserver()
+            }
+            facade.activate()
+            runCurrent()
+
+            facade.deactivate()
+
+            assertTrue(subscribeFinished)
         }
 
     @Test
