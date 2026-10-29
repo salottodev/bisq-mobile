@@ -147,15 +147,25 @@ class ClientApplicationBootstrapFacade(
                         )
 
                     if (result.isSuccess) {
-                        log.i { "Requesting sessionId was successful" }
                         val response: SessionResponse = result.getOrThrow()
-                        val updatedSettings =
-                            currentSettings.copy(
-                                sessionId = response.sessionId,
-                                sessionExpiresAt = response.expiresAt,
-                            )
-
-                        sensitiveSettingsRepository.update { updatedSettings }
+                        var pairingChanged = false
+                        sensitiveSettingsRepository.update {
+                            // The user may have paired another node meanwhile; its settings own the session now
+                            pairingChanged = it.clientId != clientId
+                            if (pairingChanged) {
+                                it
+                            } else {
+                                it.copy(
+                                    sessionId = response.sessionId,
+                                    sessionExpiresAt = response.expiresAt,
+                                )
+                            }
+                        }
+                        if (pairingChanged) {
+                            log.i { "Dropping the session response: the pairing changed while it was requested" }
+                            return@launch
+                        }
+                        log.i { "Requesting sessionId was successful" }
 
                         serviceScope.launch {
                             // Wait for HttpClientService to pick up new sessionId
