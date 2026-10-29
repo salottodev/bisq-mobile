@@ -33,6 +33,7 @@ import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
 import network.bisq.mobile.client.common.domain.websocket.exception.IncompatibleHttpApiVersionException
 import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
+import network.bisq.mobile.data.service.bootstrap.ApplicationLifecycleService
 import network.bisq.mobile.data.service.network.KmpTorService
 import network.bisq.mobile.i18n.I18nSupport
 import network.bisq.mobile.i18n.i18n
@@ -58,6 +59,7 @@ class TrustedNodeSetupUseCaseTest : ClientKoinIntegrationTestBase() {
     private val sensitiveSettingsRepository = SensitiveSettingsRepositoryMock()
     private val wsClientService: WebSocketClientService = mockk(relaxed = true)
     private val applicationBootstrapFacade: ApplicationBootstrapFacade = mockk(relaxed = true)
+    private val applicationLifecycleService: ApplicationLifecycleService = mockk(relaxed = true)
     private lateinit var useCase: TrustedNodeSetupUseCase
 
     // Test data
@@ -118,6 +120,7 @@ class TrustedNodeSetupUseCaseTest : ClientKoinIntegrationTestBase() {
             delay(10) // Small delay to make state changes observable
         }
         every { wsClientService.connectionState } returns MutableStateFlow(ConnectionState.Disconnected())
+        every { applicationLifecycleService.areServicesActivated } returns true
     }
 
     private fun createUseCase(): TrustedNodeSetupUseCase =
@@ -128,7 +131,76 @@ class TrustedNodeSetupUseCaseTest : ClientKoinIntegrationTestBase() {
             sensitiveSettingsRepository,
             wsClientService,
             applicationBootstrapFacade,
+            applicationLifecycleService,
         )
+
+    // ========== Deactivated Services Tests ==========
+
+    @Test
+    fun `when services are deactivated then restarts them after storing the new settings`() =
+        runTest {
+            every { applicationLifecycleService.areServicesActivated } returns false
+            coEvery { applicationLifecycleService.restartAllServices() } returns true
+            sensitiveSettingsRepository.update { it.copy(clientId = null, sessionId = null) }
+            setupSuccessfulPairingRequest()
+            setupSuccessfulWebSocketConnection()
+            useCase = createUseCase()
+
+            val result = useCase(clearnetPairingQrCode)
+            advanceUntilIdle()
+
+            assertTrue(result)
+            coVerifyOrder {
+                apiAccessService.updateSettings(clearnetPairingQrCode)
+                applicationLifecycleService.restartAllServices()
+                apiAccessService.requestPairing(clearnetPairingQrCode)
+            }
+        }
+
+    @Test
+    fun `when services are activated then does not restart them`() =
+        runTest {
+            sensitiveSettingsRepository.update { it.copy(clientId = null, sessionId = null) }
+            setupSuccessfulPairingRequest()
+            setupSuccessfulWebSocketConnection()
+            useCase = createUseCase()
+
+            val result = useCase(clearnetPairingQrCode)
+            advanceUntilIdle()
+
+            assertTrue(result)
+            coVerify(exactly = 0) { applicationLifecycleService.restartAllServices() }
+        }
+
+    @Test
+    fun `when the restart fails then fails without requesting pairing`() =
+        runTest {
+            every { applicationLifecycleService.areServicesActivated } returns false
+            coEvery { applicationLifecycleService.restartAllServices() } returns false
+            sensitiveSettingsRepository.update { it.copy(clientId = null, sessionId = null) }
+            setupSuccessfulPairingRequest()
+            useCase = createUseCase()
+
+            val result = useCase(clearnetPairingQrCode)
+            advanceUntilIdle()
+
+            assertFalse(result)
+            assertTrue(useCase.state.value.connectionStatus is TrustedNodeConnectionStatus.Failed)
+            coVerify(exactly = 0) { apiAccessService.requestPairing(any()) }
+        }
+
+    private fun setupSuccessfulPairingRequest() {
+        coEvery { apiAccessService.requestPairing(any()) } returns
+            Result.success(
+                PairingResponse(
+                    version = PairingCode.VERSION,
+                    clientId = "new-client",
+                    clientSecret = "new-secret",
+                    sessionId = "new-session",
+                    sessionExpiryDate = Clock.System.now().toEpochMilliseconds(),
+                ),
+            )
+    }
 
     // ========== URL Validation Tests ==========
 
@@ -354,16 +426,7 @@ class TrustedNodeSetupUseCaseTest : ClientKoinIntegrationTestBase() {
             sensitiveSettingsRepository.update {
                 it.copy(clientId = null, sessionId = "session")
             }
-            coEvery { apiAccessService.requestPairing(any()) } returns
-                Result.success(
-                    PairingResponse(
-                        version = PairingCode.VERSION,
-                        clientId = "new-client",
-                        clientSecret = "new-secret",
-                        sessionId = "new-session",
-                        sessionExpiryDate = Clock.System.now().toEpochMilliseconds(),
-                    ),
-                )
+            setupSuccessfulPairingRequest()
             setupSuccessfulWebSocketConnection()
             useCase = createUseCase()
 
@@ -383,16 +446,7 @@ class TrustedNodeSetupUseCaseTest : ClientKoinIntegrationTestBase() {
             sensitiveSettingsRepository.update {
                 it.copy(clientId = "client", sessionId = null)
             }
-            coEvery { apiAccessService.requestPairing(any()) } returns
-                Result.success(
-                    PairingResponse(
-                        version = PairingCode.VERSION,
-                        clientId = "new-client",
-                        clientSecret = "new-secret",
-                        sessionId = "new-session",
-                        sessionExpiryDate = Clock.System.now().toEpochMilliseconds(),
-                    ),
-                )
+            setupSuccessfulPairingRequest()
             setupSuccessfulWebSocketConnection()
             useCase = createUseCase()
 
@@ -416,16 +470,7 @@ class TrustedNodeSetupUseCaseTest : ClientKoinIntegrationTestBase() {
                     bisqApiUrl = "http://different-url.com:8080",
                 )
             }
-            coEvery { apiAccessService.requestPairing(any()) } returns
-                Result.success(
-                    PairingResponse(
-                        version = PairingCode.VERSION,
-                        clientId = "new-client",
-                        clientSecret = "new-secret",
-                        sessionId = "new-session",
-                        sessionExpiryDate = Clock.System.now().toEpochMilliseconds(),
-                    ),
-                )
+            setupSuccessfulPairingRequest()
             setupSuccessfulWebSocketConnection()
             useCase = createUseCase()
 
