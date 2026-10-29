@@ -12,6 +12,7 @@ import network.bisq.mobile.client.common.domain.access.pairing.qr.PairingQrCode
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepository
 import network.bisq.mobile.client.common.domain.websocket.ConnectionState
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
+import network.bisq.mobile.client.common.domain.websocket.incompatibleApiVersionError
 import network.bisq.mobile.client.common.presentation.navigation.ClientNavRoute
 import network.bisq.mobile.client.trusted_node_setup.components.SubscriptionsFailedDialogUiAction
 import network.bisq.mobile.client.trusted_node_setup.use_case.TrustedNodeConnectionStatus
@@ -83,11 +84,13 @@ class TrustedNodeSetupPresenter(
             }
         } else if (showConnectionFailed) {
             resetConnectionFailedRetryGuard()
+            val nodeApiVersion = currentIncompatibleNodeApiVersion()
             _uiState.update {
-                it.copy(showConnectionFailedWarning = true)
+                it.copy(showConnectionFailedWarning = nodeApiVersion == null, incompatibleNodeApiVersion = nodeApiVersion)
             }
         } else if (showSubscriptionsFailed) {
             resetConnectionFailedRetryGuard()
+            val nodeApiVersion = currentIncompatibleNodeApiVersion()
             _uiState.update {
                 if (webSocketClientService.connectionState.value is ConnectionState.Connected) {
                     it.copy(
@@ -95,11 +98,18 @@ class TrustedNodeSetupPresenter(
                     )
                 } else {
                     it.copy(
-                        showConnectionFailedWarning = true,
+                        showConnectionFailedWarning = nodeApiVersion == null,
+                        incompatibleNodeApiVersion = nodeApiVersion,
                     )
                 }
             }
         }
+    }
+
+    // The node may have turned out incompatible after the caller chose a generic failure warning
+    private fun currentIncompatibleNodeApiVersion(): String? {
+        val connectionState = webSocketClientService.connectionState.value
+        return connectionState.incompatibleApiVersionError?.serverVersion
     }
 
     private fun observeFlows() {
@@ -152,12 +162,20 @@ class TrustedNodeSetupPresenter(
         presenterScope.launch {
             webSocketClientService.connectionState.collect { connectionState ->
                 if (connectionState is ConnectionState.Disconnected) {
+                    val nodeApiVersion = connectionState.incompatibleApiVersionError?.serverVersion
                     _uiState.update { currentState ->
                         if (currentState.showSubscriptionsFailedWarning) {
                             resetConnectionFailedRetryGuard()
                             currentState.copy(
                                 showSubscriptionsFailedWarning = false,
-                                showConnectionFailedWarning = true,
+                                showConnectionFailedWarning = nodeApiVersion == null,
+                                incompatibleNodeApiVersion = nodeApiVersion,
+                            )
+                        } else if (currentState.showConnectionFailedWarning && nodeApiVersion != null) {
+                            // A reconnect behind the generic warning found the node incompatible
+                            currentState.copy(
+                                showConnectionFailedWarning = false,
+                                incompatibleNodeApiVersion = nodeApiVersion,
                             )
                         } else {
                             currentState

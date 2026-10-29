@@ -8,6 +8,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -140,6 +141,10 @@ open class ClientConnectivityService(
 
     /** Emits true when the server has permanently revoked our client credentials. */
     val clientRevoked: StateFlow<Boolean> get() = webSocketClientService.clientRevoked
+
+    /** Node API version while the connection is rejected as incompatible, null otherwise. */
+    val incompatibleNodeApiVersion: Flow<String?>
+        get() = webSocketClientService.connectionState.map { it.incompatibleApiVersionError?.serverVersion }
 
     override suspend fun activate() {
         super.activate()

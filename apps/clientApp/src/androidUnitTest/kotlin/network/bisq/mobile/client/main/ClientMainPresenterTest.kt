@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import network.bisq.mobile.client.common.domain.service.network.ClientConnectivityService
 import network.bisq.mobile.client.common.domain.service.push_notification.TrustedNodePushRelease
+import network.bisq.mobile.client.common.presentation.navigation.ClientNavRoute
 import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
 import network.bisq.mobile.data.model.TradeReadStateMap
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
@@ -57,6 +58,7 @@ class ClientMainPresenterTest : ClientKoinIntegrationTestBase() {
     private val navigationManager: NavigationManager = mockk(relaxed = true)
     private val globalUiManager: GlobalUiManager = mockk(relaxed = true)
     private val releaseFailures = MutableSharedFlow<Unit>()
+    private val incompatibleNodeApiVersionFlow = MutableStateFlow<String?>(null)
     private val trustedNodePushRelease: TrustedNodePushRelease =
         mockk(relaxed = true) {
             every { releaseFailures } returns this@ClientMainPresenterTest.releaseFailures
@@ -86,6 +88,7 @@ class ClientMainPresenterTest : ClientKoinIntegrationTestBase() {
 
     override fun onSetup() {
         every { connectivityService.clientRevoked } returns MutableStateFlow(false)
+        every { connectivityService.incompatibleNodeApiVersion } returns incompatibleNodeApiVersionFlow
         every { connectivityService.status } returns MutableStateFlow(ConnectivityService.ConnectivityStatus.BOOTSTRAPPING)
         every { tradesServiceFacade.openTradeItems } returns
             MutableStateFlow<List<TradeItemPresentationModel>>(emptyList())
@@ -369,14 +372,77 @@ class ClientMainPresenterTest : ClientKoinIntegrationTestBase() {
                 coEvery { applicationLifecycleService.restartAllServices() } returns true
 
                 val presenter = createPresenter()
+                presenter.setIsMainContentVisible(true)
                 presenter.onViewAttached()
                 presenter.onConnectivityRecoveryAction()
                 advanceUntilIdle()
 
                 coVerify { applicationLifecycleService.restartAllServices() }
                 verify { navigationManager.navigate(NavRoute.Splash(), any(), any()) }
+                assertFalse(presenter.isMainContentVisible.value)
             } finally {
                 unmockkStatic("network.bisq.mobile.data.utils.PlatformDomainAbstractions_androidKt")
+            }
+        }
+
+    @Test
+    fun `onConnectivityRecoveryAction on iOS hides main content during the restart and restores it when the restart fails`() =
+        runTest {
+            mockkStatic("network.bisq.mobile.data.utils.PlatformDomainAbstractions_androidKt")
+            try {
+                every { getPlatformInfo() } returns
+                    object : PlatformInfo {
+                        override val name = "iOS"
+                        override val type = PlatformType.IOS
+                    }
+
+                val presenter = createPresenter()
+                var visibleDuringRestart: Boolean? = null
+                coEvery { applicationLifecycleService.restartAllServices() } coAnswers {
+                    visibleDuringRestart = presenter.isMainContentVisible.value
+                    false
+                }
+                presenter.setIsMainContentVisible(true)
+                presenter.onViewAttached()
+                presenter.onConnectivityRecoveryAction()
+                advanceUntilIdle()
+
+                assertEquals(false, visibleDuringRestart)
+                assertTrue(presenter.isMainContentVisible.value)
+            } finally {
+                unmockkStatic("network.bisq.mobile.data.utils.PlatformDomainAbstractions_androidKt")
+            }
+        }
+
+    @Test
+    fun `when the node becomes incompatible on main content then navigates to trusted node setup with the version`() =
+        runTest {
+            val presenter = createPresenter()
+            presenter.setIsMainContentVisible(true)
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            incompatibleNodeApiVersionFlow.value = "2.0.14"
+            advanceUntilIdle()
+
+            verify {
+                navigationManager.navigate(ClientNavRoute.TrustedNodeSetup(incompatibleNodeApiVersion = "2.0.14"), any(), any())
+            }
+            assertFalse(presenter.isMainContentVisible.value)
+        }
+
+    @Test
+    fun `when the node becomes incompatible before main content is visible then does not navigate`() =
+        runTest {
+            val presenter = createPresenter()
+            presenter.onViewAttached()
+            advanceUntilIdle()
+
+            incompatibleNodeApiVersionFlow.value = "2.0.14"
+            advanceUntilIdle()
+
+            verify(exactly = 0) {
+                navigationManager.navigate(match { it is ClientNavRoute.TrustedNodeSetup }, any(), any())
             }
         }
 

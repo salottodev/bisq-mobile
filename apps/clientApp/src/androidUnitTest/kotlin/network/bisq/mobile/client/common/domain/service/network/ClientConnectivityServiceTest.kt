@@ -11,6 +11,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import network.bisq.mobile.client.common.domain.httpclient.exception.UnauthorizedApiAccessException
 import network.bisq.mobile.client.common.domain.websocket.ConnectionState
@@ -24,6 +25,7 @@ import network.bisq.mobile.domain.model.PlatformType
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -148,6 +150,16 @@ class ClientConnectivityServiceTest : ClientKoinIntegrationTestBase() {
             assertEquals(ConnectivityService.ConnectivityStatus.DISCONNECTED, clientConnectivityService.status.value)
             coVerify(exactly = 0) { webSocketClientService.triggerReconnect() }
             coVerify(exactly = 0) { webSocketClientService.forceClientRecreation() }
+        }
+
+    @Test
+    fun `incompatibleNodeApiVersion follows the websocket connection state`() =
+        runBlocking {
+            connectionState.value = ConnectionState.Disconnected(IncompatibleHttpApiVersionException("1.0.0"))
+            assertEquals("1.0.0", clientConnectivityService.incompatibleNodeApiVersion.first())
+
+            connectionState.value = ConnectionState.Connected
+            assertNull(clientConnectivityService.incompatibleNodeApiVersion.first())
         }
 
     @Test

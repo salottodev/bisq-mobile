@@ -213,6 +213,39 @@ class ClientSplashPresenterNavigationTest : ClientKoinIntegrationTestBase() {
         }
 
     @Test
+    fun `navigates with the node API version when it becomes incompatible during the connectivity wait`() =
+        runTest {
+            coEvery { settingsServiceFacade.getSettings() } returns
+                Result.success(SettingsVO(isTacAccepted = true))
+
+            val presenter = createPresenter()
+            presenter.onViewAttached()
+            testScheduler.runCurrent()
+
+            // Progress 1.0 starts the connectivity wait
+            progressFlow.value = 1.0f
+            testScheduler.runCurrent()
+
+            incompatibleNodeApiVersionFlow.value = "2.1.12"
+            testScheduler.runCurrent()
+
+            verify {
+                navigationManager.navigate(
+                    ClientNavRoute.TrustedNodeSetup(incompatibleNodeApiVersion = "2.1.12"),
+                    any(),
+                    any(),
+                )
+            }
+            verify(exactly = 0) {
+                navigationManager.navigate(
+                    match { navRoute -> navRoute is ClientNavRoute.TrustedNodeSetup && navRoute.showConnectionFailed },
+                    any(),
+                    any(),
+                )
+            }
+        }
+
+    @Test
     fun `waits for Tor connectivity timeout before failing`() =
         runTest {
             val torWaitTimeoutMs =
