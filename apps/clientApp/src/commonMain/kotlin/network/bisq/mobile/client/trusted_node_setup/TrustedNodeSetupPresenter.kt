@@ -84,11 +84,13 @@ class TrustedNodeSetupPresenter(
             }
         } else if (showConnectionFailed) {
             resetConnectionFailedRetryGuard()
+            val nodeApiVersion = currentIncompatibleNodeApiVersion()
             _uiState.update {
-                it.copy(showConnectionFailedWarning = true)
+                it.copy(showConnectionFailedWarning = nodeApiVersion == null, incompatibleNodeApiVersion = nodeApiVersion)
             }
         } else if (showSubscriptionsFailed) {
             resetConnectionFailedRetryGuard()
+            val nodeApiVersion = currentIncompatibleNodeApiVersion()
             _uiState.update {
                 if (webSocketClientService.connectionState.value is ConnectionState.Connected) {
                     it.copy(
@@ -96,11 +98,18 @@ class TrustedNodeSetupPresenter(
                     )
                 } else {
                     it.copy(
-                        showConnectionFailedWarning = true,
+                        showConnectionFailedWarning = nodeApiVersion == null,
+                        incompatibleNodeApiVersion = nodeApiVersion,
                     )
                 }
             }
         }
+    }
+
+    // The node may have turned out incompatible after the caller chose a generic failure warning
+    private fun currentIncompatibleNodeApiVersion(): String? {
+        val connectionState = webSocketClientService.connectionState.value
+        return connectionState.incompatibleApiVersionError?.serverVersion
     }
 
     private fun observeFlows() {
@@ -153,13 +162,19 @@ class TrustedNodeSetupPresenter(
         presenterScope.launch {
             webSocketClientService.connectionState.collect { connectionState ->
                 if (connectionState is ConnectionState.Disconnected) {
+                    val nodeApiVersion = connectionState.incompatibleApiVersionError?.serverVersion
                     _uiState.update { currentState ->
                         if (currentState.showSubscriptionsFailedWarning) {
                             resetConnectionFailedRetryGuard()
-                            val nodeApiVersion = connectionState.incompatibleApiVersionError?.serverVersion
                             currentState.copy(
                                 showSubscriptionsFailedWarning = false,
                                 showConnectionFailedWarning = nodeApiVersion == null,
+                                incompatibleNodeApiVersion = nodeApiVersion,
+                            )
+                        } else if (currentState.showConnectionFailedWarning && nodeApiVersion != null) {
+                            // A reconnect behind the generic warning found the node incompatible
+                            currentState.copy(
+                                showConnectionFailedWarning = false,
                                 incompatibleNodeApiVersion = nodeApiVersion,
                             )
                         } else {

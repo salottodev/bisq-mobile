@@ -1777,7 +1777,7 @@ class WebSocketClientServiceTest : ClientKoinIntegrationTestBase() {
             val usedHttpClient = mockk<HttpClient>(relaxed = true)
             val freshHttpClient = mockk<HttpClient>(relaxed = true)
             coEvery { httpClientService.getClient() } returns usedHttpClient
-            every { httpClientService.renewClient() } returns freshHttpClient
+            coEvery { httpClientService.renewClient() } returns freshHttpClient
             val statusFlow = MutableStateFlow<ConnectionState>(ConnectionState.Connected)
             every { mockClient.webSocketClientStatus } returns statusFlow
             val service = createService(iosPlatformInfo)
@@ -1792,7 +1792,7 @@ class WebSocketClientServiceTest : ClientKoinIntegrationTestBase() {
             testDispatcher.scheduler.advanceUntilIdle()
 
             // Then
-            verify(exactly = 1) { httpClientService.renewClient() }
+            coVerify(exactly = 1) { httpClientService.renewClient() }
             verify { webSocketClientFactory.createNewClient(usedHttpClient, any(), "old-session-id", any()) }
             verify { webSocketClientFactory.createNewClient(freshHttpClient, any(), "new-session-id", any()) }
         }
@@ -1817,7 +1817,7 @@ class WebSocketClientServiceTest : ClientKoinIntegrationTestBase() {
             testDispatcher.scheduler.advanceUntilIdle()
 
             // Then
-            verify(exactly = 0) { httpClientService.renewClient() }
+            coVerify(exactly = 0) { httpClientService.renewClient() }
             verify { webSocketClientFactory.createNewClient(httpClient, any(), "new-session-id", any()) }
         }
 
@@ -1840,7 +1840,7 @@ class WebSocketClientServiceTest : ClientKoinIntegrationTestBase() {
             testDispatcher.scheduler.advanceUntilIdle()
 
             // Then
-            verify(exactly = 0) { httpClientService.renewClient() }
+            coVerify(exactly = 0) { httpClientService.renewClient() }
             verify { webSocketClientFactory.createNewClient(rebuiltHttpClient, any(), any(), any()) }
         }
 

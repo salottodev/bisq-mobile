@@ -196,7 +196,8 @@ class HttpClientServiceTest : ClientKoinIntegrationTestBase() {
         }
 
     @Test
-    fun `renewClient returns null before any settings`() {
-        assertNull(createService().renewClient())
-    }
+    fun `renewClient returns null before any settings`() =
+        runBlocking {
+            assertNull(createService().renewClient())
+        }
 }

@@ -215,8 +215,6 @@ class WebSocketClientImpl(
         connectionMutex.withLock {
             log.d { "WS disconnect called" }
             doDisconnect()
-            // An explicit disconnect starts the next reconnect chain from scratch
-            reconnectAttempts = 0
             if (_webSocketClientStatus.value.incompatibleApiVersionError != null) {
                 _webSocketClientStatus.value = ConnectionState.Disconnected()
             }

@@ -1006,6 +1006,75 @@ class TrustedNodeSetupPresenterTest : ClientKoinIntegrationTestBase() {
         }
 
     @Test
+    fun `switches connection failed warning to incompatible version warning when a reconnect finds the node incompatible`() =
+        runTest {
+            // Given - the subscriptions warning, then a plain disconnect turns it into the generic warning
+            failedSubscriptionTopicsFlow.value = setOf(Topic.TRADES)
+            setupPresenter()
+            presenter.initialize(isWorkflow = true, showSubscriptionsFailed = true)
+            advanceUntilIdle()
+            connectionStateFlow.value = ConnectionState.Disconnected()
+            advanceUntilIdle()
+            assertTrue(presenter.uiState.value.showConnectionFailedWarning)
+
+            // When - a reconnect handshake finds the node incompatible
+            connectionStateFlow.value = ConnectionState.Connecting
+            advanceUntilIdle()
+            connectionStateFlow.value = ConnectionState.Disconnected(IncompatibleHttpApiVersionException("2.0.14"))
+            advanceUntilIdle()
+
+            // Then
+            val state = presenter.uiState.value
+            assertEquals("2.0.14", state.incompatibleNodeApiVersion)
+            assertFalse(state.showConnectionFailedWarning)
+            assertFalse(state.showSubscriptionsFailedWarning)
+        }
+
+    @Test
+    fun `connection failed warning stays generic on a plain disconnect`() =
+        runTest {
+            setupPresenter()
+            presenter.initialize(isWorkflow = true, showConnectionFailed = true)
+            advanceUntilIdle()
+
+            connectionStateFlow.value = ConnectionState.Disconnected(RuntimeException("timeout"))
+            advanceUntilIdle()
+
+            val state = presenter.uiState.value
+            assertTrue(state.showConnectionFailedWarning)
+            assertNull(state.incompatibleNodeApiVersion)
+        }
+
+    @Test
+    fun `initialize with connection failed shows incompatible version warning when the node is already incompatible`() =
+        runTest {
+            connectionStateFlow.value = ConnectionState.Disconnected(IncompatibleHttpApiVersionException("2.0.14"))
+            setupPresenter()
+
+            presenter.initialize(isWorkflow = true, showConnectionFailed = true)
+            advanceUntilIdle()
+
+            val state = presenter.uiState.value
+            assertEquals("2.0.14", state.incompatibleNodeApiVersion)
+            assertFalse(state.showConnectionFailedWarning)
+        }
+
+    @Test
+    fun `initialize with subscriptions failed shows incompatible version warning when the node is already incompatible`() =
+        runTest {
+            connectionStateFlow.value = ConnectionState.Disconnected(IncompatibleHttpApiVersionException("2.0.14"))
+            setupPresenter()
+
+            presenter.initialize(isWorkflow = true, showSubscriptionsFailed = true)
+            advanceUntilIdle()
+
+            val state = presenter.uiState.value
+            assertEquals("2.0.14", state.incompatibleNodeApiVersion)
+            assertFalse(state.showConnectionFailedWarning)
+            assertFalse(state.showSubscriptionsFailedWarning)
+        }
+
+    @Test
     fun `re-enables retry guard when connection failed warning is shown again after successful retry`() =
         runTest {
             coEvery { applicationLifecycleService.restartAllServices() } returns true

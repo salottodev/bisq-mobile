@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.access.utils.Headers
 import network.bisq.mobile.client.common.domain.httpclient.exception.UnauthorizedApiAccessException
@@ -76,6 +78,10 @@ class HttpClientService(
 
     private var _httpClient: MutableStateFlow<HttpClient?> =
         MutableStateFlow(null)
+
+    // Serializes client swaps, so the installed client always matches lastConfig
+    private val clientMutex = Mutex()
+
     private val _httpClientChangedFlow =
         MutableSharedFlow<HttpClientSettings>(1)
     val httpClientChangedFlow = _httpClientChangedFlow.asSharedFlow()
@@ -92,20 +98,20 @@ class HttpClientService(
 
         serviceScope.launch(Dispatchers.Default) {
             getHttpClientSettingsFlow().collect { newConfig ->
-                val previousConfig = lastConfig
-                if (previousConfig != newConfig) {
-                    lastConfig = newConfig
-                    // Auth headers are read from lastConfig per request, so a session change keeps the client.
-                    // Closing it would leave a kept WebSocket client unable to reconnect.
-                    // On iOS a new WebSocket client still gets a fresh one: see WebSocketClientService.
-                    if (previousConfig?.isSameExceptSession(newConfig) != true) {
-                        val oldClient = _httpClient.value
-                        // Clear before closing so getClient() waits for the new client
-                        // instead of returning the stale closed client
-                        _httpClient.value = null
-                        oldClient?.close()
-                        _httpClient.value = createNewInstance(newConfig)
+                val changed =
+                    clientMutex.withLock {
+                        val previousConfig = lastConfig
+                        if (previousConfig == newConfig) return@withLock false
+                        lastConfig = newConfig
+                        // Auth headers are read from lastConfig per request, so a session change keeps the client.
+                        // Closing it would leave a kept WebSocket client unable to reconnect.
+                        // On iOS a new WebSocket client still gets a fresh one: see WebSocketClientService.
+                        if (previousConfig?.isSameExceptSession(newConfig) != true) {
+                            replaceClient(newConfig)
+                        }
+                        true
                     }
+                if (changed) {
                     _generation.incrementAndGet()
                     _httpClientChangedFlow.emit(newConfig)
                 }
@@ -158,10 +164,12 @@ class HttpClientService(
             stopFlow,
         )
 
-    fun disposeClient() {
-        _httpClient.value?.close()
-        _httpClient.value = null
-        lastConfig = null
+    suspend fun disposeClient() {
+        clientMutex.withLock {
+            _httpClient.value?.close()
+            _httpClient.value = null
+            lastConfig = null
+        }
     }
 
     /**
@@ -173,14 +181,7 @@ class HttpClientService(
      * settings change so [WebSocketClientService] picks it up reactively.
      */
     suspend fun recreateClient() {
-        val config = lastConfig ?: return
-        val oldClient = _httpClient.value
-        _httpClient.value = null
-        oldClient?.close()
-        lastConfig = null
-        // Treat as new config by resetting lastConfig first
-        lastConfig = config
-        _httpClient.value = createNewInstance(config)
+        val config = clientMutex.withLock { lastConfig?.also { replaceClient(it) } } ?: return
         _generation.incrementAndGet()
         _httpClientChangedFlow.emit(config)
     }
@@ -192,9 +193,12 @@ class HttpClientService(
      *
      * @return the new client, or null when there are no settings yet.
      */
-    fun renewClient(): HttpClient? {
-        val config = lastConfig ?: return null
+    suspend fun renewClient(): HttpClient? = clientMutex.withLock { lastConfig?.let { replaceClient(it) } }
+
+    // Callers hold clientMutex
+    private fun replaceClient(config: HttpClientSettings): HttpClient {
         val oldClient = _httpClient.value
+        // Clear before closing so getClient() waits for the new client instead of returning the closed one
         _httpClient.value = null
         oldClient?.close()
         return createNewInstance(config).also { _httpClient.value = it }
