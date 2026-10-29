@@ -60,6 +60,14 @@ class QrCodeEncoderAndroidTest {
     }
 
     @Test
+    fun `upper case alphanumeric text fits where lower case does not`() {
+        val lower = "lnbc1" + "qpzry9x8gf2tvdw0s3jn54khce6mua7l".repeat(110)
+
+        assertNull(encodeQrCode(lower))
+        assertNotNull(encodeQrCode(lower.uppercase()))
+    }
+
+    @Test
     fun `gray pixel trimming strips margin`() {
         val source = encodeQrCode("Hello")!!
         val margin = 3

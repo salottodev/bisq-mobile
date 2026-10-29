@@ -121,6 +121,38 @@ class SellerQrCodeSheetUiTest : BisqComposeUiTestBase() {
     }
 
     @Test
+    fun `payment data too long for a qr explains it and keeps copy and wallet`() {
+        val tooLong = "lnbc1" + "qpzry9x8gf2tvdw0s3jn54khce6mua7l".repeat(140)
+        val actions = mutableListOf<SellerQrUiAction>()
+        setTestContent { SellerQrCodeContent(uiState = lightning.copy(payload = tooLong), onAction = { actions += it }) }
+
+        composeTestRule.onNodeWithTag("seller_qr_canvas").assertDoesNotExist()
+        composeTestRule.onNodeWithText("mobile.bisqEasy.tradeState.info.seller.phase3a.qrCode.unavailable".i18n()).assertExists()
+        composeTestRule
+            .onNodeWithText("bisqEasy.tradeState.info.seller.phase3a.qrCodeDisplay.window.title".i18n("abc123"))
+            .assertDoesNotExist()
+        composeTestRule.onNodeWithText("mobile.bisqEasy.tradeState.info.seller.phase3a.qrCode.paymentDataTitle".i18n("abc123")).assertExists()
+
+        composeTestRule.onNodeWithText("action.copyToClipboard".i18n()).performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(tooLong, clipboardPrimaryText())
+        composeTestRule
+            .onNodeWithText("mobile.bisqEasy.tradeState.info.seller.phase3a.qrCode.openInWallet".i18n())
+            .performClick()
+        assertEquals(listOf<SellerQrUiAction>(SellerQrUiAction.OnOpenInWallet), actions)
+    }
+
+    @Test
+    fun `a lightning invoice longer than the lower case qr capacity still gets a qr`() {
+        val longInvoice = "lnbc1" + "qpzry9x8gf2tvdw0s3jn54khce6mua7l".repeat(110)
+        setTestContent { SellerQrCodeContent(uiState = lightning.copy(payload = longInvoice), onAction = {}) }
+
+        composeTestRule.onNodeWithTag("seller_qr_canvas").assertExists()
+        composeTestRule.onNodeWithText("mobile.bisqEasy.tradeState.info.seller.phase3a.qrCode.unavailable".i18n()).assertDoesNotExist()
+        composeTestRule.onNodeWithTag("seller_qr_payload_text").assertTextEquals(longInvoice)
+    }
+
+    @Test
     fun `sheet blocks screenshots`() {
         lateinit var window: Window
         setTestContent {

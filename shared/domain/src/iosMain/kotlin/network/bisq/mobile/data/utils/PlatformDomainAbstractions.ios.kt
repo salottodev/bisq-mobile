@@ -16,6 +16,7 @@ import kotlinx.serialization.Serializable
 import network.bisq.mobile.domain.model.PlatformInfo
 import network.bisq.mobile.domain.model.PlatformType
 import network.bisq.mobile.domain.utils.getLogger
+import network.bisq.mobile.domain.utils.urlForLog
 import network.bisq.mobile.i18n.i18n
 import org.koin.core.scope.Scope
 import platform.CoreGraphics.CGRectMake
@@ -415,7 +416,7 @@ class IOSUrlLauncher : UrlLauncher {
     private val log = getLogger("IOSUrlLauncher")
 
     override suspend fun openUrl(url: String): Boolean {
-        val safeUrl = sanitizeUrlForLog(url)
+        val safeUrl = urlForLog(url)
         val nsUrl = NSURL.URLWithString(url)
         if (nsUrl == null) {
             log.w { "Failed to open URL (invalid URL string): $safeUrl" }
@@ -451,8 +452,6 @@ class IOSUrlLauncher : UrlLauncher {
             false
         }
     }
-
-    private fun sanitizeUrlForLog(rawUrl: String): String = rawUrl.take(256).ifEmpty { "invalid-url" }
 }
 
 class IOSAppUpdateLinker : AppUpdateLinker {

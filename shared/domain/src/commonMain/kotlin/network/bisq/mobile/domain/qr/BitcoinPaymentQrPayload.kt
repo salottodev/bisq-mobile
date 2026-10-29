@@ -38,3 +38,16 @@ fun satsToBtcString(sats: Long): String {
 
 /** Whether a BOLT 11 invoice carries an amount; an amount-less invoice lets the payer enter it, so the hint must say so. */
 fun lightningInvoiceHasAmount(invoice: String): Boolean = invoiceAmountPrefix.containsMatchIn(invoice.trim())
+
+private val singleCaseAlphanumeric = Regex("^([a-z0-9]+|[A-Z0-9]+)$")
+
+/**
+ * What the QR symbol encodes, which can differ from the [payload] shown and copied: a Lightning invoice
+ * in upper case. Bech32 is case-insensitive, and upper case lets the QR use its alphanumeric mode, which
+ * fits 4296 characters at level L instead of 2953 and draws every invoice with fewer modules. Anything
+ * that is not single-case alphanumeric (on-chain URIs, mixed-case or other data) is encoded as is.
+ */
+fun bitcoinPaymentQrCodeText(
+    payload: String,
+    isLightning: Boolean,
+): String = if (isLightning && singleCaseAlphanumeric.matches(payload)) payload.uppercase() else payload

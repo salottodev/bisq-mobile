@@ -49,4 +49,19 @@ class BitcoinPaymentQrPayloadTest {
         assertFalse(lightningInvoiceHasAmount("lnbc1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdpl2pkx2ctnv5sxxmmwwd5kgetjypeh2ursdae8g6twvus8g6rfwvs8qun0dfjkxaq8rkx3yf5tcsyz3d73gafnh3cax9rn449d9p5uxz9ezhhypd0elx87sjle52x86fux2ypatgddc6k63n7erqz25le42c4u4ecky03ylcqca784w"))
         assertFalse(lightningInvoiceHasAmount(""))
     }
+
+    @Test
+    fun `a lightning invoice is encoded in upper case for the compact qr mode`() {
+        assertEquals(invoice.uppercase(), bitcoinPaymentQrCodeText(invoice, isLightning = true))
+        assertEquals(invoice.uppercase(), bitcoinPaymentQrCodeText(invoice.uppercase(), isLightning = true))
+    }
+
+    @Test
+    fun `qr code text keeps on-chain uris and non-invoice data as they are`() {
+        val bip21 = "bitcoin:$address?amount=0.0025"
+        assertEquals(bip21, bitcoinPaymentQrCodeText(bip21, isLightning = false))
+        // Mixed case is not valid bech32, and anything else may not survive a case change.
+        assertEquals("lnBC2500u1pvjluez", bitcoinPaymentQrCodeText("lnBC2500u1pvjluez", isLightning = true))
+        assertEquals("lnurl1dp68gurn8ghj7?x=1", bitcoinPaymentQrCodeText("lnurl1dp68gurn8ghj7?x=1", isLightning = true))
+    }
 }

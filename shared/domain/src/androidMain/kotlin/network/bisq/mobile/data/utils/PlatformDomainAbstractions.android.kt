@@ -18,6 +18,7 @@ import kotlinx.serialization.Serializable
 import network.bisq.mobile.domain.model.PlatformInfo
 import network.bisq.mobile.domain.model.PlatformType
 import network.bisq.mobile.domain.utils.getLogger
+import network.bisq.mobile.domain.utils.urlForLog
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.scope.Scope
 import java.io.ByteArrayOutputStream
@@ -121,7 +122,7 @@ class AndroidUrlLauncher(
     }
 
     private fun tryOpenUrl(url: String): Boolean {
-        val safeUrl = sanitizeUrlForLog(url)
+        val safeUrl = urlForLog(url)
         val intent = Intent(Intent.ACTION_VIEW, url.toUri())
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
         try {
@@ -141,19 +142,6 @@ class AndroidUrlLauncher(
         if (uri.scheme != "market") return null
         val packageName = uri.getQueryParameter("id")?.takeIf { it.isNotBlank() } ?: return null
         return AppUpdateUrls.playStoreDetailsUrl(packageName)
-    }
-
-    private fun sanitizeUrlForLog(rawUrl: String): String {
-        val uri = runCatching { rawUrl.toUri() }.getOrNull()
-        return if (uri != null) {
-            buildString {
-                append(uri.scheme ?: "unknown")
-                uri.host?.let { append("://").append(it) }
-                uri.path?.let { append(it) }
-            }.take(256)
-        } else {
-            "invalid-url"
-        }
     }
 }
 

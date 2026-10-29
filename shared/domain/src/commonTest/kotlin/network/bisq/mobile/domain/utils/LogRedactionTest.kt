@@ -130,4 +130,25 @@ class LogRedactionTest {
         assertTrue(RedactingLogWriter(CapturingWriter(loggable = true)).isLoggable("Tag", Severity.Debug))
         assertFalse(RedactingLogWriter(CapturingWriter(loggable = false)).isLoggable("Tag", Severity.Error))
     }
+
+    @Test
+    fun `a web url is logged as its scheme and host only`() {
+        assertEquals("https://mempool.space", urlForLog("https://mempool.space/tx/4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b?x=1#top"))
+        assertEquals("http://example.org:8080", urlForLog("http://user:secret@example.org:8080/path"))
+    }
+
+    @Test
+    fun `a payment uri is logged as its scheme only`() {
+        assertEquals("bitcoin:<redacted>", urlForLog("bitcoin:bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4?amount=0.0025"))
+        assertEquals("lightning:<redacted>", urlForLog("lightning:lnbc2500u1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyq"))
+        assertEquals("bitcoin:<redacted>", urlForLog("BITCOIN:BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4"))
+        assertEquals("market:<redacted>", urlForLog("market://details?id=network.bisq.mobile"))
+    }
+
+    @Test
+    fun `text without a scheme is logged as invalid`() {
+        assertEquals("invalid-url", urlForLog(""))
+        assertEquals("invalid-url", urlForLog("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"))
+        assertEquals("invalid-url", urlForLog("not a url"))
+    }
 }
