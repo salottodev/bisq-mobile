@@ -97,6 +97,7 @@ class HttpClientService(
                     lastConfig = newConfig
                     // Auth headers are read from lastConfig per request, so a session change keeps the client.
                     // Closing it would leave a kept WebSocket client unable to reconnect.
+                    // On iOS a new WebSocket client still gets a fresh one: see WebSocketClientService.
                     if (previousConfig?.isSameExceptSession(newConfig) != true) {
                         val oldClient = _httpClient.value
                         // Clear before closing so getClient() waits for the new client
@@ -182,6 +183,21 @@ class HttpClientService(
         _httpClient.value = createNewInstance(config)
         _generation.incrementAndGet()
         _httpClientChangedFlow.emit(config)
+    }
+
+    /**
+     * Replaces the current client with a fresh one built from the same settings, without
+     * emitting [httpClientChangedFlow]. For a caller that is about to build on the client
+     * and must not get a used one back (a fresh NSURLSession on iOS).
+     *
+     * @return the new client, or null when there are no settings yet.
+     */
+    fun renewClient(): HttpClient? {
+        val config = lastConfig ?: return null
+        val oldClient = _httpClient.value
+        _httpClient.value = null
+        oldClient?.close()
+        return createNewInstance(config).also { _httpClient.value = it }
     }
 
     /**

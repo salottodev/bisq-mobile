@@ -1,5 +1,6 @@
 package network.bisq.mobile.client.common.domain.websocket
 
+import io.ktor.client.HttpClient
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -9,6 +10,8 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -26,6 +29,8 @@ import network.bisq.mobile.client.common.domain.websocket.subscription.Modificat
 import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
 import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
 import network.bisq.mobile.data.service.network.KmpTorService
+import network.bisq.mobile.domain.model.PlatformInfo
+import network.bisq.mobile.domain.model.PlatformType
 import network.bisq.mobile.domain.utils.DateUtils
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -1746,4 +1751,128 @@ class WebSocketClientServiceTest : ClientKoinIntegrationTestBase() {
             newNodeInfo.value = newInfo
             assertEquals(newInfo, webSocketClientService.nodeInfo.first())
         }
+
+    @Test
+    fun `deactivate completes while a client update waits for the http client`() =
+        runTest {
+            // Given - the update holds clientUpdateMutex while getClient() waits for a client that never comes
+            coEvery { httpClientService.getClient() } coAnswers { awaitCancellation() }
+            webSocketClientService.activate()
+            testDispatcher.scheduler.advanceUntilIdle()
+            httpClientChangedFlow.emit(sessionSettings("session-id"))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // When
+            val deactivation = async { webSocketClientService.deactivate() }
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // Then
+            assertTrue(deactivation.isCompleted)
+        }
+
+    @Test
+    fun `on iOS a WebSocket client recreated for a new session gets a fresh http client`() =
+        runTest {
+            // Given
+            val usedHttpClient = mockk<HttpClient>(relaxed = true)
+            val freshHttpClient = mockk<HttpClient>(relaxed = true)
+            coEvery { httpClientService.getClient() } returns usedHttpClient
+            every { httpClientService.renewClient() } returns freshHttpClient
+            val statusFlow = MutableStateFlow<ConnectionState>(ConnectionState.Connected)
+            every { mockClient.webSocketClientStatus } returns statusFlow
+            val service = createService(iosPlatformInfo)
+            service.activate()
+            testDispatcher.scheduler.advanceUntilIdle()
+            httpClientChangedFlow.emit(sessionSettings("old-session-id"))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // When - a 401 makes the renewed session recreate the WebSocket client
+            statusFlow.value = ConnectionState.Disconnected(error = UnauthorizedApiAccessException())
+            httpClientChangedFlow.emit(sessionSettings("new-session-id"))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // Then
+            verify(exactly = 1) { httpClientService.renewClient() }
+            verify { webSocketClientFactory.createNewClient(usedHttpClient, any(), "old-session-id", any()) }
+            verify { webSocketClientFactory.createNewClient(freshHttpClient, any(), "new-session-id", any()) }
+        }
+
+    @Test
+    fun `on Android a WebSocket client recreated for a new session keeps the http client`() =
+        runTest {
+            // Given
+            val httpClient = mockk<HttpClient>(relaxed = true)
+            coEvery { httpClientService.getClient() } returns httpClient
+            val statusFlow = MutableStateFlow<ConnectionState>(ConnectionState.Connected)
+            every { mockClient.webSocketClientStatus } returns statusFlow
+            val service = createService(androidPlatformInfo)
+            service.activate()
+            testDispatcher.scheduler.advanceUntilIdle()
+            httpClientChangedFlow.emit(sessionSettings("old-session-id"))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // When
+            statusFlow.value = ConnectionState.Disconnected(error = UnauthorizedApiAccessException())
+            httpClientChangedFlow.emit(sessionSettings("new-session-id"))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // Then
+            verify(exactly = 0) { httpClientService.renewClient() }
+            verify { webSocketClientFactory.createNewClient(httpClient, any(), "new-session-id", any()) }
+        }
+
+    @Test
+    fun `on iOS an http client already rebuilt for new settings is not renewed again`() =
+        runTest {
+            // Given
+            val firstHttpClient = mockk<HttpClient>(relaxed = true)
+            val rebuiltHttpClient = mockk<HttpClient>(relaxed = true)
+            coEvery { httpClientService.getClient() } returns firstHttpClient
+            val service = createService(iosPlatformInfo)
+            service.activate()
+            testDispatcher.scheduler.advanceUntilIdle()
+            httpClientChangedFlow.emit(sessionSettings("session-id"))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // When - HttpClientService rebuilt its client for a new node url
+            coEvery { httpClientService.getClient() } returns rebuiltHttpClient
+            httpClientChangedFlow.emit(sessionSettings("session-id").copy(bisqApiUrl = "http://localhost:9090"))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // Then
+            verify(exactly = 0) { httpClientService.renewClient() }
+            verify { webSocketClientFactory.createNewClient(rebuiltHttpClient, any(), any(), any()) }
+        }
+
+    private val androidPlatformInfo =
+        object : PlatformInfo {
+            override val name = "Android Test"
+            override val type = PlatformType.ANDROID
+        }
+
+    private val iosPlatformInfo =
+        object : PlatformInfo {
+            override val name = "iOS Test"
+            override val type = PlatformType.IOS
+        }
+
+    private fun createService(platformInfo: PlatformInfo) =
+        WebSocketClientService(
+            defaultHost = "localhost",
+            defaultPort = 8080,
+            httpClientService = httpClientService,
+            webSocketClientFactory = webSocketClientFactory,
+            sessionService = sessionService,
+            sensitiveSettingsRepository = sensitiveSettingsRepository,
+            platformInfo = platformInfo,
+        )
+
+    private fun sessionSettings(sessionId: String) =
+        HttpClientSettings(
+            bisqApiUrl = "http://localhost:8080",
+            tlsFingerprint = null,
+            clientId = "client-id",
+            sessionId = sessionId,
+            sessionExpiresAt = Long.MAX_VALUE,
+        )
 }

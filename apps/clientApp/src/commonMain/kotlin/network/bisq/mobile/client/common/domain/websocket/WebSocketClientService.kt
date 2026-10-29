@@ -1,5 +1,6 @@
 package network.bisq.mobile.client.common.domain.websocket
 
+import io.ktor.client.HttpClient
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
 import io.ktor.http.parseUrl
@@ -8,6 +9,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -46,6 +48,7 @@ import network.bisq.mobile.data.service.ServiceFacade
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
 import network.bisq.mobile.data.service.network.KmpTorService
 import network.bisq.mobile.data.utils.getPlatformInfo
+import network.bisq.mobile.domain.model.PlatformInfo
 import network.bisq.mobile.domain.model.PlatformType
 import network.bisq.mobile.domain.utils.DateUtils
 import network.bisq.mobile.domain.utils.Logging
@@ -73,6 +76,7 @@ class WebSocketClientService(
     private val sessionService: SessionService? = null,
     private val sensitiveSettingsRepository: SensitiveSettingsRepository? = null,
     private val kmpTorService: KmpTorService? = null,
+    private val platformInfo: PlatformInfo = getPlatformInfo(),
 ) : ServiceFacade(),
     Logging {
     companion object {
@@ -126,8 +130,12 @@ class WebSocketClientService(
         MutableStateFlow<ConnectionState>(ConnectionState.Disconnected())
     val connectionState = _connectionState.asStateFlow()
 
+    private var httpClientChangedJob: Job? = null
     private var stateCollectionJob: Job? = null
     private var currentClientSettings: HttpClientSettings? = null
+
+    // The HttpClient the current WebSocket client was built on
+    private var webSocketHttpClient: HttpClient? = null
     private var preservedIsTorProxy = false
 
     private val currentClient = MutableStateFlow<WebSocketClient?>(null)
@@ -203,11 +211,12 @@ class WebSocketClientService(
 
         stopFlow.resetReplayCache()
 
-        serviceScope.launch {
-            httpClientService.httpClientChangedFlow.collect {
-                updateWebSocketClient(it)
+        httpClientChangedJob =
+            serviceScope.launch {
+                httpClientService.httpClientChangedFlow.collect {
+                    updateWebSocketClient(it)
+                }
             }
-        }
     }
 
     override suspend fun deactivate() {
@@ -219,12 +228,17 @@ class WebSocketClientService(
         // stateCollectionJob (which calls applySubscriptions on connect)
         // is dead — leaving subscriptions registered but uncollected.
         // The client is not kept: HttpClientService.deactivate() closes the HttpClient it uses.
+        // Cancel the update first: it can hold clientUpdateMutex while it waits in getClient(),
+        // and only HttpClientService.deactivate(), which runs after this, would release it.
+        httpClientChangedJob?.cancelAndJoin()
+        httpClientChangedJob = null
         clientUpdateMutex.withLock {
             stateCollectionJob?.cancel()
             stateCollectionJob = null
             currentClient.value?.dispose()
             currentClient.value = null
             currentClientSettings = null
+            webSocketHttpClient = null
         }
         subscriptionMutex.withLock {
             subscriptionsAreApplied = false
@@ -381,9 +395,10 @@ class WebSocketClientService(
                 return@withLock
             }
 
+            val httpClient = httpClientForNewWebSocket()
             val newClient =
                 webSocketClientFactory.createNewClient(
-                    httpClient = httpClientService.getClient(),
+                    httpClient = httpClient,
                     apiUrl = newApiUrl,
                     sessionId = httpClientSettings.sessionId,
                     clientId = httpClientSettings.clientId,
@@ -391,6 +406,7 @@ class WebSocketClientService(
 
             currentClient.value = newClient
             currentClientSettings = httpClientSettings
+            webSocketHttpClient = httpClient
             ApplicationBootstrapFacade.isDemo = newClient is WebSocketClientDemo
             stateCollectionJob?.cancel()
             stateCollectionJob =
@@ -436,6 +452,18 @@ class WebSocketClientService(
         }
     }
 
+    /**
+     * On iOS every new WebSocket client gets a fresh HttpClient: the Darwin engine's NSURLSession
+     * can stop creating working WebSockets after repeated disconnects. A session-only change keeps
+     * the HttpClient (see [HttpClientService]), so a client recreated for it would get the used one.
+     */
+    private suspend fun httpClientForNewWebSocket(): HttpClient {
+        val httpClient = httpClientService.getClient()
+        if (platformInfo.type != PlatformType.IOS || httpClient !== webSocketHttpClient) return httpClient
+        log.d { "Renewing the HttpClient for the new WebSocket client" }
+        return httpClientService.renewClient() ?: httpClient
+    }
+
     private fun shouldAttemptReconnect(error: Throwable): Boolean {
         return when (error) {
             is UnauthorizedApiAccessException,
@@ -445,7 +473,7 @@ class WebSocketClientService(
             -> false
 
             is CancellationException -> {
-                if (getPlatformInfo().type == PlatformType.IOS) {
+                if (platformInfo.type == PlatformType.IOS) {
                     return error.cause?.message?.contains("Socket is not connected") == true
                 }
                 return false

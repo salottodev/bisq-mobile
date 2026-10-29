@@ -17,8 +17,10 @@ import network.bisq.mobile.data.service.network.KmpTorService
 import network.bisq.mobile.domain.utils.OperationCancelledException
 import network.bisq.mobile.domain.utils.VersionProvider
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotSame
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -175,4 +177,26 @@ class HttpClientServiceTest : ClientKoinIntegrationTestBase() {
 
             assertIs<OperationCancelledException>(pending.await().exceptionOrNull())
         }
+
+    @Test
+    fun `renewClient replaces the client without announcing a settings change`() =
+        runBlocking {
+            val service = createService()
+            service.activateWithSession("session-1")
+            val clientBefore = service.getClient()
+
+            // Undispatched so the generation is read before the renewal
+            val ready = async(start = CoroutineStart.UNDISPATCHED) { service.awaitClientReady(timeoutMs = 300) }
+            val renewed = service.renewClient()
+
+            assertNotSame(clientBefore, renewed)
+            assertSame(renewed, service.getClient())
+            assertFalse(ready.await())
+            service.deactivate()
+        }
+
+    @Test
+    fun `renewClient returns null before any settings`() {
+        assertNull(createService().renewClient())
+    }
 }
