@@ -20,8 +20,10 @@ import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqTextFieldV0
+import network.bisq.mobile.presentation.common.ui.components.atoms.button.CompactIconButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.button.CopyIconButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.button.PasteIconButton
+import network.bisq.mobile.presentation.common.ui.components.atoms.icons.QrCodeIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.ScanQrIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.layout.BisqGap
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
@@ -38,6 +40,7 @@ enum class BitcoinLnAddressFieldType {
 /**
  * @param copyable read-only only: false when [value] is a placeholder rather than payment data
  *   (e.g. "N/A" before the buyer's address arrives), so it is not offered for copying.
+ * @param onShowQrClick read-only only: adds a QR action beside copy; null hides it.
  */
 @Composable
 fun BitcoinLnAddressField(
@@ -49,6 +52,7 @@ fun BitcoinLnAddressField(
     onBarcodeClick: (() -> Unit)? = null,
     triggerValidation: Int? = null,
     copyable: Boolean = true,
+    onShowQrClick: (() -> Unit)? = null,
 ) {
     val validationLogic =
         remember(type) {
@@ -120,7 +124,14 @@ fun BitcoinLnAddressField(
                     }
 
                     copyable && value.isNotBlank() -> {
-                        { CopyIconButton(value = value) }
+                        {
+                            Row(horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalf)) {
+                                CopyIconButton(value = value)
+                                if (onShowQrClick != null) {
+                                    CompactIconButton(onClick = onShowQrClick) { QrCodeIcon() }
+                                }
+                            }
+                        }
                     }
 
                     else -> null
@@ -251,6 +262,7 @@ private fun BitcoinLnAddressFieldReadOnlyPreview() {
                 value = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
                 label = "Bitcoin address",
                 disabled = true,
+                onShowQrClick = { },
             )
         }
     }

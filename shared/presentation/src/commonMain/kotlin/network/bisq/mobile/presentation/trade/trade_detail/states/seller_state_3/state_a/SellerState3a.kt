@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import bisqapps.shared.presentation.generated.resources.Res
 import bisqapps.shared.presentation.generated.resources.trade_check_circle
 import network.bisq.mobile.data.replicated.offer.DirectionEnum
+import network.bisq.mobile.domain.qr.bitcoinPaymentQrPayload
+import network.bisq.mobile.domain.qr.bitcoinPaymentWalletUri
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqButton
 import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
@@ -30,6 +32,9 @@ import network.bisq.mobile.presentation.common.ui.components.molecules.inputfiel
 import network.bisq.mobile.presentation.common.ui.security.SecureScreenEffect
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
 import network.bisq.mobile.presentation.common.ui.utils.RememberPresenterLifecycle
+import network.bisq.mobile.presentation.trade.trade_detail.states.seller_state_3.state_a.qr.SellerQrCodeSheet
+import network.bisq.mobile.presentation.trade.trade_detail.states.seller_state_3.state_a.qr.SellerQrUiAction
+import network.bisq.mobile.presentation.trade.trade_detail.states.seller_state_3.state_a.qr.SellerQrUiState
 import org.jetbrains.compose.resources.painterResource
 
 @Composable
@@ -57,6 +62,7 @@ fun SellerState3a(
     val bitcoinPaymentData by trade.bisqEasyTradeModel.bitcoinPaymentData.collectAsState()
     val isLightning by presenter.isLightning.collectAsState()
     val addressFieldType by presenter.bitcoinLnAddressFieldType.collectAsState()
+    val isQrSheetVisible by presenter.isQrSheetVisible.collectAsState()
 
     Column(horizontalAlignment = Alignment.Start) {
         BisqGap.V1()
@@ -104,7 +110,27 @@ fun SellerState3a(
             type = addressFieldType,
             disabled = true,
             copyable = bitcoinPaymentData != null,
+            onShowQrClick = if (bitcoinPaymentData != null) presenter::onShowQr else null,
         )
+        val paymentData = bitcoinPaymentData
+        if (isQrSheetVisible && paymentData != null) {
+            val payload = bitcoinPaymentQrPayload(paymentData, isLightning, trade.baseAmount)
+            SellerQrCodeSheet(
+                uiState =
+                    SellerQrUiState(
+                        shortTradeId = trade.shortTradeId,
+                        isLightning = isLightning,
+                        payload = payload,
+                        baseAmountDisplay = baseAmount,
+                    ),
+                onAction = { action ->
+                    when (action) {
+                        SellerQrUiAction.OnClose -> presenter.onCloseQr()
+                        SellerQrUiAction.OnOpenInWallet -> presenter.onOpenInWallet(bitcoinPaymentWalletUri(payload, isLightning))
+                    }
+                },
+            )
+        }
 
         BisqGap.V1()
         BisqText.BaseRegularGrey(

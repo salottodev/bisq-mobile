@@ -2,6 +2,8 @@ package network.bisq.mobile.presentation.common.ui.components.molecules.inputfie
 
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
+import io.mockk.mockk
+import io.mockk.verify
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.clipboardPrimaryText
 import network.bisq.mobile.test.presentation.compose.BisqComposeUiTestBase
 import org.junit.Test
@@ -80,11 +82,33 @@ class BitcoinLnAddressFieldUiTest : BisqComposeUiTestBase() {
         composeTestRule.onNodeWithContentDescription(COPY).assertDoesNotExist()
     }
 
+    @Test
+    fun `read-only field shows the qr action only when a handler is given`() {
+        val onShowQr = mockk<() -> Unit>(relaxed = true)
+        setTestContent {
+            BitcoinLnAddressField(value = ADDRESS, disabled = true, onShowQrClick = onShowQr)
+        }
+
+        composeTestRule.onNodeWithContentDescription(QR).performClick()
+
+        verify(exactly = 1) { onShowQr() }
+    }
+
+    @Test
+    fun `read-only field without a handler offers no qr action`() {
+        setTestContent {
+            BitcoinLnAddressField(value = ADDRESS, disabled = true)
+        }
+
+        composeTestRule.onNodeWithContentDescription(QR).assertDoesNotExist()
+    }
+
     private companion object {
         const val ADDRESS = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"
         const val INVOICE = "lnbc2500u1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypq"
         const val COPY = "Copy icon"
         const val PASTE = "Paste icon"
         const val SCAN = "Scan icon"
+        const val QR = "QR code icon"
     }
 }
