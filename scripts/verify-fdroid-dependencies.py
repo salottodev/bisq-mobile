@@ -46,6 +46,7 @@ ALLOWED = {
     # an ad-hoc grep misses and a real check does not.
     "com.google.j2objc:j2objc-annotations": "Apache-2.0",
     "com.google.accompanist:accompanist-drawablepainter": "Apache-2.0",
+    "com.google.zxing:core": "Apache-2.0",
     # grpc's annotations artifact. Unrelated to com.google.android.gms despite the group id.
     "com.google.android:annotations": "Apache-2.0",
     "com.googlecode.libphonenumber:libphonenumber": "Apache-2.0",
