@@ -1,5 +1,9 @@
 package network.bisq.mobile.presentation.common.ui.components.atoms.button
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -54,5 +58,16 @@ class CopyIconButtonUiTest : BisqComposeUiTestBase() {
 
         assertEquals("copy me", clipboardPrimaryText())
         composeTestRule.onNodeWithContentDescription("check").assertExists()
+    }
+
+    @Test
+    fun `labeled copy row is announced as a button`() {
+        setTestContent {
+            CopyIconButton(value = "copy me", showToast = false, label = "Copy to clipboard")
+        }
+
+        composeTestRule
+            .onNodeWithText("Copy to clipboard")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
     }
 }

@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -100,7 +101,7 @@ private fun CopyIconButtonContent(
             modifier =
                 Modifier
                     .clip(RoundedCornerShape(BisqUIConstants.BorderRadius))
-                    .clickable(onClick = onClick),
+                    .clickable(role = Role.Button, onClick = onClick),
             horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalf),
             verticalAlignment = Alignment.CenterVertically,
         ) {
