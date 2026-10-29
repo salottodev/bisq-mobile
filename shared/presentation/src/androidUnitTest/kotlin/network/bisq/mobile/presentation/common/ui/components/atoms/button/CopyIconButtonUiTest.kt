@@ -1,10 +1,13 @@
 package network.bisq.mobile.presentation.common.ui.components.atoms.button
 
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
+import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.clipboardPrimaryText
 import network.bisq.mobile.test.presentation.compose.BisqComposeUiTestBase
 import org.junit.Test
+import kotlin.test.assertEquals
 
 /**
  * Covers the copy confirmation: the icon turns into a check mark on a successful copy and reverts
@@ -37,6 +40,19 @@ class CopyIconButtonUiTest : BisqComposeUiTestBase() {
         composeTestRule.onNodeWithContentDescription("Copy icon").performClick()
         composeTestRule.waitForIdle()
 
+        composeTestRule.onNodeWithContentDescription("check").assertExists()
+    }
+
+    @Test
+    fun `tapping the label copies the value and shows the check icon`() {
+        setTestContent {
+            CopyIconButton(value = "copy me", showToast = false, label = "Copy to clipboard")
+        }
+
+        composeTestRule.onNodeWithText("Copy to clipboard").performClick()
+        composeTestRule.waitForIdle()
+
+        assertEquals("copy me", clipboardPrimaryText())
         composeTestRule.onNodeWithContentDescription("check").assertExists()
     }
 }
