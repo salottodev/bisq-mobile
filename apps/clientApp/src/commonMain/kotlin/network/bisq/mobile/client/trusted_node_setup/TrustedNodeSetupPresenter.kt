@@ -12,6 +12,7 @@ import network.bisq.mobile.client.common.domain.access.pairing.qr.PairingQrCode
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepository
 import network.bisq.mobile.client.common.domain.websocket.ConnectionState
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
+import network.bisq.mobile.client.common.domain.websocket.incompatibleApiVersionError
 import network.bisq.mobile.client.common.presentation.navigation.ClientNavRoute
 import network.bisq.mobile.client.trusted_node_setup.components.SubscriptionsFailedDialogUiAction
 import network.bisq.mobile.client.trusted_node_setup.use_case.TrustedNodeConnectionStatus
@@ -155,9 +156,11 @@ class TrustedNodeSetupPresenter(
                     _uiState.update { currentState ->
                         if (currentState.showSubscriptionsFailedWarning) {
                             resetConnectionFailedRetryGuard()
+                            val nodeApiVersion = connectionState.incompatibleApiVersionError?.serverVersion
                             currentState.copy(
                                 showSubscriptionsFailedWarning = false,
-                                showConnectionFailedWarning = true,
+                                showConnectionFailedWarning = nodeApiVersion == null,
+                                incompatibleNodeApiVersion = nodeApiVersion,
                             )
                         } else {
                             currentState

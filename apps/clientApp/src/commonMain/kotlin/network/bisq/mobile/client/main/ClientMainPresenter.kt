@@ -3,6 +3,7 @@ package network.bisq.mobile.client.main
 import androidx.compose.material3.SnackbarDuration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import network.bisq.mobile.client.common.domain.service.network.ClientConnectivityService
 import network.bisq.mobile.client.common.domain.service.push_notification.TrustedNodePushRelease
@@ -86,12 +87,15 @@ open class ClientMainPresenter(
             _isConnectivityRecoveryEnabled,
             "restartServicesAndNavigateToSplash",
         ) {
+            // Before the restart: the new client may report an incompatible node while it runs
+            setIsMainContentVisible(false)
             val succeeded = applicationLifecycleService.restartAllServices()
             if (succeeded) {
                 navigateTo(NavRoute.Splash()) {
                     it.popUpTo(NavRoute.TabContainer) { inclusive = true }
                 }
             } else {
+                setIsMainContentVisible(true)
                 showSnackbar("mobile.connectivity.restartFailed".i18n(), SnackbarType.ERROR)
             }
         }
@@ -102,7 +106,23 @@ open class ClientMainPresenter(
         listenForConnectivity()
         observeConnectivity()
         observeClientRevocation()
+        observeIncompatibleNodeApiVersion()
         observeTrustedNodePushReleaseFailures()
+    }
+
+    // The splash handles it until the main content shows; from then on nothing else reacts to it
+    private fun observeIncompatibleNodeApiVersion() {
+        presenterScope.launch {
+            combine(connectivityService.incompatibleNodeApiVersion, isMainContentVisible) { nodeApiVersion, mainVisible ->
+                nodeApiVersion.takeIf { mainVisible }
+            }.filterNotNull().collect { nodeApiVersion ->
+                log.i { "Trusted node API version $nodeApiVersion is incompatible, navigating to trusted node setup" }
+                setIsMainContentVisible(false)
+                navigateTo(ClientNavRoute.TrustedNodeSetup(incompatibleNodeApiVersion = nodeApiVersion)) {
+                    it.popUpTo(NavRoute.TabContainer) { inclusive = true }
+                }
+            }
+        }
     }
 
     // Lives here because the failure arrives after the user has left the screen that switched node.
@@ -158,6 +178,7 @@ open class ClientMainPresenter(
                         type = SnackbarType.ERROR,
                     )
                     connectivityService.acknowledgeRevocation()
+                    setIsMainContentVisible(false)
                     navigateTo(ClientNavRoute.TrustedNodeSetup()) { builder ->
                         builder.popUpTo(NavRoute.TabContainer) { inclusive = true }
                     }

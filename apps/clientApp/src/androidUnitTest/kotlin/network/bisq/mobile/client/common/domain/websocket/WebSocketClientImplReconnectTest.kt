@@ -11,10 +11,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.TestScope
 import kotlinx.serialization.json.Json
 import network.bisq.mobile.client.common.domain.httpclient.exception.UnauthorizedApiAccessException
+import network.bisq.mobile.client.common.domain.websocket.exception.IncompatibleHttpApiVersionException
 import network.bisq.mobile.client.common.domain.websocket.exception.MaximumRetryReachedException
 import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -132,6 +134,34 @@ class WebSocketClientImplReconnectTest : ClientKoinIntegrationTestBase() {
                 error is MaximumRetryReachedException,
                 "Expected MaximumRetryReachedException, got ${error?.javaClass?.simpleName}",
             )
+        }
+
+    @Test
+    fun `disconnect resets the reconnect attempts left by a chain that ended incompatible`() =
+        runTest {
+            // Given - a chain whose last allowed attempt finds an incompatible node
+            val client = createClient()
+            var connectCallCount = 0
+            coEvery { client.connect(any()) } answers {
+                connectCallCount++
+                when {
+                    connectCallCount < WebSocketClientImpl.MAX_RECONNECT_ATTEMPTS -> RuntimeException("Retryable error")
+                    connectCallCount == WebSocketClientImpl.MAX_RECONNECT_ATTEMPTS -> IncompatibleHttpApiVersionException("2.0.14")
+                    else -> null
+                }
+            }
+            client.reconnect()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(WebSocketClientImpl.MAX_RECONNECT_ATTEMPTS, connectCallCount)
+
+            // When - an explicit disconnect, then a new reconnect
+            client.disconnect()
+            client.reconnect()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // Then - it attempts a connect instead of giving up at once
+            assertEquals(WebSocketClientImpl.MAX_RECONNECT_ATTEMPTS + 1, connectCallCount)
+            assertFalse(client.webSocketClientStatus.value.let { it is ConnectionState.Disconnected && it.error is MaximumRetryReachedException })
         }
 
     @Test

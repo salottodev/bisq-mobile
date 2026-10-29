@@ -20,6 +20,7 @@ import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSett
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepository
 import network.bisq.mobile.client.common.domain.websocket.ConnectionState
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
+import network.bisq.mobile.client.common.domain.websocket.exception.IncompatibleHttpApiVersionException
 import network.bisq.mobile.client.common.domain.websocket.subscription.Topic
 import network.bisq.mobile.client.common.presentation.navigation.ClientNavRoute
 import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
@@ -984,6 +985,24 @@ class TrustedNodeSetupPresenterTest : ClientKoinIntegrationTestBase() {
             assertTrue(state.showConnectionFailedWarning)
             assertFalse(state.showSubscriptionsFailedWarning)
             assertEquals(listOf(Topic.TRADES), state.failedTopics)
+        }
+
+    @Test
+    fun `switches subscriptions warning to incompatible version warning when the node becomes incompatible`() =
+        runTest {
+            failedSubscriptionTopicsFlow.value = setOf(Topic.TRADES)
+            setupPresenter()
+            presenter.initialize(isWorkflow = true, showSubscriptionsFailed = true)
+            advanceUntilIdle()
+
+            connectionStateFlow.value = ConnectionState.Disconnected(IncompatibleHttpApiVersionException("2.0.14"))
+            advanceUntilIdle()
+
+            val state = presenter.uiState.value
+            assertEquals("2.0.14", state.incompatibleNodeApiVersion)
+            assertFalse(state.showConnectionFailedWarning)
+            assertFalse(state.showSubscriptionsFailedWarning)
+            assertTrue(presenter.isConnectionFailedRetryEnabled.value)
         }
 
     @Test

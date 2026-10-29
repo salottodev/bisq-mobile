@@ -192,13 +192,23 @@ class ClientSplashPresenter(
                 } else {
                     CONNECTIVITY_WAIT_TIMEOUT_CLEARNET_MS
                 }
-            val connected =
+            // Also ends on an incompatible node: hasNavigated is already set, so its observer can't navigate
+            val waitResult =
                 withTimeoutOrNull(connectivityWaitTimeoutMs) {
-                    connectivityService.status.first { it.isConnected() }
-                    true
-                } ?: false
+                    combine(
+                        connectivityService.status,
+                        applicationBootstrapFacade.incompatibleNodeApiVersion,
+                    ) { status, nodeApiVersion -> status to nodeApiVersion }
+                        .first { (status, nodeApiVersion) -> status.isConnected() || nodeApiVersion != null }
+                }
 
-            if (!connected) {
+            val incompatibleNodeApiVersion = waitResult?.second
+            if (incompatibleNodeApiVersion != null) {
+                log.d { "Incompatible node API version $incompatibleNodeApiVersion, navigating to trusted node setup" }
+                navigateToTrustedNodeSetup(incompatibleNodeApiVersion = incompatibleNodeApiVersion)
+                return
+            }
+            if (waitResult == null) {
                 log.d { "No connectivity detected, navigating to trusted node setup" }
                 navigateToTrustedNodeSetup(showConnectionFailed = true)
                 return
