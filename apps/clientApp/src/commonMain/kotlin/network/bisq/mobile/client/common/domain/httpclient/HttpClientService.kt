@@ -93,14 +93,19 @@ class HttpClientService(
 
         serviceScope.launch(Dispatchers.Default) {
             getHttpClientSettingsFlow().collect { newConfig ->
-                if (lastConfig != newConfig) {
+                val previousConfig = lastConfig
+                if (previousConfig != newConfig) {
                     lastConfig = newConfig
-                    val oldClient = _httpClient.value
-                    // Clear before closing so getClient() waits for the new client
-                    // instead of returning the stale closed client
-                    _httpClient.value = null
-                    oldClient?.close()
-                    _httpClient.value = createNewInstance(newConfig)
+                    // Auth headers are read from lastConfig per request, so a session change keeps the client.
+                    // Closing it would leave a kept WebSocket client unable to reconnect.
+                    if (previousConfig?.isSameExceptSession(newConfig) != true) {
+                        val oldClient = _httpClient.value
+                        // Clear before closing so getClient() waits for the new client
+                        // instead of returning the stale closed client
+                        _httpClient.value = null
+                        oldClient?.close()
+                        _httpClient.value = createNewInstance(newConfig)
+                    }
                     _generation.incrementAndGet()
                     _httpClientChangedFlow.emit(newConfig)
                 }
@@ -114,6 +119,8 @@ class HttpClientService(
 
         disposeClient()
     }
+
+    private fun HttpClientSettings.isSameExceptSession(other: HttpClientSettings): Boolean = copy(sessionId = other.sessionId, sessionExpiresAt = other.sessionExpiresAt) == other
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun getHttpClientSettingsFlow(): Flow<HttpClientSettings> {
