@@ -49,4 +49,32 @@ class SellerState3aPresenterTest : PresentationKoinTestBase() {
 
             assertTrue(presenter.isConfirmSendEnabled.value)
         }
+
+    @Test
+    fun `show and close toggle the qr sheet`() =
+        runTest {
+            val presenter = SellerState3aPresenter(mainPresenter, tradesServiceFacade)
+            assertFalse(presenter.isQrSheetVisible.value)
+
+            presenter.onShowQr()
+            assertTrue(presenter.isQrSheetVisible.value)
+
+            presenter.onCloseQr()
+            assertFalse(presenter.isQrSheetVisible.value)
+        }
+
+    @Test
+    fun `open in wallet closes the sheet and hands the schemed uri to the url launcher`() =
+        runTest {
+            val presenter = SellerState3aPresenter(mainPresenter, tradesServiceFacade)
+            val uri = "lightning:lnbc2500u1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypq"
+            presenter.onShowQr()
+
+            presenter.onOpenInWallet(uri)
+            advanceUntilIdle()
+
+            // The error snackbar lives in the activity window, which the sheet would cover.
+            assertFalse(presenter.isQrSheetVisible.value)
+            coVerify(exactly = 1) { mainPresenter.navigateToUrlWithLauncher(uri) }
+        }
 }

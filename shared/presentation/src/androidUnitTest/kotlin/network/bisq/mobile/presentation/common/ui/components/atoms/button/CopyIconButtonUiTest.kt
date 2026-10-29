@@ -1,10 +1,17 @@
 package network.bisq.mobile.presentation.common.ui.components.atoms.button
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
+import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.clipboardPrimaryText
 import network.bisq.mobile.test.presentation.compose.BisqComposeUiTestBase
 import org.junit.Test
+import kotlin.test.assertEquals
 
 /**
  * Covers the copy confirmation: the icon turns into a check mark on a successful copy and reverts
@@ -38,5 +45,29 @@ class CopyIconButtonUiTest : BisqComposeUiTestBase() {
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithContentDescription("check").assertExists()
+    }
+
+    @Test
+    fun `tapping the label copies the value and shows the check icon`() {
+        setTestContent {
+            CopyIconButton(value = "copy me", showToast = false, label = "Copy to clipboard")
+        }
+
+        composeTestRule.onNodeWithText("Copy to clipboard").performClick()
+        composeTestRule.waitForIdle()
+
+        assertEquals("copy me", clipboardPrimaryText())
+        composeTestRule.onNodeWithContentDescription("check").assertExists()
+    }
+
+    @Test
+    fun `labeled copy row is announced as a button`() {
+        setTestContent {
+            CopyIconButton(value = "copy me", showToast = false, label = "Copy to clipboard")
+        }
+
+        composeTestRule
+            .onNodeWithText("Copy to clipboard")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
     }
 }

@@ -2,12 +2,18 @@ package network.bisq.mobile.presentation.trade.trade_detail.states.seller_state_
 
 import android.view.Window
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.flow.MutableStateFlow
 import network.bisq.mobile.data.replicated.presentation.open_trades.TradeItemPresentationModel
+import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.ui.components.molecules.dialog.clipboardPrimaryText
 import network.bisq.mobile.presentation.common.ui.components.molecules.inputfield.BitcoinLnAddressFieldType
 import network.bisq.mobile.test.presentation.compose.BisqComposeUiTestBase
@@ -66,10 +72,58 @@ class SellerState3aUiTest : BisqComposeUiTestBase() {
         composeTestRule.onAllNodesWithContentDescription(COPY).assertCountEquals(1)
     }
 
-    private fun presenterWithTrade(bitcoinPaymentData: String?): SellerState3aPresenter {
+    @Test
+    fun `tapping the qr action asks the presenter to show the sheet`() {
+        val presenter = presenterWithTrade(bitcoinPaymentData = BUYER_ADDRESS)
+        setTestContent {
+            SellerState3a(presenter = presenter)
+        }
+
+        composeTestRule.onNodeWithContentDescription(QR).performClick()
+
+        verify(exactly = 1) { presenter.onShowQr() }
+    }
+
+    @Test
+    fun `visible sheet encodes the bip21 payload of the trade`() {
+        setTestContent {
+            SellerState3a(presenter = presenterWithTrade(bitcoinPaymentData = BUYER_ADDRESS, isQrSheetVisible = true))
+        }
+
+        composeTestRule.onNodeWithTag("seller_qr_payload_text").assertTextEquals("bitcoin:$BUYER_ADDRESS?amount=0.0025")
+    }
+
+    @Test
+    fun `open in wallet from the sheet hands the bip21 uri to the presenter`() {
+        val presenter = presenterWithTrade(bitcoinPaymentData = BUYER_ADDRESS, isQrSheetVisible = true)
+        setTestContent {
+            SellerState3a(presenter = presenter)
+        }
+
+        composeTestRule
+            .onNodeWithText("mobile.bisqEasy.tradeState.info.seller.phase3a.qrCode.openInWallet".i18n())
+            .performClick()
+
+        verify(exactly = 1) { presenter.onOpenInWallet("bitcoin:$BUYER_ADDRESS?amount=0.0025") }
+    }
+
+    @Test
+    fun `no qr action before the buyer address arrives`() {
+        setTestContent {
+            SellerState3a(presenter = presenterWithTrade(bitcoinPaymentData = null))
+        }
+
+        composeTestRule.onNodeWithContentDescription(QR).assertDoesNotExist()
+    }
+
+    private fun presenterWithTrade(
+        bitcoinPaymentData: String?,
+        isQrSheetVisible: Boolean = false,
+    ): SellerState3aPresenter {
         val trade =
             mockk<TradeItemPresentationModel>(relaxed = true) {
                 every { formattedBaseAmount } returns BASE_AMOUNT
+                every { baseAmount } returns 250_000L
                 every { quoteAmountWithCode } returns "100.00 USD"
                 every { bisqEasyTradeModel.bitcoinPaymentData } returns MutableStateFlow(bitcoinPaymentData)
             }
@@ -80,6 +134,7 @@ class SellerState3aUiTest : BisqComposeUiTestBase() {
             every { isConfirmSendEnabled } returns MutableStateFlow(false)
             every { isLightning } returns MutableStateFlow(false)
             every { bitcoinLnAddressFieldType } returns MutableStateFlow(BitcoinLnAddressFieldType.Bitcoin)
+            every { this@mockk.isQrSheetVisible } returns MutableStateFlow(isQrSheetVisible)
         }
     }
 
@@ -87,5 +142,6 @@ class SellerState3aUiTest : BisqComposeUiTestBase() {
         const val BUYER_ADDRESS = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"
         const val BASE_AMOUNT = "0.00100000"
         const val COPY = "Copy icon"
+        const val QR = "QR code icon"
     }
 }

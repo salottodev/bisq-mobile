@@ -34,6 +34,7 @@ import network.bisq.mobile.data.utils.UrlLauncher
 import network.bisq.mobile.data.utils.getDeviceLanguageCode
 import network.bisq.mobile.domain.analytics.AnalyticsEvent
 import network.bisq.mobile.domain.repository.TradeReadStateRepository
+import network.bisq.mobile.domain.utils.urlForLog
 import network.bisq.mobile.i18n.i18n
 import network.bisq.mobile.presentation.common.service.OpenTradesNotificationService
 import network.bisq.mobile.presentation.common.ui.base.BasePresenter
@@ -269,7 +270,7 @@ open class MainPresenter(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            log.e(e) { "Failed to navigate to URL: $url" }
+            log.e(e) { "Failed to navigate to URL: ${urlForLog(url)}" }
             showCannotOpenUrlSnackbar()
             false
         }

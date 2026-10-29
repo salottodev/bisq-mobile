@@ -65,3 +65,27 @@ class RedactingLogWriter(
         delegate.log(severity, line, tag, null)
     }
 }
+
+private val urlScheme = Regex("^([a-zA-Z][a-zA-Z0-9+.-]*):")
+
+/**
+ * Log-safe form of a URL: scheme and host for a web link, the scheme alone for anything else.
+ * Paths and queries can carry trade data (an explorer link's txid or address), and a payment URI
+ * is trade data (a `bitcoin:` address and amount, a `lightning:` invoice).
+ */
+fun urlForLog(url: String): String {
+    val trimmed = url.trim()
+    val match = urlScheme.find(trimmed) ?: return "invalid-url"
+    val scheme = match.groupValues[1].lowercase()
+    if (scheme == "http" || scheme == "https") {
+        val authority =
+            trimmed
+                .substringAfter("://", "")
+                .substringBefore('/')
+                .substringBefore('?')
+                .substringBefore('#')
+                .substringAfterLast('@')
+        if (authority.isNotEmpty()) return "$scheme://$authority"
+    }
+    return "$scheme:<redacted>"
+}

@@ -283,6 +283,7 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.kmp.tor.resource.exec)
             implementation(libs.process.phoenix)
+            implementation(libs.zxing.core)
         }
         commonMain.dependencies {
             // AndroidX

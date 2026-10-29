@@ -331,6 +331,12 @@ fun ScanIcon(modifier: Modifier = Modifier) {
 
 @ExcludeFromCoverage
 @Composable
+fun QrCodeIcon(modifier: Modifier = Modifier) {
+    BisqResourceIcon(Res.drawable.icon_qr, "QR code icon", modifier)
+}
+
+@ExcludeFromCoverage
+@Composable
 fun ScanQrIcon(modifier: Modifier = Modifier) {
     BisqResourceIcon(
         resource = Res.drawable.icon_scan_qr,

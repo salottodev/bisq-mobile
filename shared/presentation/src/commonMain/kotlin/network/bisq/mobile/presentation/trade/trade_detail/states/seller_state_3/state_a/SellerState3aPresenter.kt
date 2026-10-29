@@ -41,6 +41,26 @@ class SellerState3aPresenter(
     private val _isConfirmSendEnabled = MutableStateFlow(true)
     val isConfirmSendEnabled: StateFlow<Boolean> = _isConfirmSendEnabled.asStateFlow()
 
+    private val _isQrSheetVisible = MutableStateFlow(false)
+    val isQrSheetVisible: StateFlow<Boolean> = _isQrSheetVisible.asStateFlow()
+
+    fun onShowQr() {
+        _isQrSheetVisible.value = true
+    }
+
+    fun onCloseQr() {
+        _isQrSheetVisible.value = false
+    }
+
+    /**
+     * Closes the sheet first: the "cannot open URL" snackbar from [MainPresenter.navigateToUrlWithLauncher]
+     * renders in the activity window, which the sheet's own window would cover.
+     */
+    fun onOpenInWallet(uri: String) {
+        onCloseQr()
+        navigateToUrl(uri)
+    }
+
     override fun onViewAttached() {
         super.onViewAttached()
         require(tradesServiceFacade.selectedTrade.value != null)

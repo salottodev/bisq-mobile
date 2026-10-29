@@ -1,20 +1,24 @@
 package network.bisq.mobile.presentation.common.ui.components.atoms.button
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -23,6 +27,7 @@ import androidx.compose.ui.unit.isSpecified
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import network.bisq.mobile.i18n.i18n
+import network.bisq.mobile.presentation.common.ui.components.atoms.BisqText
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.CheckIcon
 import network.bisq.mobile.presentation.common.ui.components.atoms.icons.CopyIcon
 import network.bisq.mobile.presentation.common.ui.theme.BisqTheme
@@ -40,12 +45,14 @@ private const val COPIED_FEEDBACK_MILLIS = 2000L
  * @param showToast set to false where a snackbar cannot be seen (e.g. inside a dialog); the icon
  *   still confirms the copy by briefly turning into a check mark.
  * @param iconSize overrides the icon's intrinsic size when it has to line up with other icons.
+ * @param label optional text next to the icon; the whole row becomes the tap target.
  */
 @Composable
 fun CopyIconButton(
     value: String,
     showToast: Boolean = true,
     iconSize: Dp = Dp.Unspecified,
+    label: String? = null,
 ) {
     val inPreview = LocalInspectionMode.current
     val isTest = LocalIsTest.current
@@ -64,6 +71,7 @@ fun CopyIconButton(
     CopyIconButtonContent(
         copied = copied,
         iconSize = iconSize,
+        label = label,
         onClick = {
             scope.launch {
                 // Clipboard access can fail (platform restrictions, dead window); a copy
@@ -84,20 +92,38 @@ fun CopyIconButton(
 private fun CopyIconButtonContent(
     copied: Boolean,
     iconSize: Dp,
+    label: String?,
     onClick: () -> Unit,
 ) {
     val iconModifier = if (iconSize.isSpecified) Modifier.size(iconSize) else Modifier
-    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
-        IconButton(
-            modifier = Modifier.size(BisqUIConstants.ScreenPadding2X),
-            onClick = onClick,
+    if (label != null) {
+        Row(
+            modifier =
+                Modifier
+                    .clip(RoundedCornerShape(BisqUIConstants.BorderRadius))
+                    .clickable(role = Role.Button, onClick = onClick),
+            horizontalArrangement = Arrangement.spacedBy(BisqUIConstants.ScreenPaddingHalf),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (copied) {
-                CheckIcon(modifier = iconModifier)
-            } else {
-                CopyIcon(modifier = iconModifier)
-            }
+            CopyOrCheckIcon(copied = copied, modifier = iconModifier)
+            BisqText.SmallMedium(text = label, color = BisqTheme.colors.primary)
         }
+        return
+    }
+    CompactIconButton(onClick = onClick) {
+        CopyOrCheckIcon(copied = copied, modifier = iconModifier)
+    }
+}
+
+@Composable
+private fun CopyOrCheckIcon(
+    copied: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (copied) {
+        CheckIcon(modifier = modifier)
+    } else {
+        CopyIcon(modifier = modifier)
     }
 }
 
@@ -125,7 +151,7 @@ private fun CopyIconButtonPreview() {
 private fun CopyIconButtonCopiedPreview() {
     BisqTheme.Preview {
         Surface(color = BisqTheme.colors.backgroundColor) {
-            CopyIconButtonContent(copied = true, iconSize = Dp.Unspecified, onClick = {})
+            CopyIconButtonContent(copied = true, iconSize = Dp.Unspecified, label = null, onClick = {})
         }
     }
 }
@@ -136,7 +162,18 @@ private fun CopyIconButtonCopiedPreview() {
 private fun CopyIconButtonSizedIconPreview() {
     BisqTheme.Preview {
         Surface(color = BisqTheme.colors.backgroundColor) {
-            CopyIconButtonContent(copied = false, iconSize = 18.dp, onClick = {})
+            CopyIconButtonContent(copied = false, iconSize = 18.dp, label = null, onClick = {})
+        }
+    }
+}
+
+@Preview
+@ExcludeFromCoverage
+@Composable
+private fun CopyIconButtonLabelPreview() {
+    BisqTheme.Preview {
+        Surface(color = BisqTheme.colors.backgroundColor) {
+            CopyIconButtonContent(copied = false, iconSize = Dp.Unspecified, label = "Copy to clipboard", onClick = {})
         }
     }
 }
