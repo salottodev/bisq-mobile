@@ -15,6 +15,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -220,28 +221,30 @@ class KmpTorService(
         }
     }
 
-    suspend fun stopTor(reason: Throwable? = null) {
-        startDefer?.cancel()
-        controlMutex.withLock {
-            when (_state.value) {
-                is TorState.Stopped, is TorState.Stopping -> return
-                else -> {
-                    _state.value = TorState.Stopping
-                    try {
-                        val runtime = getTorRuntime()
-                        runtime.stopDaemonAsync()
-                        log.i { "Tor daemon stopped successfully" }
-                        _state.value = TorState.Stopped(reason)
-                    } catch (e: Exception) {
-                        log.e(e) { "Tor daemon stopped with error" }
-                        _state.value = TorState.Stopped(e)
-                    } finally {
-                        cleanupService()
+    // Non-cancellable: kmp-tor skips the stop for a cancelled caller, e.g. startTor's catch, leaving the daemon running
+    suspend fun stopTor(reason: Throwable? = null) =
+        withContext(NonCancellable) {
+            startDefer?.cancel()
+            controlMutex.withLock {
+                when (_state.value) {
+                    is TorState.Stopped, is TorState.Stopping -> return@withContext
+                    else -> {
+                        _state.value = TorState.Stopping
+                        try {
+                            val runtime = getTorRuntime()
+                            runtime.stopDaemonAsync()
+                            log.i { "Tor daemon stopped successfully" }
+                            _state.value = TorState.Stopped(reason)
+                        } catch (e: Exception) {
+                            log.e(e) { "Tor daemon stopped with error" }
+                            _state.value = TorState.Stopped(e)
+                        } finally {
+                            cleanupService()
+                        }
                     }
                 }
             }
         }
-    }
 
     private fun getTorRuntime(): TorRuntime {
         torRuntime?.let { return it }
