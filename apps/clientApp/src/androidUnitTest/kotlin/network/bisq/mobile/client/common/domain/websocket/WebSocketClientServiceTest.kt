@@ -482,7 +482,7 @@ class WebSocketClientServiceTest : ClientKoinIntegrationTestBase() {
     }
 
     @Test
-    fun `deactivate disconnects client and resets subscription state`() =
+    fun `deactivate disposes client and resets subscription state`() =
         runTest {
             // Given - activated service with a connected client
             val connectedStateFlow = MutableStateFlow<ConnectionState>(ConnectionState.Connected)
@@ -515,8 +515,8 @@ class WebSocketClientServiceTest : ClientKoinIntegrationTestBase() {
             webSocketClientService.deactivate()
             testDispatcher.scheduler.advanceUntilIdle()
 
-            // Then - client should have been disconnected
-            coVerify { mockWsClient.disconnect() }
+            // Then - client should have been disposed
+            coVerify { mockWsClient.dispose() }
             // Connection state should be Disconnected
             assertTrue(webSocketClientService.connectionState.value is ConnectionState.Disconnected)
             // isConnected should return false
@@ -637,6 +637,7 @@ class WebSocketClientServiceTest : ClientKoinIntegrationTestBase() {
             val connectedStateFlow = MutableStateFlow<ConnectionState>(ConnectionState.Connected)
             val mockWsClient = mockk<WebSocketClient>(relaxed = true)
             every { mockWsClient.webSocketClientStatus } returns connectedStateFlow
+            every { mockWsClient.clientId } returns "client-id"
             every { mockWsClient.apiUrl } returns
                 mockk {
                     every { host } returns "localhost"
@@ -677,8 +678,62 @@ class WebSocketClientServiceTest : ClientKoinIntegrationTestBase() {
             testDispatcher.scheduler.advanceUntilIdle()
 
             // Then - a new client should be created (factory called again)
-            verify(atLeast = 2) { webSocketClientFactory.createNewClient(any(), any(), any(), any()) }
+            verify(exactly = 2) { webSocketClientFactory.createNewClient(any(), any(), any(), any()) }
         }
+
+    @Test
+    fun `connectionState follows the new client after deactivate and activate`() =
+        runTest {
+            val oldClientStatus = MutableStateFlow<ConnectionState>(ConnectionState.Connected)
+            val newClientStatus = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected())
+            val oldClient = restartTestClient(oldClientStatus)
+            val newClient = restartTestClient(newClientStatus)
+            every { webSocketClientFactory.createNewClient(any(), any(), any(), any()) } returnsMany listOf(oldClient, newClient)
+
+            restartWithSameSettings()
+
+            newClientStatus.value = ConnectionState.Connected
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertTrue(webSocketClientService.isConnected())
+
+            newClientStatus.value = ConnectionState.Disconnected(IncompatibleHttpApiVersionException("2.0.14"))
+            testDispatcher.scheduler.advanceUntilIdle()
+            val connectionState = webSocketClientService.connectionState.value
+            assertEquals("2.0.14", connectionState.incompatibleApiVersionError?.serverVersion)
+        }
+
+    private fun restartTestClient(status: MutableStateFlow<ConnectionState>): WebSocketClient =
+        mockk<WebSocketClient>(relaxed = true).also { client ->
+            every { client.webSocketClientStatus } returns status
+            every { client.clientId } returns "client-id"
+            every { client.apiUrl } returns
+                mockk {
+                    every { host } returns "localhost"
+                }
+        }
+
+    private suspend fun restartWithSameSettings() {
+        val settings =
+            HttpClientSettings(
+                bisqApiUrl = "http://localhost:8080",
+                tlsFingerprint = null,
+                clientId = "client-id",
+                sessionId = "session-id",
+                sessionExpiresAt = Long.MAX_VALUE,
+            )
+        webSocketClientService.activate()
+        testDispatcher.scheduler.advanceUntilIdle()
+        httpClientChangedFlow.emit(settings)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        webSocketClientService.deactivate()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        webSocketClientService.activate()
+        testDispatcher.scheduler.advanceUntilIdle()
+        httpClientChangedFlow.emit(settings)
+        testDispatcher.scheduler.advanceUntilIdle()
+    }
 
     @Test
     fun `subscriptionsPending ignores failed subscriptions`() =

@@ -3,6 +3,7 @@ package network.bisq.mobile.client.common.domain.httpclient
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -13,8 +14,10 @@ import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSett
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepository
 import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBase
 import network.bisq.mobile.data.service.network.KmpTorService
+import network.bisq.mobile.domain.utils.OperationCancelledException
 import network.bisq.mobile.domain.utils.VersionProvider
 import kotlin.test.Test
+import kotlin.test.assertIs
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -133,5 +136,43 @@ class HttpClientServiceTest : ClientKoinIntegrationTestBase() {
 
             assertNotSame(clientBefore, service.getClient())
             service.deactivate()
+        }
+
+    @Test
+    fun `deactivate drops the replayed settings`() =
+        runBlocking {
+            val service = createService()
+            service.activateWithSession("session-1")
+
+            service.deactivate()
+
+            assertTrue(service.httpClientChangedFlow.replayCache.isEmpty())
+        }
+
+    @Test
+    fun `getClient called between deactivate and activate waits for the new client`() =
+        runBlocking {
+            val service = createService()
+            service.activateWithSession("session-1")
+            service.deactivate()
+
+            // On a restart the bootstrap requests the session before this service is activated.
+            // Unconfined so getClient() subscribes before activate().
+            val pending = async(Dispatchers.Unconfined) { runCatching { service.getClient() } }
+            service.activate()
+
+            assertTrue(withTimeout(5_000) { pending.await() }.isSuccess)
+            service.deactivate()
+        }
+
+    @Test
+    fun `deactivate cancels a pending getClient`() =
+        runBlocking<Unit> {
+            val service = createService()
+
+            val pending = async(Dispatchers.Unconfined) { runCatching { service.getClient() } }
+            service.deactivate()
+
+            assertIs<OperationCancelledException>(pending.await().exceptionOrNull())
         }
 }

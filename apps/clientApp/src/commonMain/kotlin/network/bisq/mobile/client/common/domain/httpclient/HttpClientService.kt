@@ -79,17 +79,16 @@ class HttpClientService(
     private val _httpClientChangedFlow =
         MutableSharedFlow<HttpClientSettings>(1)
     val httpClientChangedFlow = _httpClientChangedFlow.asSharedFlow()
+
+    // Cancels current waiters only; callers arriving before the next activate() wait for its client
     private val stopFlow =
         MutableSharedFlow<Unit>(
-            replay = 1,
+            extraBufferCapacity = 1,
             onBufferOverflow = BufferOverflow.DROP_OLDEST,
-        ) // signal to cancel waiters
+        )
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     override suspend fun activate() {
         super.activate()
-
-        stopFlow.resetReplayCache()
 
         serviceScope.launch(Dispatchers.Default) {
             getHttpClientSettingsFlow().collect { newConfig ->
@@ -113,11 +112,14 @@ class HttpClientService(
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override suspend fun deactivate() {
         stopFlow.tryEmit(Unit)
         super.deactivate()
 
         disposeClient()
+        // So the next activation doesn't build a WebSocket client from the previous settings
+        _httpClientChangedFlow.resetReplayCache()
     }
 
     private fun HttpClientSettings.isSameExceptSession(other: HttpClientSettings): Boolean = copy(sessionId = other.sessionId, sessionExpiresAt = other.sessionExpiresAt) == other
