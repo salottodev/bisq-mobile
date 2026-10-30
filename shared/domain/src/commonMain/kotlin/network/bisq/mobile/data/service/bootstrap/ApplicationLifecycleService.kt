@@ -21,6 +21,7 @@ import network.bisq.mobile.domain.model.PlatformType
 import network.bisq.mobile.domain.repository.SettingsRepository
 import network.bisq.mobile.domain.utils.killProcess
 import network.bisq.mobile.domain.utils.restartProcess
+import kotlin.concurrent.Volatile
 
 abstract class ApplicationLifecycleService(
     private val applicationBootstrapFacade: ApplicationBootstrapFacade,
@@ -54,6 +55,7 @@ abstract class ApplicationLifecycleService(
     val areServicesActivated: Boolean get() = servicesActivated.value
 
     // The cold-start activation, so a restart can cancel it while it still waits for Tor
+    @Volatile
     private var activationJob: Job? = null
 
     /**
