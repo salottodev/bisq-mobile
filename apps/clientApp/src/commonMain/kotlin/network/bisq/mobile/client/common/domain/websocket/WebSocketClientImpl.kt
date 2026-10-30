@@ -22,6 +22,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -151,12 +152,19 @@ class WebSocketClientImpl(
                 session = newSession
                 if (newSession.isActive) {
                     log.i { "WS connected successfully (TCP/upgrade in ${elapsed}ms, remaining=${remainingTime}ms)" }
-                    listenerJob =
-                        clientScope.launch { startListening(newSession) }
+                    val listener = clientScope.launch { startListening(newSession) }
+                    listenerJob = listener
 
                     withTimeout(remainingTime.milliseconds) { performHandshake() }
 
-                    _webSocketClientStatus.value = ConnectionState.Connected
+                    // The session can close after the handshake response arrived. Its listener then sets
+                    // Disconnected, which Connected must not overwrite.
+                    val stillOpen = newSession.isActive && listener.isActive && session === newSession
+                    if (!stillOpen || !_webSocketClientStatus.compareAndSet(ConnectionState.Connecting, ConnectionState.Connected)) {
+                        // The handshake set it after the listener had cleared it
+                        _nodeInfo.value = null
+                        throw WebSocketSessionClosedEarly()
+                    }
 
                     // Reset reconnect attempts on successful connection
                     reconnectAttempts = 0
@@ -226,8 +234,9 @@ class WebSocketClientImpl(
      */
     private suspend fun doDisconnect() {
         // order is important. we want to know the difference between server close and our close
-        // so we cancel the listen job so it throws cancellation exception first then cose the session
-        listenerJob?.cancel()
+        // so we cancel the listen job so it throws cancellation exception first then cose the session.
+        // Joined, so its cleanup can't reset the status or the request handlers of the next connect.
+        listenerJob?.cancelAndJoin()
         listenerJob = null
         session?.close()
         session = null
@@ -253,11 +262,26 @@ class WebSocketClientImpl(
             return
         }
         reconnectJob?.cancel()
+        // A caller that saw Connecting did not see a stale Connected, so the outcome of that connect stands
+        val connectInFlight = _webSocketClientStatus.value is ConnectionState.Connecting
 
         val newReconnectJob: Deferred<Throwable?> =
             clientScope.async {
                 log.d { "Launching reconnect attempt #${reconnectAttempts + 1}" }
-                doDisconnect() // clean up state
+                // Under the lock, so a connect in flight finishes instead of losing its session mid-handshake
+                val keptInFlightConnection =
+                    connectionMutex.withLock {
+                        if (connectInFlight && isConnected()) {
+                            true
+                        } else {
+                            doDisconnect() // clean up state
+                            false
+                        }
+                    }
+                if (keptInFlightConnection) {
+                    log.d { "Skipping reconnect: the connect in flight succeeded" }
+                    return@async null
+                }
 
                 // Check if we've exceeded max attempts
                 if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
@@ -402,6 +426,8 @@ class WebSocketClientImpl(
     }
 
     private suspend fun send(message: WebSocketMessage) {
+        // Fail now rather than drop the message and let the request time out
+        val currentSession = session ?: throw WebSocketSessionClosedEarly()
         val isQuiet = message is WebSocketRestApiRequest && message.path in QUIET_PATHS
         if (isQuiet) {
             quietRequestIds.add(message.requestId)
@@ -413,7 +439,7 @@ class WebSocketClientImpl(
         if (!isQuiet) {
             log.d { "Send raw text ${HeaderRedaction.redactRawJsonForLogging(jsonString)}" }
         }
-        session?.send(Frame.Text(jsonString))
+        currentSession.send(Frame.Text(jsonString))
     }
 
     private suspend fun startListening(session: WebSocketSession) {

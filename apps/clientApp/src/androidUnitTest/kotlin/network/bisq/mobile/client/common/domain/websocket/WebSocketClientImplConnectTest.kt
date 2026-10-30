@@ -13,6 +13,7 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -26,6 +27,7 @@ import network.bisq.mobile.client.common.di.clientJson
 import network.bisq.mobile.client.common.domain.access.utils.Headers
 import network.bisq.mobile.client.common.domain.httpclient.exception.UnauthorizedApiAccessException
 import network.bisq.mobile.client.common.domain.websocket.exception.IncompatibleHttpApiVersionException
+import network.bisq.mobile.client.common.domain.websocket.exception.WebSocketSessionClosedEarly
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketMessage
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketRestApiRequest
 import network.bisq.mobile.client.common.domain.websocket.messages.WebSocketRestApiResponse
@@ -33,6 +35,7 @@ import network.bisq.mobile.client.common.test_utils.ClientKoinIntegrationTestBas
 import network.bisq.mobile.client.shared.BuildConfig
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
@@ -77,13 +80,22 @@ class WebSocketClientImplConnectTest : ClientKoinIntegrationTestBase() {
      *
      * Paths in [credentialsReadFromMessage] answer 401 unless the message carries the session and
      * client headers, as a node before bisq-api 2.1.14 does.
+     *
+     * Responses wait for [responsesReleased] when it is set, like a slow handshake. With
+     * [closeAfterResponse] the node closes the session right after its first response. With
+     * [cancelSessionAfterResponse] the session's job ends right after it, while the frame is still unread.
      */
     private inner class FakeNode(
         private val responses: Map<String, Pair<Int, String>>,
         private val credentialsReadFromMessage: Set<String> = emptySet(),
+        private val responsesReleased: CompletableDeferred<Unit>? = null,
+        private val closeAfterResponse: Boolean = false,
+        private val cancelSessionAfterResponse: Boolean = false,
     ) {
         val requestedPaths = mutableListOf<String>()
         val requestedHeaders = mutableListOf<Map<String, String>>()
+        var sessionsOpened = 0
+            private set
         val httpClient = mockk<HttpClient>()
 
         /** Frames of the current session; closing it simulates a server-side close. */
@@ -95,10 +107,12 @@ class WebSocketClientImplConnectTest : ClientKoinIntegrationTestBase() {
         }
 
         private fun newSession(): DefaultClientWebSocketSession {
+            sessionsOpened++
             val channel = Channel<Frame>(Channel.UNLIMITED)
             incoming = channel
             val session = mockk<DefaultClientWebSocketSession>(relaxed = true)
-            every { session.coroutineContext } returns Job()
+            val sessionJob = Job()
+            every { session.coroutineContext } returns sessionJob
             every { session.incoming } returns channel
             coEvery { session.send(any()) } coAnswers {
                 val frame = firstArg<Frame>()
@@ -114,7 +128,10 @@ class WebSocketClientImplConnectTest : ClientKoinIntegrationTestBase() {
                             responses[request.path] ?: (404 to "")
                         }
                     val response = WebSocketRestApiResponse(request.requestId, status, body)
+                    responsesReleased?.await()
                     channel.send(Frame.Text(json.encodeToString(WebSocketMessage.serializer(), response)))
+                    if (closeAfterResponse) channel.close()
+                    if (cancelSessionAfterResponse) sessionJob.cancel()
                 } else {
                     channel.close()
                 }
@@ -252,19 +269,15 @@ class WebSocketClientImplConnectTest : ClientKoinIntegrationTestBase() {
         }
 
     @Test
-    fun `disconnect keeps the node info until the status reports Disconnected`() =
+    fun `disconnect returns after the listener cleared the node info and reported Disconnected`() =
         runTest {
             val node = FakeNode(mapOf(WebSocketClientImpl.INFO_PATH to (200 to """{"version":"$compatibleVersion","features":[]}""")))
             val client = createClient(node.httpClient)
             client.connect(timeout = 5_000L)
             testDispatcher.scheduler.advanceUntilIdle()
 
-            // The listener has not processed the cancellation yet: the status is still Connected.
             client.disconnect()
-            assertTrue(client.webSocketClientStatus.value is ConnectionState.Connected)
-            assertNotNull(client.nodeInfo.value)
 
-            testDispatcher.scheduler.advanceUntilIdle()
             assertTrue(client.webSocketClientStatus.value is ConnectionState.Disconnected)
             assertNull(client.nodeInfo.value)
         }
@@ -438,5 +451,119 @@ class WebSocketClientImplConnectTest : ClientKoinIntegrationTestBase() {
                 node.requestedHeaders[0],
             )
             assertEquals(emptyMap(), node.requestedHeaders[1])
+        }
+
+    @Test
+    fun `a reconnect during the handshake keeps the connection that the handshake completes`() =
+        runTest {
+            val responsesReleased = CompletableDeferred<Unit>()
+            val node =
+                FakeNode(
+                    mapOf(WebSocketClientImpl.INFO_PATH to (200 to """{"version":"$compatibleVersion","features":[]}""")),
+                    responsesReleased = responsesReleased,
+                )
+            val client = createClient(node.httpClient)
+            launch { client.connect(timeout = 5_000L) }
+            testDispatcher.scheduler.runCurrent()
+            assertEquals(ConnectionState.Connecting, client.webSocketClientStatus.value)
+
+            // The health cycle sees Connecting as not connected and asks for a reconnect
+            client.reconnect()
+            testDispatcher.scheduler.runCurrent()
+            responsesReleased.complete(Unit)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(ConnectionState.Connected, client.webSocketClientStatus.value)
+            assertEquals(1, node.sessionsOpened)
+            val response =
+                client.sendRequestAndAwaitResponse(
+                    WebSocketRestApiRequest("request-1", "GET", WebSocketClientImpl.INFO_PATH, ""),
+                    awaitConnection = false,
+                )
+            assertTrue(response is WebSocketRestApiResponse)
+        }
+
+    @Test
+    fun `a reconnect while connected replaces the session`() =
+        runTest {
+            val node = FakeNode(mapOf(WebSocketClientImpl.INFO_PATH to (200 to """{"version":"$compatibleVersion","features":[]}""")))
+            val client = createClient(node.httpClient)
+            assertNull(client.connect(timeout = 5_000L))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // A failed health check on a connection that still reports Connected
+            client.reconnect()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(2, node.sessionsOpened)
+            assertEquals(ConnectionState.Connected, client.webSocketClientStatus.value)
+        }
+
+    @Test
+    fun `a session that closes after the handshake response is not reported Connected`() =
+        runTest {
+            val node =
+                FakeNode(
+                    mapOf(WebSocketClientImpl.INFO_PATH to (200 to """{"version":"$compatibleVersion","features":[]}""")),
+                    closeAfterResponse = true,
+                )
+            val client = createClient(node.httpClient)
+
+            val error = client.connect(timeout = 5_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertTrue(error is WebSocketSessionClosedEarly, "Expected WebSocketSessionClosedEarly, got $error")
+            assertTrue(client.webSocketClientStatus.value is ConnectionState.Disconnected)
+            assertNull(client.nodeInfo.value)
+        }
+
+    @Test
+    fun `a session whose job ended during the handshake is not reported Connected`() =
+        runTest {
+            val node =
+                FakeNode(
+                    mapOf(WebSocketClientImpl.INFO_PATH to (200 to """{"version":"$compatibleVersion","features":[]}""")),
+                    cancelSessionAfterResponse = true,
+                )
+            val client = createClient(node.httpClient)
+
+            val error = client.connect(timeout = 5_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertTrue(error is WebSocketSessionClosedEarly, "Expected WebSocketSessionClosedEarly, got $error")
+            assertTrue(client.webSocketClientStatus.value is ConnectionState.Disconnected)
+            assertNull(client.nodeInfo.value)
+        }
+
+    @Test
+    fun `a connect after a failed handshake is not undone by the previous listener`() =
+        runTest {
+            val responses = mutableMapOf(WebSocketClientImpl.INFO_PATH to (500 to ""))
+            val node = FakeNode(responses)
+            val client = createClient(node.httpClient)
+            assertTrue(client.connect(timeout = 5_000L) is IllegalStateException)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // The failed handshake left its session and listener open; the next connect replaces them
+            responses[WebSocketClientImpl.INFO_PATH] = 200 to """{"version":"$compatibleVersion","features":[]}"""
+            val error = client.connect(timeout = 5_000L)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertNull(error)
+            assertEquals(ConnectionState.Connected, client.webSocketClientStatus.value)
+            assertNotNull(client.nodeInfo.value)
+        }
+
+    @Test
+    fun `a request without a session fails at once instead of timing out`() =
+        runTest {
+            val client = createClient(mockk(relaxed = true))
+
+            assertFailsWith<WebSocketSessionClosedEarly> {
+                client.sendRequestAndAwaitResponse(
+                    WebSocketRestApiRequest("request-1", "GET", WebSocketClientImpl.INFO_PATH, ""),
+                    awaitConnection = false,
+                )
+            }
         }
 }
