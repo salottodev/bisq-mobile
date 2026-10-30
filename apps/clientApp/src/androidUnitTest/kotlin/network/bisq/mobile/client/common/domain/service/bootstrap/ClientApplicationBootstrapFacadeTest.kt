@@ -14,6 +14,7 @@ import network.bisq.mobile.client.common.domain.access.session.SessionService
 import network.bisq.mobile.client.common.domain.httpclient.BisqProxyOption
 import network.bisq.mobile.client.common.domain.httpclient.HttpClientService
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettings
+import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepository
 import network.bisq.mobile.client.common.domain.sensitive_settings.SensitiveSettingsRepositoryMock
 import network.bisq.mobile.client.common.domain.websocket.ConnectionState
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
@@ -54,17 +55,19 @@ class ClientApplicationBootstrapFacadeTest : ClientKoinIntegrationTestBase() {
         coEvery { connectivityService.status } returns connectivityStatusFlow
         every { webSocketClientService.connectionState } returns connectionStateFlow
 
-        facade =
-            ClientApplicationBootstrapFacade(
-                sensitiveSettingsRepository,
-                webSocketClientService,
-                httpClientService,
-                kmpTorService,
-                sessionService,
-                connectivityService,
-                testDispatcher,
-            )
+        facade = createFacade(sensitiveSettingsRepository)
     }
+
+    private fun createFacade(repository: SensitiveSettingsRepository) =
+        ClientApplicationBootstrapFacade(
+            repository,
+            webSocketClientService,
+            httpClientService,
+            kmpTorService,
+            sessionService,
+            connectivityService,
+            testDispatcher,
+        )
 
     override fun onTearDown() {
         try {
@@ -154,6 +157,36 @@ class ClientApplicationBootstrapFacadeTest : ClientKoinIntegrationTestBase() {
 
             assertEquals("new-session-id", sensitiveSettingsRepository.data.value.sessionId)
             assertEquals(expiresAt, sensitiveSettingsRepository.data.value.sessionExpiresAt)
+        }
+
+    @Test
+    fun `a session renewed after the pairing changed is dropped`() =
+        runTest {
+            givenSessionRenewalSucceeds()
+            coEvery { sessionService.requestSession("client-id", "client-secret") } coAnswers {
+                // The user paired another node while the old node's session request was in flight
+                sensitiveSettingsRepository.update { NEW_PAIRING }
+                Result.success(SessionResponse(sessionId = "old-node-session", expiresAt = 1_700_000_000_000L))
+            }
+
+            facade.onTorStartedOrSkipped()
+            advanceUntilIdle()
+
+            assertEquals(NEW_PAIRING, sensitiveSettingsRepository.data.value)
+            coVerify(exactly = 0) { webSocketClientService.connect() }
+        }
+
+    @Test
+    fun `a pairing saved right before the renewed session is written keeps its settings`() =
+        runTest {
+            givenSessionRenewalSucceeds()
+            val racingFacade = createFacade(PairingSavedBeforeNextWrite(sensitiveSettingsRepository))
+
+            racingFacade.onTorStartedOrSkipped()
+            advanceUntilIdle()
+
+            assertEquals(NEW_PAIRING, sensitiveSettingsRepository.data.value)
+            coVerify(exactly = 0) { webSocketClientService.connect() }
         }
 
     @Test
@@ -257,4 +290,25 @@ class ClientApplicationBootstrapFacadeTest : ClientKoinIntegrationTestBase() {
                 facade.bootstrapPhase.value,
             )
         }
+
+    // Saves the new pairing just before the next write, after the facade has read the settings
+    private class PairingSavedBeforeNextWrite(
+        private val delegate: SensitiveSettingsRepositoryMock,
+    ) : SensitiveSettingsRepository by delegate {
+        override suspend fun update(transform: suspend (t: SensitiveSettings) -> SensitiveSettings) {
+            delegate.update { NEW_PAIRING }
+            delegate.update(transform)
+        }
+    }
+
+    private companion object {
+        val NEW_PAIRING =
+            SensitiveSettings(
+                bisqApiUrl = "http://new-node:8080",
+                clientName = "test-client",
+                clientId = "new-client-id",
+                clientSecret = "new-client-secret",
+                sessionId = "new-node-session",
+            )
+    }
 }

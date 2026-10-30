@@ -2,6 +2,8 @@ package network.bisq.mobile.data.service.bootstrap
 
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -47,6 +49,13 @@ abstract class ApplicationLifecycleService(
 ) : BaseService() {
     private val isTerminating = atomic<Boolean>(false)
 
+    // False while an activation runs or after one aborted, e.g. when the local Tor failed to start
+    private val servicesActivated = atomic(false)
+    val areServicesActivated: Boolean get() = servicesActivated.value
+
+    // The cold-start activation, so a restart can cancel it while it still waits for Tor
+    private var activationJob: Job? = null
+
     /**
      * Marks the app as terminating if not already started, returns true if this is the first call.
      * Use this as a one-shot guard.
@@ -70,20 +79,21 @@ abstract class ApplicationLifecycleService(
         bootstrapAnalytics()
 
         log.i { "Initialize core services and Tor" }
-        serviceScope.launch {
-            try {
-                activateServiceFacades()
-            } catch (e: TorBootstrapNotReadyException) {
-                // Swallowed by design (the connection flow retries), but never silently:
-                // an abort here means the rest of activateServiceFacades did not run.
-                log.w(e) { "Service facade activation aborted — Tor bootstrap not ready yet" }
-            } catch (e: CancellationException) {
-                // Scope cancellation is not an unrecoverable error — rethrow so it propagates.
-                throw e
-            } catch (e: Exception) {
-                onUnrecoverableError(e)
+        activationJob =
+            serviceScope.launch {
+                try {
+                    activateAll()
+                } catch (e: TorBootstrapNotReadyException) {
+                    // Swallowed by design (the connection flow retries), but never silently:
+                    // an abort here means the rest of activateServiceFacades did not run.
+                    log.w(e) { "Service facade activation aborted — Tor bootstrap not ready yet" }
+                } catch (e: CancellationException) {
+                    // Scope cancellation is not an unrecoverable error — rethrow so it propagates.
+                    throw e
+                } catch (e: Exception) {
+                    onUnrecoverableError(e)
+                }
             }
-        }
     }
 
     private fun bootstrapAnalytics() {
@@ -209,7 +219,7 @@ abstract class ApplicationLifecycleService(
             return
         }
         try {
-            deactivateServiceFacades()
+            deactivateAll()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -228,7 +238,7 @@ abstract class ApplicationLifecycleService(
             return
         }
         try {
-            activateServiceFacades()
+            activateAll()
         } catch (e: CancellationException) {
             // Caller cancellation is not an unrecoverable error — rethrow so it propagates.
             throw e
@@ -243,9 +253,9 @@ abstract class ApplicationLifecycleService(
      * is unavailable, and shared with connection-retry flows that need a clean
      * lifecycle cycle without killing the process.
      *
-     * Calls [deactivateServiceFacades] / [activateServiceFacades] directly so
-     * failures propagate to the caller (unlike [deactivate]/[activate], which
-     * swallow errors for background lifecycle management).
+     * Cancels a cold-start activation still in flight first. Failures propagate
+     * to the caller (unlike [deactivate]/[activate], which swallow errors for
+     * background lifecycle management).
      */
     suspend fun restartAllServices(): Boolean {
         if (isTerminating.value) {
@@ -253,8 +263,8 @@ abstract class ApplicationLifecycleService(
             return false
         }
         return try {
-            deactivateServiceFacades()
-            activateServiceFacades()
+            deactivateAll()
+            activateAll()
             true
         } catch (_: TorBootstrapNotReadyException) {
             false
@@ -280,8 +290,8 @@ abstract class ApplicationLifecycleService(
             if (purgeTorDir) {
                 kmpTorService.stopAndPurgeWorkingDir()
             }
-            deactivateServiceFacades()
-            activateServiceFacades()
+            deactivateAll()
+            activateAll()
             true
         } catch (_: TorBootstrapNotReadyException) {
             false
@@ -297,7 +307,7 @@ abstract class ApplicationLifecycleService(
         log.e(e) { "Unrecoverable error detected. Application must be restarted. Stopping services." }
         serviceScope.launch {
             try {
-                deactivateServiceFacades()
+                deactivateAll()
             } catch (e: Exception) {
                 log.w(e) { "Error while calling deactivateServiceFacades at onUnrecoverableError. This should not happen." }
             } finally {
@@ -310,6 +320,17 @@ abstract class ApplicationLifecycleService(
 
     protected abstract suspend fun deactivateServiceFacades()
 
+    private suspend fun activateAll() {
+        activateServiceFacades()
+        servicesActivated.value = true
+    }
+
+    private suspend fun deactivateAll() {
+        activationJob?.cancelAndJoin()
+        servicesActivated.value = false
+        deactivateServiceFacades()
+    }
+
     fun terminateApp(view: Any?) {
         if (getPlatformInfo().type != PlatformType.ANDROID) return
 
@@ -320,6 +341,7 @@ abstract class ApplicationLifecycleService(
 
         serviceScope.launch {
             try {
+                // Not deactivateAll(): the process dies anyway, so don't wait for an in-flight activation
                 deactivateServiceFacades()
             } catch (e: Exception) {
                 log.e("Error at shutdownServicesAndTor", e)

@@ -553,5 +553,5 @@ val clientDomainModule =
             )
         }
 
-        factory { TrustedNodeSetupUseCase(get(), get(), get(), get(), get(), get()) }
+        factory { TrustedNodeSetupUseCase(get(), get(), get(), get(), get(), get(), get()) }
     }

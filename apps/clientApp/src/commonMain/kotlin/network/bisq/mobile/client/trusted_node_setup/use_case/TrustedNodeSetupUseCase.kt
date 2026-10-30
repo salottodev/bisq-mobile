@@ -23,6 +23,7 @@ import network.bisq.mobile.client.common.domain.websocket.ConnectionState
 import network.bisq.mobile.client.common.domain.websocket.WebSocketClientService
 import network.bisq.mobile.client.common.domain.websocket.exception.IncompatibleHttpApiVersionException
 import network.bisq.mobile.data.service.bootstrap.ApplicationBootstrapFacade
+import network.bisq.mobile.data.service.bootstrap.ApplicationLifecycleService
 import network.bisq.mobile.data.service.network.KmpTorService
 import network.bisq.mobile.domain.utils.Logging
 import network.bisq.mobile.domain.utils.OperationCancelledException
@@ -47,6 +48,7 @@ class TrustedNodeSetupUseCase(
     private val sensitiveSettingsRepository: SensitiveSettingsRepository,
     private val wsClientService: WebSocketClientService,
     private val applicationBootstrapFacade: ApplicationBootstrapFacade,
+    private val applicationLifecycleService: ApplicationLifecycleService,
 ) : Logging {
     private val _state = MutableStateFlow(TrustedNodeSetupUseCaseState())
     val state = _state.asStateFlow()
@@ -84,6 +86,13 @@ class TrustedNodeSetupUseCase(
             }
 
             apiAccessService.updateSettings(pairingQrCode)
+
+            // A start that failed or is still waiting for Tor leaves the services deactivated;
+            // restart them with the new node's settings
+            if (!applicationLifecycleService.areServicesActivated && !applicationLifecycleService.restartAllServices()) {
+                updateState(TrustedNodeConnectionStatus.Failed())
+                return false
+            }
 
             val proxySettings = determineProxySettings(pairingQrCode, newApiUrl.host)
 
