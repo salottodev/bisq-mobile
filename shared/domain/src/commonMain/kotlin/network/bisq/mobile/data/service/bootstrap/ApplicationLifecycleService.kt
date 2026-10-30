@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import network.bisq.mobile.data.service.BaseService
 import network.bisq.mobile.data.service.network.KmpTorService
 import network.bisq.mobile.data.service.network.TorBootstrapNotReadyException
@@ -57,6 +59,9 @@ abstract class ApplicationLifecycleService(
     // The cold-start activation, so a restart can cancel it while it still waits for Tor
     @Volatile
     private var activationJob: Job? = null
+
+    // Overlapping restarts would interleave their deactivate and activate
+    private val restartMutex = Mutex()
 
     /**
      * Marks the app as terminating if not already started, returns true if this is the first call.
@@ -255,28 +260,31 @@ abstract class ApplicationLifecycleService(
      * is unavailable, and shared with connection-retry flows that need a clean
      * lifecycle cycle without killing the process.
      *
-     * Cancels a cold-start activation still in flight first. Failures propagate
-     * to the caller (unlike [deactivate]/[activate], which swallow errors for
-     * background lifecycle management).
+     * Waits for a restart in progress and cancels a cold-start activation still
+     * in flight first. Reports a failure to the caller as false (unlike
+     * [deactivate]/[activate], which handle errors themselves for background
+     * lifecycle management).
      */
-    suspend fun restartAllServices(): Boolean {
-        if (isTerminating.value) {
-            log.w { "Cannot restart services: app is terminating" }
-            return false
+    suspend fun restartAllServices(): Boolean =
+        restartMutex.withLock {
+            // Under the lock: a restart that waited may find the app terminating
+            if (isTerminating.value) {
+                log.w { "Cannot restart services: app is terminating" }
+                return@withLock false
+            }
+            try {
+                deactivateAll()
+                activateAll()
+                true
+            } catch (_: TorBootstrapNotReadyException) {
+                false
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.e(e) { "Service restart failed" }
+                false
+            }
         }
-        return try {
-            deactivateAll()
-            activateAll()
-            true
-        } catch (_: TorBootstrapNotReadyException) {
-            false
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            log.e(e) { "Service restart failed" }
-            false
-        }
-    }
 
     /**
      * Full in-process recovery after a Tor bootstrap failure on splash.
@@ -286,6 +294,11 @@ abstract class ApplicationLifecycleService(
      */
     suspend fun restartTorBootstrap(purgeTorDir: Boolean = false): Boolean {
         if (isTerminating.value) {
+            return false
+        }
+        // Skips instead of waiting: a queued cycle would re-initialize bisq2 on Node
+        if (!restartMutex.tryLock()) {
+            log.i { "Ignoring Tor restart: a restart is already running" }
             return false
         }
         return try {
@@ -302,6 +315,8 @@ abstract class ApplicationLifecycleService(
         } catch (e: Exception) {
             log.e(e) { "restartTorBootstrap failed" }
             false
+        } finally {
+            restartMutex.unlock()
         }
     }
 
